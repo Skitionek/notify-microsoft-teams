@@ -32,7 +32,7 @@
   },
   "homepage"       : "https://github.com/Skitionek/notify-microsoft-teams#readme",
   "dependencies"   : {
-	"@actions/core"   : "^1.2.3",
+	"@actions/core"   : "^1.2.6",
 	"@octokit/rest"   : "^17.5.2",
 	"botbuilder"      : "^4.8.0",
 	"lodash.merge"    : "^4.6.2",
