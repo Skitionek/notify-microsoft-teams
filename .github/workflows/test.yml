@@ -79,6 +79,8 @@ jobs:
         if: failure()
         run: |
           echo 'MSTeams failure notification succeeded'
+          echo "${{ toJson(needs) }}"
+          echo "${{ toJson(steps) }}"
           exit 0
 
 
