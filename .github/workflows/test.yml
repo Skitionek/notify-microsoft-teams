@@ -79,7 +79,7 @@ jobs:
         if: failure()
         run: |
           echo 'MSTeams failure notification succeeded'
-          echo '$GITHUB_CONTEXT'
+          echo $GITHUB_CONTEXT
           exit 0
 
 
