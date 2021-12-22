@@ -79,8 +79,7 @@ jobs:
         if: failure()
         run: |
           echo 'MSTeams failure notification succeeded'
-          echo "${{ toJson(needs) }}"
-          echo "${{ toJson(steps) }}"
+          echo "$GITHUB_CONTEXT"
           exit 0
 
 
