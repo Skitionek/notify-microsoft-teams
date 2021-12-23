@@ -76,6 +76,14 @@ jobs:
           echo '::set-output name=needs::$(echo $needs | jq ".[].result = \"failure\"")'
           echo '::set-output name=steps::$(echo $steps | jq ".[].outcome = \"failure\"")'
 
+      - name: Check overwrites
+        env:
+          steps: ${{ toJson(steps) }}
+          needs: ${{ toJson(needs) }}
+        run: |
+          echo 'Needs: $needs'
+          echo 'Steps: $steps'
+
       - name: MSTeams Notification
         uses: ./
         if: always()
