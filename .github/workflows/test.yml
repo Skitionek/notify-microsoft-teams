@@ -63,6 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - id: Forced_failure
+        name: Forced failing step
         run: |
           echo "Output of this action will be localy overwriten to be a failure"
           echo "::set-output name=set_status::so_it_is_not_neglected"
@@ -107,7 +108,6 @@ jobs:
           echo 'MSTeams failure notification succeeded'
           echo $steps
           echo $needs
-
 
   without_optional_params:
     name: One with little info
