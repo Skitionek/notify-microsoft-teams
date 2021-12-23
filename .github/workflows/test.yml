@@ -80,10 +80,12 @@ jobs:
         env:
           steps: ${{ toJson(steps) }}
           needs: ${{ toJson(needs) }}
+          abc: '{"abc": "why it does not work?"}'
         run: |
           echo 'MSTeams failure notification succeeded'
           echo $steps | jq '.[].outcome = "failure"'
           echo $needs | jq '.[].result = "failure"'
+          echo $abc
           exit 0
 
 
