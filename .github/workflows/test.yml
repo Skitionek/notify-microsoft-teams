@@ -62,6 +62,8 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
+      - id: test
+        run: echo "::set-output name=foo::bar"
       - name: Forced failure
         run: exit 1
 
@@ -75,8 +77,6 @@ jobs:
           steps: ${{ toJson(steps) }}
           dry_run: ${{ !github.event.action == 'release' }}
 
-      - id: test
-        run: echo "::set-output name=foo::bar"
 
       - name: Check if work properly
         if: failure()
