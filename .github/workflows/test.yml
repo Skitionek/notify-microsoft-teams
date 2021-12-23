@@ -73,13 +73,17 @@ jobs:
           steps: ${{ toJson(steps) }}
           needs: ${{ toJson(needs) }}
         run: |
-          echo "::set-output name=needs::$(echo $needs | jq '.[].result = "failure"')"
-          echo "::set-output name=steps::$(echo $steps | jq '.[].outcome = "failure"')"
+          echo "needs<<EOF" >> $GITHUB_ENV
+          echo $needs | jq '.[].result = "failure"' >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          echo "steps<<EOF" >> $GITHUB_ENV
+          echo $steps | jq '.[].outcome = "failure"' >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Check overwrites
         env:
-          steps: ${{ steps.overwrites.outputs.steps }}
-          needs: ${{ steps.overwrites.outputs.needs }}
+          steps: ${{ env.steps }}
+          needs: ${{ env.needs }}
         run: |
           echo "Needs: $needs"
           echo "Steps: $steps"
@@ -89,9 +93,9 @@ jobs:
         if: always()
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          needs: ${{ steps.overwrites.outputs.needs }}
+          needs: ${{ env.needs }}
           job: ${{ toJson(job) }}
-          steps: ${{ steps.overwrites.outputs.steps }}
+          steps: ${{ env.steps }}
           dry_run: ${{ !github.event.action == 'release' }}
 
 
