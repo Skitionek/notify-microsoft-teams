@@ -81,8 +81,8 @@ jobs:
           steps: ${{ toJson(steps) }}
           needs: ${{ toJson(needs) }}
         run: |
-          echo 'Needs: $needs'
-          echo 'Steps: $steps'
+          echo "Needs: $needs"
+          echo "Steps: $steps"
 
       - name: MSTeams Notification
         uses: ./
