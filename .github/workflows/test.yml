@@ -77,9 +77,11 @@ jobs:
 
       - name: Check if work properly
         if: failure()
+        env:
+          steps: ${{ toJson(steps) }}
         run: |
           echo 'MSTeams failure notification succeeded'
-          echo $GITHUB_CONTEXT
+          echo $steps | jq '.[].outcome = "failure"'
           exit 0
 
 
