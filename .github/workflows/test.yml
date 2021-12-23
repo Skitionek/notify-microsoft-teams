@@ -75,6 +75,9 @@ jobs:
           steps: ${{ toJson(steps) }}
           dry_run: ${{ !github.event.action == 'release' }}
 
+      - id: test
+        run: echo "::set-output name=foo::bar"
+
       - name: Check if work properly
         if: failure()
         env:
@@ -85,7 +88,7 @@ jobs:
           echo 'MSTeams failure notification succeeded'
           echo $steps | jq '.[].outcome = "failure"'
           echo $needs | jq '.[].result = "failure"'
-          echo $abc | jq '.[].result = "failure"'
+          echo $abc   | jq '.[].result = "failure"'
           echo $abc
           exit 0
 
