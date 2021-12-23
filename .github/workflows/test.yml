@@ -81,9 +81,9 @@ jobs:
         if: always()
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          needs: ${{ steps.overwrites.needs }}
+          needs: ${{ steps.overwrites.outputs.needs }}
           job: ${{ toJson(job) }}
-          steps: ${{ steps.overwrites.steps }}
+          steps: ${{ steps.overwrites.outputs.steps }}
           dry_run: ${{ !github.event.action == 'release' }}
 
 
