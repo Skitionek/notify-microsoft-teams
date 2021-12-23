@@ -79,9 +79,11 @@ jobs:
         if: failure()
         env:
           steps: ${{ toJson(steps) }}
+          needs: ${{ toJson(needs) }}
         run: |
           echo 'MSTeams failure notification succeeded'
           echo $steps | jq '.[].outcome = "failure"'
+          echo $needs | jq '.[].result = "failure"'
           exit 0
 
 
