@@ -78,8 +78,8 @@ jobs:
 
       - name: Check overwrites
         env:
-          steps: ${{ toJson(steps) }}
-          needs: ${{ toJson(needs) }}
+          steps: ${{ steps.overwrites.outputs.steps }}
+          needs: ${{ steps.overwrites.outputs.needs }}
         run: |
           echo "Needs: $needs"
           echo "Steps: $steps"
