@@ -31,7 +31,7 @@ You can customize the following parameters:
 |with parameter|required/optional|default|description|
 |:--:|:--:|:--|:--|
 |webhook_url|optional|$MSTEAMS_WEBHOOK|Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable|
-|job|optional|{}}|JSON parsed job context|
+|job|optional|{}|JSON parsed job context|
 |steps|optional|{}|JSON parsed steps context|
 |needs|optional|{}|JSON parsed needs context|
 |dry_run|optional|False|Do not actually send the message|
