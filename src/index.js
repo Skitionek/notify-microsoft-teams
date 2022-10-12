@@ -21,12 +21,12 @@ async function run() {
 			);
 		}
 
-
 		let job = access_context('job');
 		let steps = access_context('steps');
 		let needs = access_context('needs');
 
 		let overwrite = core.getInput('overwrite');
+		let run_id = core.getInput('run_id');
 		let raw = core.getInput('raw');
 		let dry_run = core.getInput('dry_run');
 
@@ -37,6 +37,7 @@ async function run() {
 			needs,
 			raw,
 			overwrite,
+			run_id,
 			dry_run
 		})}`);
 
@@ -48,7 +49,8 @@ async function run() {
 					job,
 					steps,
 					needs,
-					overwrite
+					overwrite,
+					run_id
 				}
 			);
 		} else {

@@ -8,6 +8,9 @@ inputs:
   raw:
     description: 'JSON object to send to Microsoft Teams'
     required: false
+  run_id:
+    description: 'the run_id of the workflow, to provide a direct link in the message'
+    required: false
   overwrite:
     description: 'JSON like object to overwrite default message (executed with eval)'
     required: false
@@ -24,7 +27,7 @@ inputs:
     description: 'Do not actually send the message'
     required: false
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dist/index.js'
 branding:
   icon: 'bell'

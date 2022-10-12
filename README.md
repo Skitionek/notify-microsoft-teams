@@ -36,6 +36,7 @@ You can customize the following parameters:
 |needs|optional|{}|JSON parsed needs context|
 |dry_run|optional|False|Do not actually send the message|
 |raw|optional|''|JSON object to send to Microsoft Teams|
+|run_id|optional|''|Workflow run ID to create a direct link - unfortunately it's not included in the environment|
 |overwrite|optional|''|JSON like object to overwrite default message (executed with eval)|
 
 Please refer [action.yml](./action.yml) for more details.
@@ -63,6 +64,7 @@ jobs:
           needs: ${{ toJson(needs) }}
           job: ${{ toJson(job) }}
           steps: ${{ toJson(steps) }}
+          run_id: ${{ github.run_id }}
           dry_run: True
 
 
@@ -87,7 +89,7 @@ jobs:
         if: always()
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          overwrite: "{title: `Overwrote title in ${workflow_link}`}"
+          overwrite: "{title: `Overwrote title for ${repository.name}`}"
 
   with_raw:
     name: One with raw data
@@ -103,11 +105,11 @@ jobs:
             {
               "@type": "MessageCard",
               "@context": "http://schema.org/extensions",
-              "title": "No ${variables} avaliable in here"
+              "title": "No ${variables} available in here"
             }
 
   if_failure:
-    name: Only if failure
+    name: Only on failure
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master

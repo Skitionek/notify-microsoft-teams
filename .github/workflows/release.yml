@@ -1,4 +1,4 @@
-name: CI
+name: Release
 
 on:
   push:
@@ -9,8 +9,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
       - name: Install dependencies
@@ -25,10 +25,11 @@ jobs:
         run: npx semantic-release
 
       - name: MSTeams Notification
-        uses: skitionek/notify-microsoft-teams@master
+        uses: smlgbl/notify-microsoft-teams@master
         if: always()
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
           needs: ${{ toJson(needs) }}
           job: ${{ toJson(job) }}
           steps: ${{ toJson(steps) }}
+          run_id: ${{ github.run_id }}

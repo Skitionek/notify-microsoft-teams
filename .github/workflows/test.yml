@@ -7,7 +7,7 @@ on:
 jobs:
   success:
     name: One with everything
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - name: MSTeams Notification
@@ -23,30 +23,9 @@ jobs:
   needy_one:
     name: One with needs
     needs: success
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          needs: ${{ toJson(needs) }}
-          job: ${{ toJson(job) }}
-          steps: ${{ toJson(steps) }}
-          dry_run: ${{ !github.event.action == 'release' }}
-
-  steps_one:
-    name: One with steps
-    needs: success
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout from version control
-        uses: actions/checkout@master
-      - name: Do nothing 1
-        uses: skitionek/star-wars-quote-action@master
-      - name: Do nothing 2
-        uses: skitionek/star-wars-quote-action@master
       - name: MSTeams Notification
         uses: ./
         if: always()
@@ -59,14 +38,14 @@ jobs:
 
   failure:
     name: One failure
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       
       - id: Forced_failure
         name: Forced failing step
         run: |
-          echo "Output of this action will be localy overwriten to be a failure"
+          echo "Output of this action will be locally overwritten to be a failure"
           echo "::set-output name=set_status::so_it_is_not_neglected"
           
       - name: Overwrite status
@@ -107,7 +86,7 @@ jobs:
 
   without_optional_params:
     name: One with little info
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - name: MSTeams Notification
@@ -119,7 +98,7 @@ jobs:
 
   with_overwrite:
     name: One with overwrite
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - name: MSTeams Notification
@@ -127,14 +106,15 @@ jobs:
         if: always()
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          overwrite: "{title: `Overwrote title in ${workflow_link}`}"
+          overwrite: "{title: `Overwrote title for ${repository.name}`}"
           job: ${{ toJson(job) }}
           steps: ${{ toJson(steps) }}
+          run_id: ${{ github.run_id }}
           dry_run: ${{ !github.event.action == 'release' }}
 
   with_raw:
     name: One with raw data
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - name: MSTeams Notification
@@ -146,7 +126,7 @@ jobs:
             {
               "@type": "MessageCard",
               "@context": "http://schema.org/extensions",
-              "title": "No ${variables} avaliable in here",
-              "text": "Lorem ipssum"
+              "title": "No ${variables} available in here",
+              "text": "Lorem ipsum"
             }
           dry_run: ${{ !github.event.action == 'release' }}
