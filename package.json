@@ -38,7 +38,7 @@
     "@octokit/rest": "^17.11.2",
     "botbuilder": "^4.19.0",
     "lodash.merge": "^4.6.2",
-    "ms-teams-webhook": "^1.0.4",
+    "ms-teams-webhook": "^2.0.3",
     "@snyk/protect": "latest"
   },
   "devDependencies": {
