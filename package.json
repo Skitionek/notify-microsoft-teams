@@ -39,7 +39,7 @@
     "botbuilder": "^4.19.0",
     "lodash.merge": "^4.6.2",
     "ms-teams-webhook": "^1.0.4",
-    "@snyk/protect": "latest"
+    "@snyk/protect": "1.1095.0"
   },
   "devDependencies": {
     "@actions/github": "^2.1.1",
