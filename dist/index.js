@@ -106060,7 +106060,7 @@ class MSTeams {
             ...mentionedIds
           ],
           '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
-          version: '1.5',
+          version: '1.4',
           msteams: {
             entities: entities
           }
@@ -106095,6 +106095,7 @@ class MSTeams {
 }
 
 module.exports = MSTeams;
+
 
 /***/ }),
 
