@@ -36,7 +36,7 @@
   "dependencies": {
     "@actions/core": "^1.9.1",
     "@octokit/rest": "^21.1.1",
-    "botbuilder": "^4.23.0",
+    "botbuilder": "^4.23.2",
     "lodash.merge": "^4.6.2",
     "ms-teams-webhook": "^2.2.2",
     "@snyk/protect": "latest"
