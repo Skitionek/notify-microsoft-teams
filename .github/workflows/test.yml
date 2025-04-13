@@ -1,199 +1,30 @@
-name: Check notification
+name: Run Tests
 
 on:
-  push: { }
-  release: { }
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
-  success:
-    name: One with everything
+  test:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4.3.0
         with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          needs: ${{ toJson(needs) }}
-          job: ${{ toJson(job) }}
-          steps: ${{ toJson(steps) }}
-          dry_run: ${{ !github.event.action == 'release' }}
+          node-version: '20'
 
-  needy_one:
-    name: One with needs
-    needs: success
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          needs: ${{ toJson(needs) }}
-          job: ${{ toJson(job) }}
-          steps: ${{ toJson(steps) }}
-          dry_run: ${{ !github.event.action == 'release' }}
+      - name: Install dependencies
+        run: npm install
 
-  steps_one:
-    name: One with steps
-    needs: success
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout from version control
-        uses: actions/checkout@master
-      - name: Do nothing 1
-        uses: skitionek/star-wars-quote-action@master
-      - name: Do nothing 2
-        uses: skitionek/star-wars-quote-action@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          needs: ${{ toJson(needs) }}
-          job: ${{ toJson(job) }}
-          steps: ${{ toJson(steps) }}
-          dry_run: ${{ !github.event.action == 'release' }}
-
-  failure:
-    name: One failure
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-
-      - id: Forced_failure
-        name: Forced failing step
-        run: |
-          echo "Output of this action will be localy overwriten to be a failure"
-          echo "::set-output name=set_status::so_it_is_not_neglected"
-
-      - name: Overwrite status
-        id: overwrites
-        env:
-          steps: ${{ toJson(steps) }}
-          needs: ${{ toJson(needs) }}
-        run: |
-          echo "needs<<EOF" >> $GITHUB_ENV
-          echo $needs | jq '.[].result = "failure"' >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "steps<<EOF" >> $GITHUB_ENV
-          echo $steps | jq '.[].outcome = "failure"' >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Check overwrites
-        env:
-          steps: ${{ env.steps }}
-          needs: ${{ env.needs }}
-        run: |
-          echo "Needs: $needs"
-          echo "Steps: $steps"
-
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          needs: ${{ env.needs }}
-          job: ${{ toJson(job) }}
-          steps: ${{ env.steps }}
-          dry_run: ${{ !github.event.action == 'release' }}
-
-      - name: Confirm finish
-        run: |
-          echo 'MSTeams failure notification succeeded'
-
-
-  without_optional_params:
-    name: One with little info
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          dry_run: ${{ !github.event.action == 'release' }}
-
-  without_emails:
-    name: One without emails
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          title: "`Overwrote title in ${workflow_link}`"
-          job: ${{ toJson(job) }}
-          steps: ${{ toJson(steps) }}
-          dry_run: ${{ !github.event.action == 'release' }}
-
-  with_emails:
-    name: One with emails
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          title: "`Overwrote title in ${workflow_link}`"
-          msteams_emails: "mm@mm.mm, yy@yy.yy, rr@rr.rr"
-          job: ${{ toJson(job) }}
-          steps: ${{ toJson(steps) }}
-          dry_run: ${{ !github.event.action == 'release' }}
-
-  with_overwrite:
-    name: One with overwrite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          title: "`Overwrote title in ${workflow_link}`"
-          job: ${{ toJson(job) }}
-          steps: ${{ toJson(steps) }}
-          dry_run: ${{ !github.event.action == 'release' }}
-
-  with_raw:
-    name: One with raw data
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: MSTeams Notification
-        uses: ./
-        if: always()
-        with:
-          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          raw: >-
-            {
-                "type": "message",
-                "attachments":
-                [
-                    {
-                        "contentType": "application/vnd.microsoft.card.adaptive",
-                        "content":
-                        {
-                            "type": "AdaptiveCard",
-                            "body":
-                            [
-                                {
-                                    "type": "TextBlock",
-                                    "size": "Medium",
-                                    "weight": "Bolder",
-                                    "text": "Test title text"
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-          dry_run: ${{ !github.event.action == 'release' }}
+      - name: Run Jest tests
+        run: npm test

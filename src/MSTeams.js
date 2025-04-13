@@ -277,10 +277,19 @@ class MSTeams {
    * @returns {Promise} result
    */
   async notify(url, payload) {
+    if (!url) {
+      throw new Error('Missing Microsoft Teams Incoming Webhooks URL.\n' +
+        'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
+        'specify the key called "webhook_url" in "with" section.');
+    }
+    if (!payload) {
+      throw new Error('Missing payload for Microsoft Teams notification.\n' +
+        'Please provide a valid payload.');
+    }
     const client = new IncomingWebhook(url);
     const response = await client.send(payload);
 
-    if (!response.text) {
+    if (!response?.text) {
       throw new Error('Failed to send notification to Microsoft Teams.\n' + 'Response:\n' + JSON.stringify(response, null, 2));
     }
   }

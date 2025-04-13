@@ -1,0 +1,718 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "facts": [
+              {
+                "title": "✓ need_1",
+                "value": "Success!",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "columns": [
+              {
+                "items": [
+                  {
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "Success!",
+                    "type": "TextBlock",
+                    "weight": "bolder",
+                  },
+                  {
+                    "text": "timestamp",
+                    "type": "TextBlock",
+                  },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {},
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.5",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}},{"name":"step_2","status":"failure","outputs":{"key3":"value3"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "facts": [
+              {
+                "title": "? 0",
+                "value": "No job context has been provided",
+              },
+              {
+                "title": "? 1",
+                "value": "No job context has been provided",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "facts": [
+              {
+                "title": "✓ need_1",
+                "value": "Success!",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "columns": [
+              {
+                "items": [
+                  {
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "Success!",
+                    "type": "TextBlock",
+                    "weight": "bolder",
+                  },
+                  {
+                    "text": "timestamp",
+                    "type": "TextBlock",
+                  },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {},
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.5",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"custom","outputs":{"key2":"value2"}},"need_2":{"result":"failure","outputs":{"key4":"value4"}},"abcdefghijklmnoprstuwxyz":{"result":"success","outputs":{"key5":"value5"}}},"msteams_emails":"foo1@bar.com, foo2@bar.com"}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "facts": [
+              {
+                "title": "? 0",
+                "value": "No job context has been provided",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "facts": [
+              {
+                "title": "? need_1",
+                "value": "No job context has been provided",
+              },
+              {
+                "title": "✗ need_2",
+                "value": "Failure",
+              },
+              {
+                "title": "✓ abcdefghijkl...",
+                "value": "Success!",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "columns": [
+              {
+                "items": [
+                  {
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "Success!",
+                    "type": "TextBlock",
+                    "weight": "bolder",
+                  },
+                  {
+                    "text": "timestamp",
+                    "type": "TextBlock",
+                  },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+          {
+            "text": "<at>foo1@bar.com</at> <at>foo2@bar.com</at>",
+            "type": "TextBlock",
+            "wrap": true,
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {
+              "mentioned": {
+                "id": "foo1@bar.com",
+                "name": "foo1@bar.com",
+              },
+              "text": "<at>foo1@bar.com</at>",
+              "type": "mention",
+            },
+            {
+              "mentioned": {
+                "id": "foo2@bar.com",
+                "name": "foo2@bar.com",
+              },
+              "text": "<at>foo2@bar.com</at>",
+              "type": "mention",
+            },
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.5",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "facts": [
+              {
+                "title": "? 0",
+                "value": "No job context has been provided",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "facts": [
+              {
+                "title": "✓ need_1",
+                "value": "Success!",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "columns": [
+              {
+                "items": [
+                  {
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "Success!",
+                    "type": "TextBlock",
+                    "weight": "bolder",
+                  },
+                  {
+                    "text": "timestamp",
+                    "type": "TextBlock",
+                  },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {},
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.5",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{},"msteams_emails":""}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "facts": [
+              {
+                "title": "? 0",
+                "value": "No job context has been provided",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "columns": [
+              {
+                "items": [
+                  {
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "Success!",
+                    "type": "TextBlock",
+                    "weight": "bolder",
+                  },
+                  {
+                    "text": "timestamp",
+                    "type": "TextBlock",
+                  },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {},
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.5",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":null,"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "facts": [
+              {
+                "title": "? 0",
+                "value": "No job context has been provided",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "facts": [
+              {
+                "title": "✓ need_1",
+                "value": "Success!",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "columns": [
+              {
+                "items": [
+                  {
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/unknown.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "No job context has been provided",
+                    "type": "TextBlock",
+                    "weight": "bolder",
+                  },
+                  {
+                    "text": "timestamp",
+                    "type": "TextBlock",
+                  },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {},
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.5",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":null,"job":null,"steps":[],"needs":{}}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "columns": [
+              {
+                "items": [
+                  {
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/unknown.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "No job context has been provided",
+                    "type": "TextBlock",
+                    "weight": "bolder",
+                  },
+                  {
+                    "text": "timestamp",
+                    "type": "TextBlock",
+                  },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {},
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.5",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
