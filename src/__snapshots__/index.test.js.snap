@@ -17,7 +17,7 @@ exports[`run function with various combinations of job, steps, and needs should 
           },
           {
             "size": "Medium",
-            "text": "[undefined]()",
+            "text": "[undefined](html_url)",
             "type": "TextBlock",
             "weight": "lighter",
           },
@@ -53,7 +53,7 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "weight": "bolder",
                   },
                   {
-                    "text": "",
+                    "text": "timestamp",
                     "type": "TextBlock",
                   },
                 ],
@@ -68,12 +68,12 @@ exports[`run function with various combinations of job, steps, and needs should 
               {
                 "title": "Repository",
                 "type": "Action.OpenUrl",
-                "url": "",
+                "url": "html_url",
               },
               {
                 "title": "Compare",
                 "type": "Action.OpenUrl",
-                "url": undefined,
+                "url": "compare_url",
               },
             ],
             "type": "ActionSet",
@@ -111,7 +111,7 @@ exports[`run function with various combinations of job, steps, and needs should 
           },
           {
             "size": "Medium",
-            "text": "[undefined]()",
+            "text": "[undefined](html_url)",
             "type": "TextBlock",
             "weight": "lighter",
           },
@@ -160,7 +160,7 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "weight": "bolder",
                   },
                   {
-                    "text": "",
+                    "text": "timestamp",
                     "type": "TextBlock",
                   },
                 ],
@@ -175,12 +175,12 @@ exports[`run function with various combinations of job, steps, and needs should 
               {
                 "title": "Repository",
                 "type": "Action.OpenUrl",
-                "url": "",
+                "url": "html_url",
               },
               {
                 "title": "Compare",
                 "type": "Action.OpenUrl",
-                "url": undefined,
+                "url": "compare_url",
               },
             ],
             "type": "ActionSet",
@@ -218,7 +218,7 @@ exports[`run function with various combinations of job, steps, and needs should 
           },
           {
             "size": "Medium",
-            "text": "[undefined]()",
+            "text": "[undefined](html_url)",
             "type": "TextBlock",
             "weight": "lighter",
           },
@@ -271,7 +271,7 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "weight": "bolder",
                   },
                   {
-                    "text": "",
+                    "text": "timestamp",
                     "type": "TextBlock",
                   },
                 ],
@@ -286,12 +286,12 @@ exports[`run function with various combinations of job, steps, and needs should 
               {
                 "title": "Repository",
                 "type": "Action.OpenUrl",
-                "url": "",
+                "url": "html_url",
               },
               {
                 "title": "Compare",
                 "type": "Action.OpenUrl",
-                "url": undefined,
+                "url": "compare_url",
               },
             ],
             "type": "ActionSet",
@@ -349,7 +349,7 @@ exports[`run function with various combinations of job, steps, and needs should 
           },
           {
             "size": "Medium",
-            "text": "[undefined]()",
+            "text": "[undefined](html_url)",
             "type": "TextBlock",
             "weight": "lighter",
           },
@@ -394,7 +394,7 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "weight": "bolder",
                   },
                   {
-                    "text": "",
+                    "text": "timestamp",
                     "type": "TextBlock",
                   },
                 ],
@@ -409,12 +409,12 @@ exports[`run function with various combinations of job, steps, and needs should 
               {
                 "title": "Repository",
                 "type": "Action.OpenUrl",
-                "url": "",
+                "url": "html_url",
               },
               {
                 "title": "Compare",
                 "type": "Action.OpenUrl",
-                "url": undefined,
+                "url": "compare_url",
               },
             ],
             "type": "ActionSet",
@@ -452,7 +452,7 @@ exports[`run function with various combinations of job, steps, and needs should 
           },
           {
             "size": "Medium",
-            "text": "[undefined]()",
+            "text": "[undefined](html_url)",
             "type": "TextBlock",
             "weight": "lighter",
           },
@@ -488,7 +488,7 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "weight": "bolder",
                   },
                   {
-                    "text": "",
+                    "text": "timestamp",
                     "type": "TextBlock",
                   },
                 ],
@@ -503,12 +503,12 @@ exports[`run function with various combinations of job, steps, and needs should 
               {
                 "title": "Repository",
                 "type": "Action.OpenUrl",
-                "url": "",
+                "url": "html_url",
               },
               {
                 "title": "Compare",
                 "type": "Action.OpenUrl",
-                "url": undefined,
+                "url": "compare_url",
               },
             ],
             "type": "ActionSet",
@@ -546,7 +546,7 @@ exports[`run function with various combinations of job, steps, and needs should 
           },
           {
             "size": "Medium",
-            "text": "[undefined]()",
+            "text": "[undefined](html_url)",
             "type": "TextBlock",
             "weight": "lighter",
           },
@@ -591,7 +591,7 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "weight": "bolder",
                   },
                   {
-                    "text": "",
+                    "text": "timestamp",
                     "type": "TextBlock",
                   },
                 ],
@@ -606,12 +606,12 @@ exports[`run function with various combinations of job, steps, and needs should 
               {
                 "title": "Repository",
                 "type": "Action.OpenUrl",
-                "url": "",
+                "url": "html_url",
               },
               {
                 "title": "Compare",
                 "type": "Action.OpenUrl",
-                "url": undefined,
+                "url": "compare_url",
               },
             ],
             "type": "ActionSet",
@@ -649,7 +649,7 @@ exports[`run function with various combinations of job, steps, and needs should 
           },
           {
             "size": "Medium",
-            "text": "[undefined]()",
+            "text": "[undefined](html_url)",
             "type": "TextBlock",
             "weight": "lighter",
           },
@@ -676,7 +676,7 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "weight": "bolder",
                   },
                   {
-                    "text": "",
+                    "text": "timestamp",
                     "type": "TextBlock",
                   },
                 ],
@@ -691,12 +691,12 @@ exports[`run function with various combinations of job, steps, and needs should 
               {
                 "title": "Repository",
                 "type": "Action.OpenUrl",
-                "url": "",
+                "url": "html_url",
               },
               {
                 "title": "Compare",
                 "type": "Action.OpenUrl",
-                "url": undefined,
+                "url": "compare_url",
               },
             ],
             "type": "ActionSet",

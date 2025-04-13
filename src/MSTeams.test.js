@@ -2,6 +2,29 @@
 const MSTeams = require('./MSTeams');
 const { IncomingWebhook } = require('ms-teams-webhook');
 
+// Mock the github context
+jest.mock('@actions/github', () => ({
+  context: {
+  payload: {
+    repository: {
+      html_url: 'html_url',
+      name: 'name'
+    },
+    compare: 'compare_url',
+    sender: {
+      login: 'login',
+      url: 'url'
+    },
+    commits: [],
+    head_commit: {
+      timestamp: 'timestamp'
+    }
+  },
+  eventName: 'push',
+  workflow: 'test_workflow'
+}
+}));
+
 jest.mock('ms-teams-webhook');
 
 describe('MSTeams.notify', () => {

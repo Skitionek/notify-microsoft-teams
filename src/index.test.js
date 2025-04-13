@@ -4,6 +4,29 @@ const { run } = require('./index');
 jest.mock('@actions/core');
 const core = require('@actions/core');
 
+// Mock the github context
+jest.mock('@actions/github', () => ({
+    context: {
+    payload: {
+      repository: {
+        html_url: 'html_url',
+        name: 'name'
+      },
+      compare: 'compare_url',
+      sender: {
+        login: 'login',
+        url: 'url'
+      },
+      commits: [],
+      head_commit: {
+        timestamp: 'timestamp'
+      }
+    },
+    eventName: 'push',
+    workflow: 'test_workflow'
+  }
+}));
+
 // Mock the process.env object
 process.env = {};
 
