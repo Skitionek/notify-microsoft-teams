@@ -40,12 +40,12 @@ describe('MSTeams.notify', () => {
     // Mock the IncomingWebhook class and its send method
     mockSend = jest.fn();
     IncomingWebhook.mockImplementation(() => ({
-      send: mockSend,
+      sendRawAdaptiveCard: mockSend,
     }));
   });
 
   it('should send a success notification', async () => {
-    mockSend.mockResolvedValueOnce({ text: 'ok' });
+    mockSend.mockResolvedValueOnce({ status: 202 });
 
     const msTeams = new MSTeams();
     await msTeams.notify(webhookUrl, payload);
