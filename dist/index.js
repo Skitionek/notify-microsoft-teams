@@ -105957,7 +105957,7 @@ const statusSummary = (job) => {
             },
             {
               type: 'TextBlock',
-              text: activitySubtitle
+              text: `{{DATE(${activitySubtitle}, COMPACT)}} {{TIME(${activitySubtitle})}}`,
             }
           ],
           width: 'stretch'
