@@ -105926,7 +105926,7 @@ const emailsToMsTeamsEntities = (emails) => {
   });
 };
 
-const statusSummary = (job) => {
+const statusSummary = (job, localized_datetime) => {
   const {
     activityTitle, activitySubtitle, activityImage, color
   } = Status(job.status);
@@ -105955,10 +105955,10 @@ const statusSummary = (job) => {
               weight: 'bolder',
               text: activityTitle
             },
-            {
+            ...(localized_datetime && activitySubtitle ? [{
               type: 'TextBlock',
-              text: `{{DATE(${activitySubtitle}, COMPACT)}} {{TIME(${activitySubtitle})}}`,
-            }
+              text: `{{DATE(${activitySubtitle}, SHORT)}} {{TIME(${activitySubtitle})}}`,
+            }] : [])
           ],
           width: 'stretch'
         }
@@ -105979,6 +105979,7 @@ class MSTeams {
    * @param needs
    * @param title {string} msteams message title
    * @param msteams_emails {string} msteams emails in CSV
+   * @param localized_datetime {boolean} whether to use localized datetime format
    * @return
    */
   async generatePayload({
@@ -105986,11 +105987,12 @@ class MSTeams {
                           steps = {},
                           needs = {},
                           title = '',
-                          msteams_emails = ''
+                          msteams_emails = '',
+                          localized_datetime = false
                         }) {
     const steps_summary = summary_generator(steps, 'outcome');
     const needs_summary = summary_generator(needs, 'result');
-    const status_summary = statusSummary(job);
+    const status_summary = statusSummary(job, localized_datetime);
 
     const commitChangeLog = changelog ?
       [
@@ -111588,6 +111590,7 @@ async function run() {
 		let msteams_emails= core.getInput('msteams_emails');
 		let raw = core.getInput('raw');
 		let dry_run = core.getInput('dry_run');
+		let localized_datetime = core.getInput('localized_datetime');
 
 		core.info(`Parsed params:\n${JSON.stringify({
 			webhook_url: '***',
@@ -111597,7 +111600,8 @@ async function run() {
 			raw,
 			title,
 			msteams_emails,
-			dry_run
+			dry_run,
+			localized_datetime
 		})}`);
 
 		const msteams = new MSTeams();
@@ -111609,7 +111613,8 @@ async function run() {
 					steps,
 					needs,
 					title,
-					msteams_emails
+					msteams_emails,
+					localized_datetime
 				}
 			);
 		} else {

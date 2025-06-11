@@ -127,7 +127,7 @@ const emailsToMsTeamsEntities = (emails) => {
   });
 };
 
-const statusSummary = (job) => {
+const statusSummary = (job, localized_datetime) => {
   const {
     activityTitle, activitySubtitle, activityImage, color
   } = Status(job.status);
@@ -156,10 +156,10 @@ const statusSummary = (job) => {
               weight: 'bolder',
               text: activityTitle
             },
-            {
+            ...(localized_datetime && activitySubtitle ? [{
               type: 'TextBlock',
-              text: `{{DATE(${activitySubtitle}, COMPACT)}} {{TIME(${activitySubtitle})}}`,
-            }
+              text: `{{DATE(${activitySubtitle}, SHORT)}} {{TIME(${activitySubtitle})}}`,
+            }] : [])
           ],
           width: 'stretch'
         }
@@ -180,6 +180,7 @@ class MSTeams {
    * @param needs
    * @param title {string} msteams message title
    * @param msteams_emails {string} msteams emails in CSV
+   * @param localized_datetime {boolean} whether to use localized datetime format
    * @return
    */
   async generatePayload({
@@ -187,11 +188,12 @@ class MSTeams {
                           steps = {},
                           needs = {},
                           title = '',
-                          msteams_emails = ''
+                          msteams_emails = '',
+                          localized_datetime = false
                         }) {
     const steps_summary = summary_generator(steps, 'outcome');
     const needs_summary = summary_generator(needs, 'result');
-    const status_summary = statusSummary(job);
+    const status_summary = statusSummary(job, localized_datetime);
 
     const commitChangeLog = changelog ?
       [

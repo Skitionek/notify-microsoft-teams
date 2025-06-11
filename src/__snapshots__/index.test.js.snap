@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":"","localized_datetime":false}: payload 1`] = `
 {
   "attachments": [
     {
@@ -52,10 +52,6 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "type": "TextBlock",
                     "weight": "bolder",
                   },
-                  {
-                    "text": "timestamp",
-                    "type": "TextBlock",
-                  },
                 ],
                 "type": "Column",
                 "width": "stretch",
@@ -94,7 +90,7 @@ exports[`run function with various combinations of job, steps, and needs should 
 }
 `;
 
-exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}},{"name":"step_2","status":"failure","outputs":{"key3":"value3"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}},{"name":"step_2","status":"failure","outputs":{"key3":"value3"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":"","localized_datetime":false}: payload 1`] = `
 {
   "attachments": [
     {
@@ -159,10 +155,6 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "type": "TextBlock",
                     "weight": "bolder",
                   },
-                  {
-                    "text": "timestamp",
-                    "type": "TextBlock",
-                  },
                 ],
                 "type": "Column",
                 "width": "stretch",
@@ -201,7 +193,7 @@ exports[`run function with various combinations of job, steps, and needs should 
 }
 `;
 
-exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"custom","outputs":{"key2":"value2"}},"need_2":{"result":"failure","outputs":{"key4":"value4"}},"abcdefghijklmnoprstuwxyz":{"result":"success","outputs":{"key5":"value5"}}},"msteams_emails":"foo1@bar.com, foo2@bar.com"}: payload 1`] = `
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"custom","outputs":{"key2":"value2"}},"need_2":{"result":"failure","outputs":{"key4":"value4"}},"abcdefghijklmnoprstuwxyz":{"result":"success","outputs":{"key5":"value5"}}},"msteams_emails":"foo1@bar.com, foo2@bar.com","localized_datetime":false}: payload 1`] = `
 {
   "attachments": [
     {
@@ -270,10 +262,6 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "type": "TextBlock",
                     "weight": "bolder",
                   },
-                  {
-                    "text": "timestamp",
-                    "type": "TextBlock",
-                  },
                 ],
                 "type": "Column",
                 "width": "stretch",
@@ -332,7 +320,7 @@ exports[`run function with various combinations of job, steps, and needs should 
 }
 `;
 
-exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":"","localized_datetime":false}: payload 1`] = `
 {
   "attachments": [
     {
@@ -393,9 +381,104 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "type": "TextBlock",
                     "weight": "bolder",
                   },
+                ],
+                "type": "Column",
+                "width": "stretch",
+              },
+            ],
+            "type": "ColumnSet",
+          },
+          {
+            "actions": [
+              {
+                "title": "Repository",
+                "type": "Action.OpenUrl",
+                "url": "html_url",
+              },
+              {
+                "title": "Compare",
+                "type": "Action.OpenUrl",
+                "url": "compare_url",
+              },
+            ],
+            "type": "ActionSet",
+          },
+        ],
+        "msteams": {
+          "entities": [
+            {},
+          ],
+        },
+        "type": "AdaptiveCard",
+        "version": "1.4",
+      },
+      "contentType": "application/vnd.microsoft.card.adaptive",
+    },
+  ],
+  "type": "message",
+}
+`;
+
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":"","localized_datetime":true}: payload 1`] = `
+{
+  "attachments": [
+    {
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "body": [
+          {
+            "size": "Medium",
+            "style": "heading",
+            "text": "Test Title",
+            "type": "TextBlock",
+            "weight": "Bolder",
+            "wrap": true,
+          },
+          {
+            "size": "Medium",
+            "text": "[undefined](html_url)",
+            "type": "TextBlock",
+            "weight": "lighter",
+          },
+          {
+            "facts": [
+              {
+                "title": "? 0",
+                "value": "No job context has been provided",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "facts": [
+              {
+                "title": "✓ need_1",
+                "value": "Success!",
+              },
+            ],
+            "type": "FactSet",
+          },
+          {
+            "columns": [
+              {
+                "items": [
                   {
-                    "text": "timestamp",
+                    "altText": "Result",
+                    "size": "small",
+                    "style": "person",
+                    "type": "Image",
+                    "url": "https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png",
+                  },
+                ],
+                "type": "Column",
+                "width": "auto",
+              },
+              {
+                "items": [
+                  {
+                    "text": "Success!",
                     "type": "TextBlock",
+                    "weight": "bolder",
                   },
                 ],
                 "type": "Column",
@@ -435,7 +518,7 @@ exports[`run function with various combinations of job, steps, and needs should 
 }
 `;
 
-exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{},"msteams_emails":""}: payload 1`] = `
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{},"msteams_emails":"","localized_datetime":false}: payload 1`] = `
 {
   "attachments": [
     {
@@ -487,10 +570,6 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "type": "TextBlock",
                     "weight": "bolder",
                   },
-                  {
-                    "text": "timestamp",
-                    "type": "TextBlock",
-                  },
                 ],
                 "type": "Column",
                 "width": "stretch",
@@ -529,7 +608,7 @@ exports[`run function with various combinations of job, steps, and needs should 
 }
 `;
 
-exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":null,"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
+exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":null,"steps":[{"name":"step_1","status":"success","outputs":{"key1":"value1"}}],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":"","localized_datetime":false}: payload 1`] = `
 {
   "attachments": [
     {
@@ -589,10 +668,6 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "text": "No job context has been provided",
                     "type": "TextBlock",
                     "weight": "bolder",
-                  },
-                  {
-                    "text": "timestamp",
-                    "type": "TextBlock",
                   },
                 ],
                 "type": "Column",
@@ -674,10 +749,6 @@ exports[`run function with various combinations of job, steps, and needs should 
                     "text": "No job context has been provided",
                     "type": "TextBlock",
                     "weight": "bolder",
-                  },
-                  {
-                    "text": "timestamp",
-                    "type": "TextBlock",
                   },
                 ],
                 "type": "Column",
