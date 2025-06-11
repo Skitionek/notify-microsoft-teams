@@ -156,9 +156,9 @@ const statusSummary = (job, localized_datetime) => {
               weight: 'bolder',
               text: activityTitle
             },
-            ...(localized_datetime && activitySubtitle ? [{
+            ...(activitySubtitle ? [{
               type: 'TextBlock',
-              text: `{{DATE(${activitySubtitle}, SHORT)}} {{TIME(${activitySubtitle})}}`,
+              text: localized_datetime ? `{{DATE(${activitySubtitle}, SHORT)}} {{TIME(${activitySubtitle})}}` : activitySubtitle,
             }] : [])
           ],
           width: 'stretch'
