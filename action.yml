@@ -26,6 +26,9 @@ inputs:
   dry_run:
     description: 'Do not actually send the message'
     required: false
+  localized_datetime:
+    description: 'Use localized datetime format'
+    required: false
 runs:
   using: 'node20'
   main: 'dist/index.js'

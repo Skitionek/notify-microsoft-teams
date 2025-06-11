@@ -29,16 +29,18 @@ First of all, you need to set GitHub secrets for MSTEAMS_WEBHOOK that is Incomin
 
 You can customize the following parameters:
 
-| with parameter |required/optional|default| description                                                                                              |
-|:--------------:|:--:|:--|:---------------------------------------------------------------------------------------------------------|
-|  webhook_url   |optional|$MSTEAMS_WEBHOOK| Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable |
-|      job       |optional|{}}| JSON parsed job context                                                                                  |
-|     steps      |optional|{}| JSON parsed steps context                                                                                |
-|     needs      |optional|{}| JSON parsed needs context                                                                                |
-|    dry_run     |optional|False| Do not actually send the message                                                                         |
-|      raw       |optional|''| JSON object to send to Microsoft Teams                                                                   |
-|     title      |optional|''| Overwrite default title                                                                                  |
-| msteams_emails |optional|''| Microsoft teams email ids in CSV to tag in the message                                                   |
+|   with parameter   | required/optional | default          | description                                                                                                                       |
+|:------------------:|:-----------------:|:-----------------|:----------------------------------------------------------------------------------------------------------------------------------|
+|    webhook_url     |     optional      | $MSTEAMS_WEBHOOK | Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable                          |
+|        job         |     optional      | {}               | JSON parsed job context                                                                                                           |
+|       steps        |     optional      | {}               | JSON parsed steps context                                                                                                         |
+|       needs        |     optional      | {}               | JSON parsed needs context                                                                                                         |
+|      dry_run       |     optional      | False            | Do not actually send the message                                                                                                  |
+|        raw         |     optional      | ''               | JSON object to send to Microsoft Teams                                                                                            |
+|       title        |     optional      | ''               | Overwrite default title                                                                                                           |
+|   msteams_emails   |     optional      | ''               | Microsoft teams email ids in CSV to tag in the message                                                                            |
+| localized_datetime |     optional      | False            | By default the commit date/time is in UTC. If set to true, it will use the local timezone using AdaptiveCard's DATE/TIME feature. |
+
 
 Please refer [action.yml](./action.yml) for more details.
 
@@ -66,6 +68,7 @@ jobs:
           job: ${{ toJson(job) }}
           steps: ${{ toJson(steps) }}
           dry_run: True
+          localized_datetime: True
           
           
   with_emails:
