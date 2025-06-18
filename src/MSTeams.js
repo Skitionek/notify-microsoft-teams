@@ -1,6 +1,7 @@
 const {IncomingWebhook} = require('ms-teams-webhook');
 const {context: github} = require('@actions/github');
 const core = require('@actions/core');
+const http = require('@actions/http-client');
 
 const placeholder = '';
 const {
@@ -290,8 +291,8 @@ class MSTeams {
       throw new Error('Missing payload for Microsoft Teams notification.\n' +
         'Please provide a valid payload.');
     }
-    const client = new IncomingWebhook(url);
-    const response = await client.sendRawAdaptiveCard(payload);
+    const client = new http.HttpClient();
+    const response = await client.postJson(url, payload);
 
     if (![200, 202].includes(response?.status)) {
       // Create a safe representation of the response to avoid circular reference errors
