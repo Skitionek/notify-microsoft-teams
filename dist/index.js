@@ -105895,7 +105895,7 @@ const summary_generator = (obj, status_key) => {
       let text = `${step_id}:\n`;
       text += outputs2markdown(obj[step_id].outputs);
       if (text !== '')
-        r.facts.push = ({
+        r.facts.push({
           type: 'TextBlock',
           text: text
         });
@@ -106033,11 +106033,15 @@ class MSTeams {
           title: 'Repository',
           url: repository.html_url
         },
-        {
-          type: 'Action.OpenUrl',
-          title: 'Compare',
-          url: compare
-        }
+        ...(compare
+          ? [
+              {
+                type: 'Action.OpenUrl',
+                title: 'Compare',
+                url: compare
+              }
+            ]
+          : [])
       ]
     };
 
@@ -106088,8 +106092,32 @@ class MSTeams {
     const client = new IncomingWebhook(url);
     const response = await client.sendRawAdaptiveCard(payload);
 
-    if (response?.status !== 202) {
-      throw new Error('Failed to send notification to Microsoft Teams.\n' + 'Response:\n' + JSON.stringify(response, null, 2));
+    if (response?.status !== 202 || response?.status !== 200) {
+      // Create a safe representation of the response to avoid circular reference errors
+      const safeResponse = {};
+
+      // Safely copy properties, handling potential circular references
+      try {
+        safeResponse.status = response?.status;
+        safeResponse.statusText = response?.statusText;
+        safeResponse.headers = response?.headers
+          ? JSON.parse(JSON.stringify(response.headers))
+          : undefined;
+        safeResponse.data = response?.data
+          ? JSON.parse(JSON.stringify(response.data))
+          : undefined;
+      } catch (circularError) {
+        // If we still hit circular references, just include basic info
+        safeResponse.status = response?.status;
+        safeResponse.statusText = response?.statusText;
+        safeResponse.error = 'Response contained circular references';
+      }
+
+      throw new Error(
+        'Failed to send notification to Microsoft Teams.\n' +
+          'Response:\n' +
+          JSON.stringify(safeResponse, null, 2)
+      );
     }
   }
 }
@@ -111616,7 +111644,20 @@ async function run() {
 			payload = Object.assign({}, msteams.header, JSON.parse(raw));
 		}
 
-		core.info(`Generated payload for Microsoft Teams:\n${JSON.stringify(payload, null, 2)}`);
+    try {
+      core.info(
+        `Generated payload for Microsoft Teams:\n${JSON.stringify(
+          payload,
+          null,
+          2
+        )}`
+      );
+    } catch (stringifyError) {
+      core.info(
+        'Generated payload for Microsoft Teams (contains circular references, showing keys only):'
+      );
+      core.info(JSON.stringify(Object.keys(payload), null, 2));
+    }
 
 		if (dry_run === '' || dry_run==='false') {
 			await msteams.notify(webhook_url, payload);

@@ -57,7 +57,20 @@ async function run() {
 			payload = Object.assign({}, msteams.header, JSON.parse(raw));
 		}
 
-		core.info(`Generated payload for Microsoft Teams:\n${JSON.stringify(payload, null, 2)}`);
+    try {
+      core.info(
+        `Generated payload for Microsoft Teams:\n${JSON.stringify(
+          payload,
+          null,
+          2
+        )}`
+      );
+    } catch (stringifyError) {
+      core.info(
+        'Generated payload for Microsoft Teams (contains circular references, showing keys only):'
+      );
+      core.info(JSON.stringify(Object.keys(payload), null, 2));
+    }
 
 		if (dry_run === '' || dry_run==='false') {
 			await msteams.notify(webhook_url, payload);
