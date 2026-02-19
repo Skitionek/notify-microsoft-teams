@@ -1,0 +1,115 @@
+name: Manual Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      webhook_url:
+        description: 'Teams incoming webhook URL (leave empty to use repository secret)'
+        required: false
+      dry_run:
+        description: 'Dry run (do not actually send the message)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  test-with-title:
+    name: Test with title
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notify with title
+        uses: ./
+        with:
+          webhook_url: ${{ inputs.webhook_url || secrets.MSTEAMS_WEBHOOK }}
+          title: 'Manual test – title only'
+          dry_run: ${{ inputs.dry_run }}
+
+  test-with-job-context:
+    name: Test with job context
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notify with job context
+        uses: ./
+        with:
+          webhook_url: ${{ inputs.webhook_url || secrets.MSTEAMS_WEBHOOK }}
+          job: ${{ toJson(job) }}
+          dry_run: ${{ inputs.dry_run }}
+
+  test-with-steps-context:
+    name: Test with steps context
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Example step
+        id: example
+        run: echo "result=success" >> "$GITHUB_OUTPUT"
+
+      - name: Notify with steps context
+        uses: ./
+        with:
+          webhook_url: ${{ inputs.webhook_url || secrets.MSTEAMS_WEBHOOK }}
+          job: ${{ toJson(job) }}
+          steps: ${{ toJson(steps) }}
+          dry_run: ${{ inputs.dry_run }}
+
+  test-with-raw:
+    name: Test with raw payload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notify with raw payload
+        uses: ./
+        with:
+          webhook_url: ${{ inputs.webhook_url || secrets.MSTEAMS_WEBHOOK }}
+          raw: >-
+            {
+              "type": "message",
+              "attachments": [
+                {
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [{ "type": "TextBlock", "text": "Manual test – raw payload" }]
+                  }
+                }
+              ]
+            }
+          dry_run: ${{ inputs.dry_run }}
+
+  test-with-needs-context:
+    name: Test with needs context
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs:
+      - test-with-title
+      - test-with-job-context
+      - test-with-steps-context
+      - test-with-raw
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notify with needs context
+        uses: ./
+        with:
+          webhook_url: ${{ inputs.webhook_url || secrets.MSTEAMS_WEBHOOK }}
+          title: 'Manual test – needs context summary'
+          needs: ${{ toJson(needs) }}
+          job: ${{ toJson(job) }}
+          dry_run: ${{ inputs.dry_run }}
