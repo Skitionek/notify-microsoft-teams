@@ -1,0 +1,35 @@
+name: Integrity Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check-build:
+    name: Check dist is up to date
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run package
+      - name: Verify build output is committed
+        run: git diff --exit-code dist/
+
+  check-lockfile:
+    name: Check package-lock.json is up to date
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --package-lock-only
+      - name: Verify package-lock.json is up to date
+        run: git diff --exit-code package-lock.json
