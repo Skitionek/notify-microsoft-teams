@@ -44,8 +44,19 @@ describe('MSTeams.notify', () => {
     }));
   });
 
-  it('should send a success notification', async () => {
+  it('should send a success notification with status 202', async () => {
     mockSend.mockResolvedValueOnce({ status: 202 });
+
+    const msTeams = new MSTeams();
+    await msTeams.notify(webhookUrl, payload);
+
+    expect(IncomingWebhook).toHaveBeenCalledWith(webhookUrl);
+    expect(mockSend).toHaveBeenCalledWith(payload);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('should send a success notification with status 200', async () => {
+    mockSend.mockResolvedValueOnce({ status: 200 });
 
     const msTeams = new MSTeams();
     await msTeams.notify(webhookUrl, payload);

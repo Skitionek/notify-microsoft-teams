@@ -1,3 +1,15 @@
+# [1.1.0](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.9...v1.1.0) (2026-02-19)
+
+
+### Bug Fixes
+
+* response status check - use && instead of || to avoid always-true condition ([c463ec9](https://github.com/Skitionek/notify-microsoft-teams/commit/c463ec91a33ffe6d625085ca4a8b4c11e5f49f2b))
+
+
+### Features
+
+* allow sponsorship ([a4a4b07](https://github.com/Skitionek/notify-microsoft-teams/commit/a4a4b0783229a5c9c0b166baa75b2e8784d981e8))
+
 ## Upcoming Release
 
 ### Features
