@@ -8,6 +8,9 @@ inputs:
   raw:
     description: 'JSON object to send to Microsoft Teams'
     required: false
+  overwrite:
+    description: '[Deprecated] Use "raw" instead. JSON object to send to Microsoft Teams'
+    required: false
   title:
     description: 'Text to show as message title'
     required: false

@@ -112189,6 +112189,12 @@ async function run() {
 		let raw = core.getInput('raw');
 		let dry_run = core.getInput('dry_run');
 
+		const overwrite = core.getInput('overwrite');
+		if (overwrite) {
+			core.warning('The "overwrite" parameter is deprecated. Please use "raw" instead.');
+			if (!raw) raw = overwrite;
+		}
+
 		core.info(`Parsed params:\n${JSON.stringify({
 			webhook_url: '***',
 			job,

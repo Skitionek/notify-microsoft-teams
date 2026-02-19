@@ -127,12 +127,48 @@ describe('run function', () => {
             ...defaultParams,
             raw: JSON.stringify({ custom: 'payload' })
         };
-        core.getInput.mockImplementation((name) => params[name]);
+        core.getInput.mockImplementation((name) => params[name] || '');
         const mockNotify = jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
 
         await run();
 
         expect(mockNotify).toHaveBeenCalledWith('dummy_webhook', { custom: 'payload' });
+    });
+
+    it('should treat overwrite as raw with a deprecation warning', async () => {
+        const params = {
+            ...defaultParams,
+            raw: '',
+            overwrite: JSON.stringify({ custom: 'overwrite_payload' })
+        };
+        core.getInput.mockImplementation((name) => params[name] !== undefined ? params[name] : '');
+        const mockNotify = jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+        const mockWarning = jest.spyOn(core, 'warning');
+
+        await run();
+
+        expect(mockWarning).toHaveBeenCalledWith(
+            'The "overwrite" parameter is deprecated. Please use "raw" instead.'
+        );
+        expect(mockNotify).toHaveBeenCalledWith('dummy_webhook', { custom: 'overwrite_payload' });
+    });
+
+    it('should prefer raw over overwrite when both are provided', async () => {
+        const params = {
+            ...defaultParams,
+            raw: JSON.stringify({ custom: 'raw_payload' }),
+            overwrite: JSON.stringify({ custom: 'overwrite_payload' })
+        };
+        core.getInput.mockImplementation((name) => params[name] !== undefined ? params[name] : '');
+        const mockNotify = jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+        const mockWarning = jest.spyOn(core, 'warning');
+
+        await run();
+
+        expect(mockWarning).toHaveBeenCalledWith(
+            'The "overwrite" parameter is deprecated. Please use "raw" instead.'
+        );
+        expect(mockNotify).toHaveBeenCalledWith('dummy_webhook', { custom: 'raw_payload' });
     });
 });
 
