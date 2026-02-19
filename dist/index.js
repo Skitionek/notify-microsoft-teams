@@ -112225,10 +112225,10 @@ async function run() {
         )}`
       );
     } catch (stringifyError) {
-      core.info(
-        'Generated payload for Microsoft Teams (contains circular references, showing keys only):'
+      core.error(
+        `Generated payload for Microsoft Teams (contains circular references, showing keys only):
+		${stringifyError}`
       );
-      core.info(JSON.stringify(Object.keys(payload), null, 2));
     }
 
 		if (dry_run === '' || dry_run==='false') {
