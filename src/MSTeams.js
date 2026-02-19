@@ -293,7 +293,7 @@ class MSTeams {
     const client = new IncomingWebhook(url);
     const response = await client.sendRawAdaptiveCard(payload);
 
-    if (response?.status !== 202 || response?.status !== 200) {
+    if (![200, 202].includes(response?.status)) {
       // Create a safe representation of the response to avoid circular reference errors
       const safeResponse = {};
 
