@@ -204,7 +204,8 @@ describe('run function with various combinations of job, steps, and needs', () =
         job: { id: 'job_1', status: 'success' },
         steps: [{ name: 'step_1', status: 'success', outputs: { key1: 'value1' } }],
         needs: { need_1: { result: 'success', outputs: { key2: 'value2' } } },
-        msteams_emails: ''
+        msteams_emails: '',
+        localized_datetime: false,
     }
 
     // Define combinations of job, steps, and needs with outputs
@@ -253,6 +254,11 @@ describe('run function with various combinations of job, steps, and needs', () =
                 abcdefghijklmnoprstuwxyz: { result: 'success', outputs: { key5: 'value5' } },
             },
             msteams_emails: 'foo1@bar.com, foo2@bar.com'
+        },
+        {
+            // localized datetime is true
+            ...defaults,
+            localized_datetime: true,
         }
     ];
 
