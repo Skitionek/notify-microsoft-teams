@@ -9,9 +9,7 @@
   "scripts": {
     "package": "ncc build src -o dist",
     "lint": "eslint src/index.js",
-    "test": "npm run lint && jest",
-    "prepare": "npm run snyk-protect",
-    "snyk-protect": "snyk-protect"
+    "test": "npm run lint && jest"
   },
   "repository": {
     "type": "git",
@@ -38,8 +36,7 @@
     "@octokit/rest": "^21.1.1",
     "botbuilder": "^4.23.2",
     "lodash.merge": "^4.6.2",
-    "ms-teams-webhook": "^2.2.2",
-    "@snyk/protect": "latest"
+    "ms-teams-webhook": "^2.2.2"
   },
   "devDependencies": {
     "@actions/github": "^2.1.1",
@@ -78,6 +75,5 @@
         }
       ]
     ]
-  },
-  "snyk": true
+  }
 }
