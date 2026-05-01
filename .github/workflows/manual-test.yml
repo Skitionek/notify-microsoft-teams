@@ -1,5 +1,6 @@
 name: Manual Test
 
+# checkov:skip=CKV_GHA_7: workflow_dispatch inputs are intentional for manual testing
 on:
   workflow_dispatch:
     inputs:
@@ -14,6 +15,8 @@ on:
         options:
           - 'true'
           - 'false'
+
+permissions: read-all
 
 jobs:
   test-with-title:

@@ -51,6 +51,9 @@
     "husky": "^4.3.8",
     "jest": "^29.4.1"
   },
+  "overrides": {
+    "fast-xml-parser": "^5.7.2"
+  },
   "release": {
     "plugins": [
       "@semantic-release/commit-analyzer",
