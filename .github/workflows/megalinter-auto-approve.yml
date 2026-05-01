@@ -1,0 +1,24 @@
+name: Auto-approve MegaLinter fix PRs
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions: read-all
+
+jobs:
+  auto-approve:
+    name: Auto-approve MegaLinter fixes
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'megalinter-fixes-pr-')
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Auto-approve
+        uses: hmarr/auto-approve-action@f0939ea97e9205ef24d872e76833fa908a770363 # v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
