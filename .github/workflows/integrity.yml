@@ -4,6 +4,8 @@ on:
   push:
   pull_request:
 
+permissions: read-all
+
 jobs:
   check-build:
     name: Check dist is up to date
