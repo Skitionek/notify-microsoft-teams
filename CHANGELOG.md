@@ -12,6 +12,11 @@
 
 ## [Unreleased]
 
+### Features
+
+* Upgrades to use node 24. 
+
+
 ### Changed
 
 * CI: port automation practices from template — add MegaLinter, CodeQL, Dependabot auto-merge, Copilot auto-fix, and integrity-check workflows
