@@ -25,6 +25,13 @@
     "checkov",
     "dependabot",
     "automerge",
-    "trueish"
+    "trueish",
+    "SARIF",
+    "sarif",
+    "ipynb",
+    "tfvars",
+    "marocchino",
+    "hmarr",
+    "CODEOWNERS"
   ]
 }
