@@ -8,16 +8,9 @@ FILTER_REGEX_EXCLUDE: "(dist/|node_modules/)"
 
 # ── Per-linter tweaks ─────────────────────────────────────────────────────────
 
-# jscpd: the dist/ bundle is generated and contains intentional duplication.
-COPYPASTE_JSCPD_FILTER_REGEX_EXCLUDE: "(dist/|node_modules/)"
-
-# devskim: security scanner; dist/ is a generated bundle and may contain
-# patterns that look suspicious out of context.
-REPOSITORY_DEVSKIM_FILTER_REGEX_EXCLUDE: "(dist/|node_modules/)"
-
-# cspell: spelling; dist/ contains minified/bundled identifiers that aren't
-# real words.
-SPELL_CSPELL_FILTER_REGEX_EXCLUDE: "(dist/|node_modules/)"
+# jscpd: test files share similar setup/teardown patterns which creates
+# intentional "duplication". Downgrade to non-blocking.
+COPYPASTE_JSCPD_DISABLE_ERRORS: true
 
 # lychee: URL checker; private npm registry (npm.pkg.github.com) returns 404
 # for public requests and social sites (patreon.com) return 403. These are
