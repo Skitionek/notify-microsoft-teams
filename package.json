@@ -73,7 +73,7 @@
         "@babel/preset-env",
         {
           "targets": {
-            "node": "24"
+            "node": "20"
           }
         }
       ]
