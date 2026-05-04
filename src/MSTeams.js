@@ -1,4 +1,4 @@
-const {IncomingWebhook} = require('ms-teams-webhook');
+const http = require('@actions/http-client');
 const {context: github} = require('@actions/github');
 const core = require('@actions/core');
 
@@ -290,27 +290,22 @@ class MSTeams {
       throw new Error('Missing payload for Microsoft Teams notification.\n' +
         'Please provide a valid payload.');
     }
-    const client = new IncomingWebhook(url);
-    const response = await client.sendRawAdaptiveCard(payload);
+    const client = new http.HttpClient();
+    const response = await client.postJson(url, payload);
 
-    if (![200, 202].includes(response?.status)) {
+    if (![200, 202].includes(response?.statusCode)) {
       // Create a safe representation of the response to avoid circular reference errors
       const safeResponse = {};
 
       // Safely copy properties, handling potential circular references
       try {
-        safeResponse.status = response?.status;
-        safeResponse.statusText = response?.statusText;
-        safeResponse.headers = response?.headers
-          ? JSON.parse(JSON.stringify(response.headers))
-          : undefined;
-        safeResponse.data = response?.data
-          ? JSON.parse(JSON.stringify(response.data))
+        safeResponse.statusCode = response?.statusCode;
+        safeResponse.result = response?.result
+          ? JSON.parse(JSON.stringify(response.result))
           : undefined;
       } catch (circularError) {
         // If we still hit circular references, just include basic info
-        safeResponse.status = response?.status;
-        safeResponse.statusText = response?.statusText;
+        safeResponse.statusCode = response?.statusCode;
         safeResponse.error = 'Response contained circular references';
       }
 
