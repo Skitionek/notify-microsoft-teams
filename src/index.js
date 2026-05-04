@@ -57,7 +57,7 @@ async function run() {
 				try {
 					parsedActions = JSON.parse(actions);
 				} catch (e) {
-					throw new Error(`Invalid JSON provided for "actions" input: ${e.message}`);
+					throw new Error(`Invalid JSON provided for "actions" input: ${e.message}. Please ensure the "actions" input is a valid JSON array of Adaptive Card Action objects (see https://adaptivecards.io/explorer/Action.OpenUrl.html).`);
 				}
 			}
 			payload = await msteams.generatePayload(
