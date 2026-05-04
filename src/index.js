@@ -29,6 +29,7 @@ async function run() {
 		let msteams_emails= core.getInput('msteams_emails');
 		let raw = core.getInput('raw');
 		let dry_run = core.getInput('dry_run');
+		let github_token = core.getInput('github_token');
 
 		const overwrite = core.getInput('overwrite');
 		if (overwrite) {
@@ -44,7 +45,8 @@ async function run() {
 			raw,
 			title,
 			msteams_emails,
-			dry_run
+			dry_run,
+			github_token: github_token ? '***' : ''
 		})}`);
 
 		const msteams = new MSTeams();
@@ -56,7 +58,8 @@ async function run() {
 					steps,
 					needs,
 					title,
-					msteams_emails
+					msteams_emails,
+					github_token
 				}
 			);
 		} else {

@@ -39,6 +39,7 @@ You can customize the following parameters:
 |      raw       |optional|''| JSON object to send to Microsoft Teams                                                                   |
 |     title      |optional|''| Overwrite default title                                                                                  |
 | msteams_emails |optional|''| Microsoft teams email ids in CSV to tag in the message                                                   |
+| github_token   |optional|${{ github.token }}| GitHub token used to fetch commits between tags when the event payload does not include commits (e.g. `release` or tag push events). Set to empty string to disable. |
 
 Please refer [action.yml](./action.yml) for more details.
 
