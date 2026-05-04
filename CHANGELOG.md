@@ -14,7 +14,7 @@
 
 ### Features
 
-* Upgrades to use node 24. 
+* Upgrades to use node 24.
 
 
 ### Changed
