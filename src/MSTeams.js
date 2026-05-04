@@ -179,6 +179,7 @@ class MSTeams {
    * @param steps
    * @param needs
    * @param title {string} msteams message title
+   * @param actions {Array} optional array of Adaptive Card Action objects to replace default buttons
    * @param msteams_emails {string} msteams emails in CSV
    * @return
    */
@@ -187,6 +188,7 @@ class MSTeams {
                           steps = {},
                           needs = {},
                           title = '',
+                          actions = null,
                           msteams_emails = ''
                         }) {
     const steps_summary = summary_generator(steps, 'outcome');
@@ -228,7 +230,7 @@ class MSTeams {
 
     const actionLinks = {
       type: 'ActionSet',
-      actions: [
+      actions: actions !== null ? actions : [
         {
           type: 'Action.OpenUrl',
           title: 'Repository',

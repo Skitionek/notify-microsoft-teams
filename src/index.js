@@ -26,6 +26,7 @@ async function run() {
 		let needs = access_context('needs');
 
 		let title = core.getInput('title');
+		let actions = core.getInput('actions');
 		let msteams_emails= core.getInput('msteams_emails');
 		let raw = core.getInput('raw');
 		let dry_run = core.getInput('dry_run');
@@ -43,6 +44,7 @@ async function run() {
 			needs,
 			raw,
 			title,
+			actions,
 			msteams_emails,
 			dry_run
 		})}`);
@@ -56,6 +58,7 @@ async function run() {
 					steps,
 					needs,
 					title,
+					actions: actions ? JSON.parse(actions) : null,
 					msteams_emails
 				}
 			);

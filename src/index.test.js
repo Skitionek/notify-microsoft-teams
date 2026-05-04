@@ -170,6 +170,41 @@ describe('run function', () => {
         );
         expect(mockNotify).toHaveBeenCalledWith('dummy_webhook', { custom: 'raw_payload' });
     });
+
+    it('should pass custom actions to generatePayload', async () => {
+        const customActions = [
+            { type: 'Action.OpenUrl', title: 'Custom Link', url: 'https://example.com' }
+        ];
+        const params = {
+            ...defaultParams,
+            actions: JSON.stringify(customActions)
+        };
+        core.getInput.mockImplementation((name) => params[name] !== undefined ? params[name] : '');
+        const mockGeneratePayload = jest.spyOn(MSTeams.prototype, 'generatePayload');
+        jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+
+        await run();
+
+        expect(mockGeneratePayload).toHaveBeenCalledWith(
+            expect.objectContaining({ actions: customActions })
+        );
+    });
+
+    it('should pass null actions to generatePayload when actions input is empty', async () => {
+        const params = {
+            ...defaultParams,
+            actions: ''
+        };
+        core.getInput.mockImplementation((name) => params[name] !== undefined ? params[name] : '');
+        const mockGeneratePayload = jest.spyOn(MSTeams.prototype, 'generatePayload');
+        jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+
+        await run();
+
+        expect(mockGeneratePayload).toHaveBeenCalledWith(
+            expect.objectContaining({ actions: null })
+        );
+    });
 });
 
 describe('run function with dry_run', () => {

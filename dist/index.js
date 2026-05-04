@@ -105992,6 +105992,7 @@ class MSTeams {
    * @param steps
    * @param needs
    * @param title {string} msteams message title
+   * @param actions {Array} optional array of Adaptive Card Action objects to replace default buttons
    * @param msteams_emails {string} msteams emails in CSV
    * @return
    */
@@ -106000,6 +106001,7 @@ class MSTeams {
                           steps = {},
                           needs = {},
                           title = '',
+                          actions = null,
                           msteams_emails = ''
                         }) {
     const steps_summary = summary_generator(steps, 'outcome');
@@ -106041,7 +106043,7 @@ class MSTeams {
 
     const actionLinks = {
       type: 'ActionSet',
-      actions: [
+      actions: actions !== null ? actions : [
         {
           type: 'Action.OpenUrl',
           title: 'Repository',
@@ -112185,6 +112187,7 @@ async function run() {
 		let needs = access_context('needs');
 
 		let title = core.getInput('title');
+		let actions = core.getInput('actions');
 		let msteams_emails= core.getInput('msteams_emails');
 		let raw = core.getInput('raw');
 		let dry_run = core.getInput('dry_run');
@@ -112202,6 +112205,7 @@ async function run() {
 			needs,
 			raw,
 			title,
+			actions,
 			msteams_emails,
 			dry_run
 		})}`);
@@ -112215,6 +112219,7 @@ async function run() {
 					steps,
 					needs,
 					title,
+					actions: actions ? JSON.parse(actions) : null,
 					msteams_emails
 				}
 			);
