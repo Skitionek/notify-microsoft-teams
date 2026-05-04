@@ -229,6 +229,95 @@ describe('run function when webhook_url is missing', () => {
 	});
 });
 
+describe('run function with secrets masking', () => {
+	beforeEach(() => {
+		jest.clearAllMocks();
+	});
+
+	it('should register webhook_url as a secret', async () => {
+		const defaultParams = {
+			webhook_url: 'https://secret-webhook-url.example.com',
+			job: '{}',
+			steps: '[]',
+			needs: '{}',
+			raw: '',
+			dry_run: 'false',
+		};
+		core.getInput.mockImplementation((name) => defaultParams[name] || '');
+		jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+		jest.spyOn(MSTeams.prototype, 'generatePayload').mockResolvedValue({ message: 'payload' });
+		const mockSetSecret = jest.spyOn(core, 'setSecret');
+
+		await run();
+
+		expect(mockSetSecret).toHaveBeenCalledWith('https://secret-webhook-url.example.com');
+	});
+
+	it('should mask secret values in the payload', async () => {
+		const secretValue = 'super-secret-value';
+		const secrets = JSON.stringify({ MY_SECRET: secretValue });
+		const defaultParams = {
+			webhook_url: 'dummy_webhook',
+			job: '{}',
+			steps: '[]',
+			needs: '{}',
+			raw: JSON.stringify({ title: `Contains ${secretValue} in title` }),
+			dry_run: 'false',
+			secrets,
+		};
+		core.getInput.mockImplementation((name) => defaultParams[name] || '');
+		const mockNotify = jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+
+		await run();
+
+		const sentPayload = mockNotify.mock.calls[0][1];
+		expect(JSON.stringify(sentPayload)).not.toContain(secretValue);
+		expect(JSON.stringify(sentPayload)).toContain('***');
+	});
+
+	it('should register each secret value with core.setSecret', async () => {
+		const secrets = JSON.stringify({ SECRET_A: 'value-a', SECRET_B: 'value-b' });
+		const defaultParams = {
+			webhook_url: 'dummy_webhook',
+			job: '{}',
+			steps: '[]',
+			needs: '{}',
+			raw: '{}',
+			dry_run: 'false',
+			secrets,
+		};
+		core.getInput.mockImplementation((name) => defaultParams[name] || '');
+		jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+		const mockSetSecret = jest.spyOn(core, 'setSecret');
+
+		await run();
+
+		expect(mockSetSecret).toHaveBeenCalledWith('value-a');
+		expect(mockSetSecret).toHaveBeenCalledWith('value-b');
+	});
+
+	it('should warn and continue when secrets input is invalid JSON', async () => {
+		const defaultParams = {
+			webhook_url: 'dummy_webhook',
+			job: '{}',
+			steps: '[]',
+			needs: '{}',
+			raw: '{}',
+			dry_run: 'false',
+			secrets: 'not-valid-json',
+		};
+		core.getInput.mockImplementation((name) => defaultParams[name] || '');
+		jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
+		const mockWarning = jest.spyOn(core, 'warning');
+
+		await run();
+
+		expect(mockWarning).toHaveBeenCalledWith(
+			'Failed to parse secrets input. Secret masking may not be fully applied.'
+		);
+	});
+});
+
 
 describe('run function with various combinations of job, steps, and needs', () => {
     beforeEach(() => {

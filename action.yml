@@ -29,6 +29,9 @@ inputs:
   dry_run:
     description: 'Do not actually send the message'
     required: false
+  secrets:
+    description: 'JSON encoded secrets context (${{ toJSON(secrets) }}) used to mask secret values in notifications'
+    required: false
 runs:
   using: 'node24'
   main: 'dist/index.js'

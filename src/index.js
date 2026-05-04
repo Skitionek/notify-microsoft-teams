@@ -21,6 +21,32 @@ async function run() {
 			);
 		}
 
+		// Register webhook_url as a secret so it is masked in logs
+		core.setSecret(webhook_url);
+
+		// Parse secrets input and register each value for masking
+		const secretsInput = core.getInput('secrets');
+		let secretValues = [];
+		if (secretsInput) {
+			try {
+				const secrets = JSON.parse(secretsInput);
+				secretValues = Object.values(secrets).filter(v => typeof v === 'string' && v.length > 0);
+				secretValues.forEach(value => core.setSecret(value));
+			} catch (e) {
+				core.warning('Failed to parse secrets input. Secret masking may not be fully applied.');
+			}
+		}
+
+		// Replace all known secret values in a string with '***'
+		const maskSecrets = (str) => {
+			if (!secretValues.length || typeof str !== 'string') return str;
+			let result = str;
+			for (const secret of secretValues) {
+				result = result.split(secret).join('***');
+			}
+			return result;
+		};
+
 		let job = access_context('job');
 		let steps = access_context('steps');
 		let needs = access_context('needs');
@@ -62,6 +88,9 @@ async function run() {
 		} else {
 			payload = Object.assign({}, msteams.header, JSON.parse(raw));
 		}
+
+		// Mask any secret values present in the payload before sending or logging
+		payload = JSON.parse(maskSecrets(JSON.stringify(payload)));
 
     try {
       core.info(
