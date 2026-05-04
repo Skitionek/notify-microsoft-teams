@@ -15,7 +15,7 @@ inputs:
     description: 'Text to show as message title'
     required: false
   actions:
-    description: 'JSON array of Adaptive Card Action objects to replace the default action buttons'
+    description: 'JSON array of Adaptive Card Action objects to replace the default action buttons (e.g. [{"type":"Action.OpenUrl","title":"View Run","url":"https://..."}]). See https://adaptivecards.io/explorer/Action.OpenUrl.html for schema details. Leave empty to use the default Repository/Compare buttons.'
     required: false
   msteams_emails:
     description: 'Microsoft teams emails in CSV to tag in the message'

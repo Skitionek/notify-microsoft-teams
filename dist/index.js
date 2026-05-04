@@ -112213,13 +112213,21 @@ async function run() {
 		const msteams = new MSTeams();
 		let payload;
 		if (raw === '') {
+			let parsedActions = null;
+			if (actions) {
+				try {
+					parsedActions = JSON.parse(actions);
+				} catch (e) {
+					throw new Error(`Invalid JSON provided for "actions" input: ${e.message}`);
+				}
+			}
 			payload = await msteams.generatePayload(
 				{
 					job,
 					steps,
 					needs,
 					title,
-					actions: actions ? JSON.parse(actions) : null,
+					actions: parsedActions,
 					msteams_emails
 				}
 			);

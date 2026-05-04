@@ -205,6 +205,21 @@ describe('run function', () => {
             expect.objectContaining({ actions: null })
         );
     });
+
+    it('should fail with a clear error when actions input contains invalid JSON', async () => {
+        const params = {
+            ...defaultParams,
+            actions: '{invalid_json'
+        };
+        core.getInput.mockImplementation((name) => params[name] !== undefined ? params[name] : '');
+        const mockSetFailed = jest.spyOn(core, 'setFailed');
+
+        await run();
+
+        expect(mockSetFailed).toHaveBeenCalledWith(
+            expect.stringContaining('Invalid JSON provided for "actions" input')
+        );
+    });
 });
 
 describe('run function with dry_run', () => {
