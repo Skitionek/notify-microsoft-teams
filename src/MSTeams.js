@@ -72,6 +72,8 @@ function Status(status) {
 
 const repository_link = `[${repository.full_name}](${repository.html_url})`;
 
+const toChangelogCommit = c => ({message: c.commit.message.split('\n')[0]});
+
 async function fetchCommitsFromApi(github_token) {
   const {eventName, payload} = github;
 
@@ -99,7 +101,7 @@ async function fetchCommitsFromApi(github_token) {
 
     if (currentTagIndex >= tags.length - 1) {
       const commitsResponse = await octokit.rest.repos.listCommits({owner, repo, sha: currentTag, per_page: 100});
-      return commitsResponse.data.map(c => ({message: c.commit.message.split('\n')[0]}));
+      return commitsResponse.data.map(toChangelogCommit);
     }
 
     const previousTag = tags[currentTagIndex + 1];
@@ -108,7 +110,7 @@ async function fetchCommitsFromApi(github_token) {
       repo,
       basehead: `${previousTag.name}...${currentTag}`
     });
-    return compareResponse.data.commits.map(c => ({message: c.commit.message.split('\n')[0]}));
+    return compareResponse.data.commits.map(toChangelogCommit);
   } catch (e) {
     core.warning(`Failed to fetch commits from GitHub API: ${e.message}`);
     return [];
