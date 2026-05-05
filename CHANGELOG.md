@@ -10,12 +10,20 @@
 
 * allow sponsorship ([a4a4b07](https://github.com/Skitionek/notify-microsoft-teams/commit/a4a4b0783229a5c9c0b166baa75b2e8784d981e8))
 
-## Upcoming Release
+## [Unreleased]
 
 ### Features
 
 * Upgrades to use node 24.
 
+
+### Changed
+
+* CI: port automation practices from template — add MegaLinter, CodeQL, Dependabot auto-merge, Copilot auto-fix, and integrity-check workflows
+* CI: fix `actions/checkout` and `setup-node` to `@v4`; action runner stays at `node24`
+* CI: add `.megalinter.yml`, `.yamllint.yml`, `.cspell.json`, and `.grype.yaml` linter configuration
+* CI: make `devskim` and `kingfisher` non-blocking in MegaLinter (project-level scanners ignore `FILTER_REGEX_EXCLUDE`)
+* CI: rebuild `dist/index.js` with upgraded `fast-xml-parser@5.7.2`
 
 ## [1.0.9](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.8...v1.0.9) (2025-04-14)
 
