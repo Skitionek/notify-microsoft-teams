@@ -53,10 +53,10 @@ jobs:
           fi
           if [[ ${#LANGS[@]} -eq 1 ]]; then
             FLAVOR="${LANGS[0]}"
-            IMAGE="docker://ghcr.io/oxsecurity/megalinter-${FLAVOR}:v8"
+            IMAGE="docker://ghcr.io/oxsecurity/megalinter-${FLAVOR}:v9.4.0"
           else
             FLAVOR="all"
-            IMAGE="docker://ghcr.io/oxsecurity/megalinter:v8"
+            IMAGE="docker://ghcr.io/oxsecurity/megalinter:v9.4.0"
           fi
           echo "Detected flavor: $FLAVOR (matched languages: ${LANGS[*]:-none})"
           echo "flavor=$FLAVOR" >> "$GITHUB_OUTPUT"
