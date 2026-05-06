@@ -76,7 +76,7 @@ jobs:
 
       - name: Post fix-PR link as comment on original PR
         if: steps.cpr.outputs.pull-request-url != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const workflowRun = context.payload.workflow_run;

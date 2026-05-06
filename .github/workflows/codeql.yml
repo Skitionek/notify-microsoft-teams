@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Check via API
         id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             try {
