@@ -12,12 +12,18 @@
 
 ## [Unreleased]
 
-### Features
+### Fixed
 
-* Upgrades to use node 24.
-
+- Remove `"parser": "typescript"` from `.prettierrc.json` to prevent prettier from corrupting YAML files (action.yml) which was breaking yamllint and actionlint
+- Delete `eslint.config.mjs` (flat config) so MegaLinter's eslint v8 can use `.eslintrc.json` via legacy config mode
+- Update `.eslintrc.json` ecmaVersion from 2018 to 2020 to support optional chaining (`?.`) and add jest globals for test files
+- Add `.idea/**` to cspell `ignorePaths` to suppress false-positive spelling errors in JetBrains IDE configuration files
 
 ### Changed
+
+- Make `JAVASCRIPT_STANDARD` linter non-blocking in MegaLinter: snake_case identifiers in `MSTeams.js` are intentional as they mirror GitHub Actions context property names
+
+
 
 * CI: port automation practices from template — add MegaLinter, CodeQL, Dependabot auto-merge, Copilot auto-fix, and integrity-check workflows
 * CI: fix `actions/checkout` and `setup-node` to `@v4`; action runner stays at `node24`

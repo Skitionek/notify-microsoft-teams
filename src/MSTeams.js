@@ -129,7 +129,7 @@ const emailsToMsTeamsEntities = (emails) => {
 
 const statusSummary = (job) => {
   const {
-    activityTitle, activitySubtitle, activityImage, color
+    activityTitle, activitySubtitle, activityImage
   } = Status(job.status);
   return [
     {
@@ -307,7 +307,7 @@ class MSTeams {
         safeResponse.data = response?.data
           ? JSON.parse(JSON.stringify(response.data))
           : undefined;
-      } catch (circularError) {
+      } catch {
         // If we still hit circular references, just include basic info
         safeResponse.status = response?.status;
         safeResponse.statusText = response?.statusText;

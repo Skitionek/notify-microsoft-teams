@@ -83,6 +83,10 @@ jobs:
           GITHUB_COMMENT_REPORTER: false
           SARIF_REPORTER: true
           APPLY_FIXES: all
+          # Force eslint v8 (used by MegaLinter) to use legacy .eslintrc config
+          # mode so the --no-eslintrc flag it passes remains valid. Local dev
+          # with eslint v9 continues to use eslint.config.mjs (flat config).
+          ESLINT_USE_FLAT_CONFIG: "false"
 
       # Remove the ephemeral action before create-pull-request runs so it
       # is never committed to the repository.

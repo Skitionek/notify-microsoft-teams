@@ -292,7 +292,7 @@ describe('run function with various combinations of job, steps, and needs', () =
         }
     ];
 
-    const testPayloadRemainsUnchanged = async ({ description, job, steps, needs, msteams_emails }) => {
+    const testPayloadRemainsUnchanged = async ({ job, steps, needs, msteams_emails }) => {
         const mockNotify = jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn());
     
         // Mock inputs based on the combination
@@ -320,7 +320,7 @@ describe('run function with various combinations of job, steps, and needs', () =
     it.each(combinations)('should call MSTeams.notify with correct payload when %j', testPayloadRemainsUnchanged);
 
     it('should handle missing inputs', async () => {
-        core.getInput.mockImplementation((name) => undefined);
+        core.getInput.mockImplementation(() => undefined);
         
         const mockSetFailed = jest.spyOn(core, 'setFailed');
 

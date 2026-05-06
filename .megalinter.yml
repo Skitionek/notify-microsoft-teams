@@ -30,6 +30,12 @@ REPOSITORY_KICS_DISABLE_ERRORS: true
 # false positives. Downgrade to non-blocking.
 REPOSITORY_DEVSKIM_DISABLE_ERRORS: true
 
+# standard: enforces camelCase naming which conflicts with MSTeams.js using
+# snake_case identifiers destructured directly from GitHub Actions context
+# objects (e.g. head_commit, repository_link). Making non-blocking to avoid
+# renaming identifiers that mirror the upstream API shape.
+JAVASCRIPT_STANDARD_DISABLE_ERRORS: true
+
 # kingfisher: secret scanner; reports an "Inactive Credential" false positive
 # in .git/config (GitHub App token in local git auth). Downgrade to
 # non-blocking.
