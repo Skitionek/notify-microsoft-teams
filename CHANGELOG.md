@@ -19,13 +19,13 @@
 - Update `.eslintrc.json` ecmaVersion from 2018 to 2020 to support optional chaining (`?.`) and add jest globals for test files ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 - Add `.idea/**` to cspell `ignorePaths` to suppress false-positive spelling errors in JetBrains IDE configuration files ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 - Remove unused variables in `MSTeams.js` and `index.test.js` ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
-- Rebuild `dist/index.js` to sync with source changes ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 
 ### Changed
 
 - Make `JAVASCRIPT_STANDARD` linter non-blocking in MegaLinter: snake_case identifiers in `MSTeams.js` are intentional as they mirror GitHub Actions context property names ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 - Demote `SPELL_CSPELL` to non-blocking in MegaLinter so spell-check issues do not block CI ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 - Lint workflow: replace `create-pull-request` with direct git push to PR branch; add Node.js rebuild step so `dist/` is automatically rebuilt and committed when source changes ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Automated rebuild of `dist/index.js` in CI; sync dist with catch-binding rename in source ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 
 ## [1.0.9](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.8...v1.0.9) (2025-04-14)
 
