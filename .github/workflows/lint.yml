@@ -16,7 +16,7 @@ jobs:
     name: MegaLinter
     runs-on: ubuntu-latest
     permissions:
-      contents: write # needed to commit auto-fixes and push dist/
+      contents: write # needed to commit auto-fixes
       issues: write
       pull-requests: write
       security-events: write # needed to upload SARIF
@@ -27,9 +27,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-          # Check out the actual branch (not the detached merge commit) so
-          # we can push commits back to the PR branch.
-          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Detect MegaLinter flavor
         id: detect_flavor
@@ -91,31 +88,15 @@ jobs:
           # with eslint v9 continues to use eslint.config.mjs (flat config).
           ESLINT_USE_FLAT_CONFIG: "false"
 
-      # Remove the ephemeral action before any commit steps so it is never
-      # committed to the repository.
+      # Remove the ephemeral action before create-pull-request runs so it
+      # is never committed to the repository.
       - name: Clean up dynamic action
         if: always()
         run: rm -rf .github/actions/_megalinter
 
-      # ── Auto-rebuild dist/ ─────────────────────────────────────────────────
-      # Rebuild dist/index.js after MegaLinter's auto-fixes so the compiled
-      # artifact stays in sync with any linter-corrected source changes.
-      - name: Set up Node.js
-        if: success() || failure()
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Rebuild dist/ if source changed
-        if: success() || failure()
-        run: |
-          npm ci
-          npm run package
-
-      # Derive has_updated_sources from git status after both linter fixes
-      # and the potential rebuild above.
-      - name: Collect all changes
-        if: success() || failure()
+      # Derive has_updated_sources from git status so downstream steps work.
+      - name: Collect MegaLinter result
+        if: always()
         id: ml
         run: |
           if git diff --quiet; then
@@ -124,29 +105,53 @@ jobs:
             echo "has_updated_sources=1" >> "$GITHUB_OUTPUT"
           fi
 
-      # ── Auto-commit fixes to PR branch ────────────────────────────────────
-      # Commit linter auto-fixes and any rebuilt dist/ directly back to the
-      # PR branch. Avoids the extra PR-within-a-PR indirection and does not
-      # require a PAT — GITHUB_TOKEN with contents: write is sufficient.
-      - name: Commit and push auto-fixes
-        if: >
-          (success() || failure()) &&
-          steps.ml.outputs.has_updated_sources == '1' &&
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+      # ── Auto-fix pull request (PR only) ───────────────────────────────────
+      - name: Set fix-PR flag
+        if: always()
+        id: fix_check
+        env:
+          HAS_UPDATES: ${{ steps.ml.outputs.has_updated_sources }}
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          SKIP_FIX: ${{ contains(github.event.head_commit.message, 'skip fix') }}
         run: |
-          # Guard against infinite loop: skip if this is itself an auto-fix commit.
-          if git log -1 --format=%s | grep -qF '[MegaLinter]'; then
-            echo "Last commit was already an auto-fix — skipping to prevent loop."
-            exit 0
+          if [[ "$HAS_UPDATES" == "1" && "$IS_PR" == "true" && "$SAME_REPO" == "true" && "$SKIP_FIX" != "true" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --stat
-          git commit -m "[MegaLinter] Apply linters automatic fixes and rebuild dist/"
-          git push
-          echo "Auto-fixes committed and pushed. A new CI run will validate the result."
+
+      - name: Create Pull Request with applied fixes
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        id: cpr
+        if: always() && steps.fix_check.outputs.enabled == 'true'
+        with:
+          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
+          commit-message: "[MegaLinter] Apply linters automatic fixes"
+          title: "[MegaLinter] Apply linters automatic fixes"
+          labels: bot
+          branch: megalinter-fixes-pr-${{ github.event.pull_request.number }}
+          body: |
+            MegaLinter has automatically applied linters fixes on this PR.
+            Please review the changes and merge if they are correct.
+          base: ${{ github.head_ref }}
+
+      - name: Post PR Comment
+        if: always() && steps.fix_check.outputs.enabled == 'true'
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v2
+        with:
+          message: |
+            MegaLinter has automatically applied linters fixes on this PR.
+            Please review the changes and merge if they are correct.
+            PR: ${{ steps.cpr.outputs.pull-request-url }}
+          hide_and_recreate: true
+
+      - name: Fail if PR Created
+        if: always() && steps.fix_check.outputs.enabled == 'true' && steps.cpr.outputs.pull-request-url != ''
+        run: |
+          echo "A PR with formatting fixes has been created. Please merge it before proceeding."
+          echo "PR: ${{ steps.cpr.outputs.pull-request-url }}"
+          exit 1
 
       # ── Upload SARIF for PR annotations ───────────────────────────────────
       - name: Upload SARIF report

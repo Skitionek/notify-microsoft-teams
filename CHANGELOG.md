@@ -24,7 +24,7 @@
 
 - Make `JAVASCRIPT_STANDARD` linter non-blocking in MegaLinter: snake_case identifiers in `MSTeams.js` are intentional as they mirror GitHub Actions context property names ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 - Demote `SPELL_CSPELL` to non-blocking in MegaLinter so spell-check issues do not block CI ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
-- Lint workflow: replace `create-pull-request` with direct git push to PR branch; add Node.js rebuild step so `dist/` is automatically rebuilt and committed when source changes ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Integrity workflow: auto-rebuild and commit `dist/` back to the PR branch when it is out of date, so contributors don't need to run `npm run package` manually ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 - Automated rebuild of `dist/index.js` in CI; sync dist with catch-binding rename in source ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 
 ## [1.0.9](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.8...v1.0.9) (2025-04-14)
