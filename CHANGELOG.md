@@ -15,21 +15,14 @@
 ### Fixed
 
 - Remove `"parser": "typescript"` from `.prettierrc.json` to prevent prettier from corrupting YAML files (action.yml) which was breaking yamllint and actionlint
-- Delete `eslint.config.mjs` (flat config) so MegaLinter's eslint v8 can use `.eslintrc.json` via legacy config mode
+- Simplify `eslint.config.mjs` to use standard flat config and add `ESLINT_USE_FLAT_CONFIG: "false"` to MegaLinter step so eslint v8 uses legacy `.eslintrc.json` mode
 - Update `.eslintrc.json` ecmaVersion from 2018 to 2020 to support optional chaining (`?.`) and add jest globals for test files
 - Add `.idea/**` to cspell `ignorePaths` to suppress false-positive spelling errors in JetBrains IDE configuration files
+- Remove unused variables in `MSTeams.js` and `index.test.js`
 
 ### Changed
 
 - Make `JAVASCRIPT_STANDARD` linter non-blocking in MegaLinter: snake_case identifiers in `MSTeams.js` are intentional as they mirror GitHub Actions context property names
-
-
-
-* CI: port automation practices from template — add MegaLinter, CodeQL, Dependabot auto-merge, Copilot auto-fix, and integrity-check workflows
-* CI: fix `actions/checkout` and `setup-node` to `@v4`; action runner stays at `node24`
-* CI: add `.megalinter.yml`, `.yamllint.yml`, `.cspell.json`, and `.grype.yaml` linter configuration
-* CI: make `devskim` and `kingfisher` non-blocking in MegaLinter (project-level scanners ignore `FILTER_REGEX_EXCLUDE`)
-* CI: rebuild `dist/index.js` with upgraded `fast-xml-parser@5.7.2`
 
 ## [1.0.9](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.8...v1.0.9) (2025-04-14)
 
