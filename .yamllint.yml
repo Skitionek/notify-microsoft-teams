@@ -7,7 +7,7 @@ rules:
   # GitHub Actions workflows use 'on:' as the event trigger keyword; yamllint
   # flags it as a YAML truthy value. Allow it explicitly.
   truthy:
-    allowed-values: ["true", "false", "on", "off"]
+    allowed-values: ['true', 'false', 'on', 'off']
     check-keys: false
 
   # The YAML document-start marker ('---') is optional in GitHub Actions

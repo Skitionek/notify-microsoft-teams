@@ -86,7 +86,7 @@ jobs:
           # Force eslint v8 (used by MegaLinter) to use legacy .eslintrc config
           # mode so the --no-eslintrc flag it passes remains valid. Local dev
           # with eslint v9 continues to use eslint.config.mjs (flat config).
-          ESLINT_USE_FLAT_CONFIG: "false"
+          ESLINT_USE_FLAT_CONFIG: 'false'
 
       # Remove the ephemeral action before create-pull-request runs so it
       # is never committed to the repository.
@@ -127,8 +127,8 @@ jobs:
         if: always() && steps.fix_check.outputs.enabled == 'true'
         with:
           token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
-          commit-message: "[MegaLinter] Apply linters automatic fixes"
-          title: "[MegaLinter] Apply linters automatic fixes"
+          commit-message: '[MegaLinter] Apply linters automatic fixes'
+          title: '[MegaLinter] Apply linters automatic fixes'
           labels: bot
           branch: megalinter-fixes-pr-${{ github.event.pull_request.number }}
           body: |

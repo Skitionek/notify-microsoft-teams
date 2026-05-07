@@ -2,66 +2,71 @@ const core = require('@actions/core');
 const MSTeams = require('./MSTeams');
 
 const missing_functionality_warning = objective =>
-	core.warning(`Missing ${objective} parameter will result in reduced functionality.`) || {};
+  core.warning(
+    `Missing ${objective} parameter will result in reduced functionality.`
+  ) || {};
 
 const access_context = context_name => {
-	let context = core.getInput(context_name);
-	if (!context) missing_functionality_warning(context_name);
-	return context === '' ? {} : JSON.parse(context);
+  let context = core.getInput(context_name);
+  if (!context) missing_functionality_warning(context_name);
+  return context === '' ? {} : JSON.parse(context);
 };
 
 async function run() {
-	try {
-		const webhook_url = process.env.MSTEAMS_WEBHOOK || core.getInput('webhook_url');
-		if (webhook_url === '') {
-			throw new Error(
-				'[Error] Missing Microsoft Teams Incoming Webhooks URL.\n' +
-				'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
-				'specify the key called "webhook_url" in "with" section.'
-			);
-		}
+  try {
+    const webhook_url =
+      process.env.MSTEAMS_WEBHOOK || core.getInput('webhook_url');
+    if (webhook_url === '') {
+      throw new Error(
+        '[Error] Missing Microsoft Teams Incoming Webhooks URL.\n' +
+          'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
+          'specify the key called "webhook_url" in "with" section.'
+      );
+    }
 
-		let job = access_context('job');
-		let steps = access_context('steps');
-		let needs = access_context('needs');
+    let job = access_context('job');
+    let steps = access_context('steps');
+    let needs = access_context('needs');
 
-		let title = core.getInput('title');
-		let msteams_emails= core.getInput('msteams_emails');
-		let raw = core.getInput('raw');
-		let dry_run = core.getInput('dry_run');
+    let title = core.getInput('title');
+    let msteams_emails = core.getInput('msteams_emails');
+    let raw = core.getInput('raw');
+    let dry_run = core.getInput('dry_run');
 
-		const overwrite = core.getInput('overwrite');
-		if (overwrite) {
-			core.warning('The "overwrite" parameter is deprecated. Please use "raw" instead.');
-			if (!raw) raw = overwrite;
-		}
+    const overwrite = core.getInput('overwrite');
+    if (overwrite) {
+      core.warning(
+        'The "overwrite" parameter is deprecated. Please use "raw" instead.'
+      );
+      if (!raw) raw = overwrite;
+    }
 
-		core.info(`Parsed params:\n${JSON.stringify({
-			webhook_url: '***',
-			job,
-			steps,
-			needs,
-			raw,
-			title,
-			msteams_emails,
-			dry_run
-		})}`);
+    core.info(
+      `Parsed params:\n${JSON.stringify({
+        webhook_url: '***',
+        job,
+        steps,
+        needs,
+        raw,
+        title,
+        msteams_emails,
+        dry_run
+      })}`
+    );
 
-		const msteams = new MSTeams();
-		let payload;
-		if (raw === '') {
-			payload = await msteams.generatePayload(
-				{
-					job,
-					steps,
-					needs,
-					title,
-					msteams_emails
-				}
-			);
-		} else {
-			payload = Object.assign({}, msteams.header, JSON.parse(raw));
-		}
+    const msteams = new MSTeams();
+    let payload;
+    if (raw === '') {
+      payload = await msteams.generatePayload({
+        job,
+        steps,
+        needs,
+        title,
+        msteams_emails
+      });
+    } else {
+      payload = Object.assign({}, msteams.header, JSON.parse(raw));
+    }
 
     try {
       core.info(
@@ -78,19 +83,19 @@ async function run() {
       );
     }
 
-		if (dry_run === '' || dry_run==='false') {
-			await msteams.notify(webhook_url, payload);
-			core.info('Sent message to Microsoft Teams');
-		} else {
-			core.info('Dry run - skipping notification send. Done.');
-		}
-	} catch (err) {
-		core.setFailed(err.message);
-	}
+    if (dry_run === '' || dry_run === 'false') {
+      await msteams.notify(webhook_url, payload);
+      core.info('Sent message to Microsoft Teams');
+    } else {
+      core.info('Dry run - skipping notification send. Done.');
+    }
+  } catch (err) {
+    core.setFailed(err.message);
+  }
 }
 
 if (require.main === module) {
-	run();
+  run();
 } else {
-	exports.run = run;
+  exports.run = run;
 }

@@ -1,6 +1,11 @@
 {
   "version": "0.2",
-  "ignorePaths": ["dist/**", "node_modules/**", "package-lock.json", ".idea/**"],
+  "ignorePaths": [
+    "dist/**",
+    "node_modules/**",
+    "package-lock.json",
+    ".idea/**"
+  ],
   "words": [
     "Skitionek",
     "skitionek",
