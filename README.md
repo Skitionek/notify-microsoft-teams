@@ -10,12 +10,12 @@ Generated from [actions/javascript-template](https://github.com/actions/javascri
 
 # ToC
 
-- [Feature](#Feature)
-- [Usage](#Usage)
-  - [Examples](#Examples)
+- [Feature](#feature)
+- [Usage](#usage)
+  - [Examples](#examples)
 - [Microsoft Teams UI](#Microsoft_Teams_UI)
-- [Contribution](#Contribution)
-- [LICENSE](#LICENSE)
+- [Contribution](#contribution)
+- [LICENSE](#license)
 
 # Feature
 
@@ -33,7 +33,7 @@ First of all, you need to set GitHub secrets for MSTEAMS_WEBHOOK that is Incomin
 You can customize the following parameters:
 
 | with parameter | required/optional | default          | description                                                                                              |
-| :------------: | :---------------: | :--------------- | :------------------------------------------------------------------------------------------------------- |
+|:--------------:|:-----------------:|:-----------------|:---------------------------------------------------------------------------------------------------------|
 |  webhook_url   |     optional      | $MSTEAMS_WEBHOOK | Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable |
 |      job       |     optional      | {}}              | JSON parsed job context                                                                                  |
 |     steps      |     optional      | {}               | JSON parsed steps context                                                                                |

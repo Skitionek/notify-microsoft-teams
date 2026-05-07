@@ -1,8 +1,8 @@
-const {IncomingWebhook} = require('ms-teams-webhook');
-const {context: github} = require('@actions/github');
-const core = require('@actions/core');
+const { IncomingWebhook } = require('ms-teams-webhook')
+const { context: github } = require('@actions/github')
+const core = require('@actions/core')
 
-const placeholder = '';
+const placeholder = ''
 const {
   payload: {
     repository = {
@@ -21,7 +21,7 @@ const {
   },
   eventName,
   workflow
-} = github;
+} = github
 
 const statuses = [
   {
@@ -64,71 +64,72 @@ const statuses = [
     activityImage:
       'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/unknown.png'
   }
-];
+]
 
-function Status(status) {
+function Status (status) {
   if (!status) {
-    core.error(`Unknown status value: ${status}`);
-    return statuses.find(({id}) => id === 'unknown');
+    core.error(`Unknown status value: ${status}`)
+    return statuses.find(({ id }) => id === 'unknown')
   }
-  const r = statuses.find(({id}) => id === status.toLowerCase());
+  const r = statuses.find(({ id }) => id === status.toLowerCase())
   if (!r) {
-    core.error(`Not implemented status value: ${status}`);
-    return statuses.find(({id}) => id === 'unknown');
+    core.error(`Not implemented status value: ${status}`)
+    return statuses.find(({ id }) => id === 'unknown')
   }
-  return r;
+  return r
 }
 
-const repository_link = `[${repository.full_name}](${repository.html_url})`;
+const repository_link = `[${repository.full_name}](${repository.html_url})`
 const changelog = commits.length
   ? `**Changelog:**${commits.reduce((o, c) => console.dir(c) || o + '\n+ ' + c.message, '\n')}`
-  : undefined;
+  : undefined
 const outputs2markdown = outputs =>
   Object.keys(outputs).reduce(
     (o, output_name) =>
       o + `+ ${output_name}:${'\n'}\`\`\`${outputs[output_name]}\`\`\``,
     ''
-  );
+  )
 
 const truncateString = (str, maxLength) => {
   if (str.length > maxLength) {
-    return str.slice(0, maxLength - 3) + '...';
+    return str.slice(0, maxLength - 3) + '...'
   }
-  return str;
-};
+  return str
+}
 
 const summary_generator = (obj, status_key) => {
   const r = {
     type: 'FactSet',
     facts: []
-  };
+  }
   Object.keys(obj).forEach(step_id => {
-    const status = Status(obj[step_id][status_key]);
+    const status = Status(obj[step_id][status_key])
     r.facts.push({
       title: `${status.icon} ${truncateString(step_id, 15)}`,
       value: status.activityTitle
-    });
+    })
     if (status.id === 'failure' && obj[step_id].outputs.length) {
-      let text = `${step_id}:\n`;
-      text += outputs2markdown(obj[step_id].outputs);
-      if (text !== '')
+      let text = `${step_id}:\n`
+      text += outputs2markdown(obj[step_id].outputs)
+      if (text !== '') {
         r.facts.push({
           type: 'TextBlock',
-          text: text
-        });
+          text
+        })
+      }
     }
-  });
-  if (!r.facts.length) return [];
-  return [r];
-};
+  })
+  if (!r.facts.length) return []
+  return [r]
+}
 
 const emailsToText = emails => {
-  if (!emails || !emails.length) return '';
+  if (!emails || !emails.length) return ''
 
   return emails
     .map(email => `<at>${email}</at>`)
-    .reduce((previous, current) => `${previous} ${current}`);
-};
+    .reduce((previous, current) => `${previous} ${current}`)
+}
 
 const emailsToMsTeamsEntities = emails => {
   return emails.map(email => {
@@ -139,12 +140,12 @@ const emailsToMsTeamsEntities = emails => {
         id: email,
         name: email
       }
-    };
-  });
-};
+    }
+  })
+}
 
 const statusSummary = job => {
-  const {activityTitle, activitySubtitle, activityImage} = Status(job.status);
+  const { activityTitle, activitySubtitle, activityImage } = Status(job.status)
   return [
     {
       type: 'ColumnSet',
@@ -179,12 +180,12 @@ const statusSummary = job => {
         }
       ]
     }
-  ];
-};
+  ]
+}
 
 const csvToArray = csv => {
-  return csv.replaceAll(' ', '').split(',');
-};
+  return csv.replaceAll(' ', '').split(',')
+}
 
 class MSTeams {
   /**
@@ -196,16 +197,16 @@ class MSTeams {
    * @param msteams_emails {string} msteams emails in CSV
    * @return
    */
-  async generatePayload({
-    job = {status: 'unknown'},
+  async generatePayload ({
+    job = { status: 'unknown' },
     steps = {},
     needs = {},
     title = '',
     msteams_emails = ''
   }) {
-    const steps_summary = summary_generator(steps, 'outcome');
-    const needs_summary = summary_generator(needs, 'result');
-    const status_summary = statusSummary(job);
+    const steps_summary = summary_generator(steps, 'outcome')
+    const needs_summary = summary_generator(needs, 'result')
+    const status_summary = statusSummary(job)
 
     const commitChangeLog = changelog
       ? [
@@ -216,7 +217,7 @@ class MSTeams {
             wrap: true
           }
         ]
-      : [];
+      : []
 
     const mentionedIds =
       msteams_emails.length > 1
@@ -227,7 +228,7 @@ class MSTeams {
               wrap: true
             }
           ]
-        : [];
+        : []
 
     const headerTitle = {
       type: 'TextBlock',
@@ -239,14 +240,14 @@ class MSTeams {
           : `${sender.login} ${eventName} initialised workflow"${workflow}"`,
       style: 'heading',
       wrap: true
-    };
+    }
 
     const repositoryLink = {
       type: 'TextBlock',
       size: 'Medium',
       weight: 'lighter',
       text: repository_link
-    };
+    }
 
     const actionLinks = {
       type: 'ActionSet',
@@ -266,12 +267,12 @@ class MSTeams {
             ]
           : [])
       ]
-    };
+    }
 
     const entities =
       msteams_emails.length > 0
         ? emailsToMsTeamsEntities(csvToArray(msteams_emails))
-        : [{}];
+        : [{}]
 
     return {
       type: 'message',
@@ -293,12 +294,12 @@ class MSTeams {
             $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
             version: '1.4',
             msteams: {
-              entities: entities
+              entities
             }
           }
         }
       ]
-    };
+    }
   }
 
   /**
@@ -307,51 +308,51 @@ class MSTeams {
    * @param  payload
    * @returns {Promise} result
    */
-  async notify(url, payload) {
+  async notify (url, payload) {
     if (!url) {
       throw new Error(
         'Missing Microsoft Teams Incoming Webhooks URL.\n' +
           'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
           'specify the key called "webhook_url" in "with" section.'
-      );
+      )
     }
     if (!payload) {
       throw new Error(
         'Missing payload for Microsoft Teams notification.\n' +
           'Please provide a valid payload.'
-      );
+      )
     }
-    const client = new IncomingWebhook(url);
-    const response = await client.sendRawAdaptiveCard(payload);
+    const client = new IncomingWebhook(url)
+    const response = await client.sendRawAdaptiveCard(payload)
 
     if (![200, 202].includes(response?.status)) {
       // Create a safe representation of the response to avoid circular reference errors
-      const safeResponse = {};
+      const safeResponse = {}
 
       // Safely copy properties, handling potential circular references
       try {
-        safeResponse.status = response?.status;
-        safeResponse.statusText = response?.statusText;
+        safeResponse.status = response?.status
+        safeResponse.statusText = response?.statusText
         safeResponse.headers = response?.headers
           ? JSON.parse(JSON.stringify(response.headers))
-          : undefined;
+          : undefined
         safeResponse.data = response?.data
           ? JSON.parse(JSON.stringify(response.data))
-          : undefined;
+          : undefined
       } catch {
         // If we still hit circular references, just include basic info
-        safeResponse.status = response?.status;
-        safeResponse.statusText = response?.statusText;
-        safeResponse.error = 'Response contained circular references';
+        safeResponse.status = response?.status
+        safeResponse.statusText = response?.statusText
+        safeResponse.error = 'Response contained circular references'
       }
 
       throw new Error(
         'Failed to send notification to Microsoft Teams.\n' +
           'Response:\n' +
           JSON.stringify(safeResponse, null, 2)
-      );
+      )
     }
   }
 }
 
-module.exports = MSTeams;
+module.exports = MSTeams
