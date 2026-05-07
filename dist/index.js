@@ -104635,39 +104635,48 @@ const {
   workflow
 } = github;
 
-const statuses = [{
-  id: 'success',
-  icon: '✓',
-  activityTitle: 'Success!',
-  activitySubtitle: head_commit.timestamp,
-  activityImage: 'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png'
-
-}, {
-  id: 'failure',
-  icon: '✗',
-  activityTitle: 'Failure',
-  activitySubtitle: head_commit.timestamp,
-  activityImage: 'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/failure.png'
-
-}, {
-  id: 'cancelled',
-  icon: 'o',
-  activityTitle: 'Cancelled',
-  activitySubtitle: head_commit.timestamp,
-  activityImage: 'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/cancelled.png'
-}, {
-  id: 'skipped',
-  icon: '⤼',
-  activityTitle: 'Skipped',
-  activitySubtitle: head_commit.timestamp,
-  activityImage: 'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/skipped.png'
-}, {
-  id: 'unknown',
-  icon: '?',
-  activityTitle: 'No job context has been provided',
-  activitySubtitle: head_commit.timestamp,
-  activityImage: 'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/unknown.png'
-}];
+const statuses = [
+  {
+    id: 'success',
+    icon: '✓',
+    activityTitle: 'Success!',
+    activitySubtitle: head_commit.timestamp,
+    activityImage:
+      'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/success.png'
+  },
+  {
+    id: 'failure',
+    icon: '✗',
+    activityTitle: 'Failure',
+    activitySubtitle: head_commit.timestamp,
+    activityImage:
+      'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/failure.png'
+  },
+  {
+    id: 'cancelled',
+    icon: 'o',
+    activityTitle: 'Cancelled',
+    activitySubtitle: head_commit.timestamp,
+    activityImage:
+      'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/cancelled.png'
+  },
+  {
+    id: 'skipped',
+    icon: '⤼',
+    activityTitle: 'Skipped',
+    activitySubtitle: head_commit.timestamp,
+    activityImage:
+      'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/skipped.png'
+  },
+  {
+    id: 'unknown',
+    icon: '?',
+    activityTitle: 'No job context has been provided',
+    activitySubtitle: head_commit.timestamp,
+    activityImage:
+      'https://raw.githubusercontent.com/Skitionek/notify-microsoft-teams/master/icons/unknown.png'
+  }
+];
 
 function Status(status) {
   if (!status) {
@@ -104683,8 +104692,15 @@ function Status(status) {
 }
 
 const repository_link = `[${repository.full_name}](${repository.html_url})`;
-const changelog = commits.length ? `**Changelog:**${commits.reduce((o, c) => console.dir(c) || o + '\n+ ' + c.message, '\n')}` : undefined;
-const outputs2markdown = (outputs) => Object.keys(outputs).reduce((o, output_name) => o + `+ ${output_name}:${'\n'}\`\`\`${outputs[output_name]}\`\`\``, '');
+const changelog = commits.length
+  ? `**Changelog:**${commits.reduce((o, c) => console.dir(c) || o + '\n+ ' + c.message, '\n')}`
+  : undefined;
+const outputs2markdown = outputs =>
+  Object.keys(outputs).reduce(
+    (o, output_name) =>
+      o + `+ ${output_name}:${'\n'}\`\`\`${outputs[output_name]}\`\`\``,
+    ''
+  );
 
 const truncateString = (str, maxLength) => {
   if (str.length > maxLength) {
@@ -104718,16 +104734,16 @@ const summary_generator = (obj, status_key) => {
   return [r];
 };
 
-const emailsToText = (emails) => {
-  if (!emails || !emails.length)
-    return '';
+const emailsToText = emails => {
+  if (!emails || !emails.length) return '';
 
-  return emails.map(email => `<at>${email}</at>`)
+  return emails
+    .map(email => `<at>${email}</at>`)
     .reduce((previous, current) => `${previous} ${current}`);
 };
 
-const emailsToMsTeamsEntities = (emails) => {
-  return emails.map((email) => {
+const emailsToMsTeamsEntities = emails => {
+  return emails.map(email => {
     return {
       type: 'mention',
       text: `<at>${email}</at>`,
@@ -104739,10 +104755,8 @@ const emailsToMsTeamsEntities = (emails) => {
   });
 };
 
-const statusSummary = (job) => {
-  const {
-    activityTitle, activitySubtitle, activityImage
-  } = Status(job.status);
+const statusSummary = job => {
+  const {activityTitle, activitySubtitle, activityImage} = Status(job.status);
   return [
     {
       type: 'ColumnSet',
@@ -104780,7 +104794,7 @@ const statusSummary = (job) => {
   ];
 };
 
-const csvToArray = (csv) => {
+const csvToArray = csv => {
   return csv.replaceAll(' ', '').split(',');
 };
 
@@ -104795,38 +104809,46 @@ class MSTeams {
    * @return
    */
   async generatePayload({
-                          job = {status: 'unknown'},
-                          steps = {},
-                          needs = {},
-                          title = '',
-                          msteams_emails = ''
-                        }) {
+    job = {status: 'unknown'},
+    steps = {},
+    needs = {},
+    title = '',
+    msteams_emails = ''
+  }) {
     const steps_summary = summary_generator(steps, 'outcome');
     const needs_summary = summary_generator(needs, 'result');
     const status_summary = statusSummary(job);
 
-    const commitChangeLog = changelog ?
-      [
-        {
-          type: 'TextBlock',
-          weight: 'lighter',
-          text: changelog,
-          wrap: true
-        }
-      ] : [];
+    const commitChangeLog = changelog
+      ? [
+          {
+            type: 'TextBlock',
+            weight: 'lighter',
+            text: changelog,
+            wrap: true
+          }
+        ]
+      : [];
 
-    const mentionedIds = msteams_emails.length > 1 ?
-      [{
-        type: 'TextBlock',
-        text: emailsToText(csvToArray(msteams_emails)),
-        wrap: true
-      }] : [];
+    const mentionedIds =
+      msteams_emails.length > 1
+        ? [
+            {
+              type: 'TextBlock',
+              text: emailsToText(csvToArray(msteams_emails)),
+              wrap: true
+            }
+          ]
+        : [];
 
     const headerTitle = {
       type: 'TextBlock',
       size: 'Medium',
       weight: 'Bolder',
-      text: title !== '' ? title : `${sender.login} ${eventName} initialised workflow"${workflow}"`,
+      text:
+        title !== ''
+          ? title
+          : `${sender.login} ${eventName} initialised workflow"${workflow}"`,
       style: 'heading',
       wrap: true
     };
@@ -104858,31 +104880,36 @@ class MSTeams {
       ]
     };
 
-    const entities = msteams_emails.length > 0 ? emailsToMsTeamsEntities(csvToArray(msteams_emails)) : [{}];
+    const entities =
+      msteams_emails.length > 0
+        ? emailsToMsTeamsEntities(csvToArray(msteams_emails))
+        : [{}];
 
     return {
-      'type': 'message',
-      attachments: [{
-        contentType: 'application/vnd.microsoft.card.adaptive',
-        content: {
-          type: 'AdaptiveCard',
-          body: [
-            headerTitle,
-            repositoryLink,
-            ...commitChangeLog,
-            ...steps_summary,
-            ...needs_summary,
-            ...status_summary,
-            actionLinks,
-            ...mentionedIds
-          ],
-          '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
-          version: '1.4',
-          msteams: {
-            entities: entities
+      type: 'message',
+      attachments: [
+        {
+          contentType: 'application/vnd.microsoft.card.adaptive',
+          content: {
+            type: 'AdaptiveCard',
+            body: [
+              headerTitle,
+              repositoryLink,
+              ...commitChangeLog,
+              ...steps_summary,
+              ...needs_summary,
+              ...status_summary,
+              actionLinks,
+              ...mentionedIds
+            ],
+            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+            version: '1.4',
+            msteams: {
+              entities: entities
+            }
           }
         }
-      }]
+      ]
     };
   }
 
@@ -104894,13 +104921,17 @@ class MSTeams {
    */
   async notify(url, payload) {
     if (!url) {
-      throw new Error('Missing Microsoft Teams Incoming Webhooks URL.\n' +
-        'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
-        'specify the key called "webhook_url" in "with" section.');
+      throw new Error(
+        'Missing Microsoft Teams Incoming Webhooks URL.\n' +
+          'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
+          'specify the key called "webhook_url" in "with" section.'
+      );
     }
     if (!payload) {
-      throw new Error('Missing payload for Microsoft Teams notification.\n' +
-        'Please provide a valid payload.');
+      throw new Error(
+        'Missing payload for Microsoft Teams notification.\n' +
+          'Please provide a valid payload.'
+      );
     }
     const client = new IncomingWebhook(url);
     const response = await client.sendRawAdaptiveCard(payload);
@@ -110657,66 +110688,71 @@ const core = __nccwpck_require__(37484);
 const MSTeams = __nccwpck_require__(78127);
 
 const missing_functionality_warning = objective =>
-	core.warning(`Missing ${objective} parameter will result in reduced functionality.`) || {};
+  core.warning(
+    `Missing ${objective} parameter will result in reduced functionality.`
+  ) || {};
 
 const access_context = context_name => {
-	let context = core.getInput(context_name);
-	if (!context) missing_functionality_warning(context_name);
-	return context === '' ? {} : JSON.parse(context);
+  let context = core.getInput(context_name);
+  if (!context) missing_functionality_warning(context_name);
+  return context === '' ? {} : JSON.parse(context);
 };
 
 async function run() {
-	try {
-		const webhook_url = process.env.MSTEAMS_WEBHOOK || core.getInput('webhook_url');
-		if (webhook_url === '') {
-			throw new Error(
-				'[Error] Missing Microsoft Teams Incoming Webhooks URL.\n' +
-				'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
-				'specify the key called "webhook_url" in "with" section.'
-			);
-		}
+  try {
+    const webhook_url =
+      process.env.MSTEAMS_WEBHOOK || core.getInput('webhook_url');
+    if (webhook_url === '') {
+      throw new Error(
+        '[Error] Missing Microsoft Teams Incoming Webhooks URL.\n' +
+          'Please configure "MSTEAMS_WEBHOOK" as environment variable or\n' +
+          'specify the key called "webhook_url" in "with" section.'
+      );
+    }
 
-		let job = access_context('job');
-		let steps = access_context('steps');
-		let needs = access_context('needs');
+    let job = access_context('job');
+    let steps = access_context('steps');
+    let needs = access_context('needs');
 
-		let title = core.getInput('title');
-		let msteams_emails= core.getInput('msteams_emails');
-		let raw = core.getInput('raw');
-		let dry_run = core.getInput('dry_run');
+    let title = core.getInput('title');
+    let msteams_emails = core.getInput('msteams_emails');
+    let raw = core.getInput('raw');
+    let dry_run = core.getInput('dry_run');
 
-		const overwrite = core.getInput('overwrite');
-		if (overwrite) {
-			core.warning('The "overwrite" parameter is deprecated. Please use "raw" instead.');
-			if (!raw) raw = overwrite;
-		}
+    const overwrite = core.getInput('overwrite');
+    if (overwrite) {
+      core.warning(
+        'The "overwrite" parameter is deprecated. Please use "raw" instead.'
+      );
+      if (!raw) raw = overwrite;
+    }
 
-		core.info(`Parsed params:\n${JSON.stringify({
-			webhook_url: '***',
-			job,
-			steps,
-			needs,
-			raw,
-			title,
-			msteams_emails,
-			dry_run
-		})}`);
+    core.info(
+      `Parsed params:\n${JSON.stringify({
+        webhook_url: '***',
+        job,
+        steps,
+        needs,
+        raw,
+        title,
+        msteams_emails,
+        dry_run
+      })}`
+    );
 
-		const msteams = new MSTeams();
-		let payload;
-		if (raw === '') {
-			payload = await msteams.generatePayload(
-				{
-					job,
-					steps,
-					needs,
-					title,
-					msteams_emails
-				}
-			);
-		} else {
-			payload = Object.assign({}, msteams.header, JSON.parse(raw));
-		}
+    const msteams = new MSTeams();
+    let payload;
+    if (raw === '') {
+      payload = await msteams.generatePayload({
+        job,
+        steps,
+        needs,
+        title,
+        msteams_emails
+      });
+    } else {
+      payload = Object.assign({}, msteams.header, JSON.parse(raw));
+    }
 
     try {
       core.info(
@@ -110733,21 +110769,21 @@ async function run() {
       );
     }
 
-		if (dry_run === '' || dry_run==='false') {
-			await msteams.notify(webhook_url, payload);
-			core.info('Sent message to Microsoft Teams');
-		} else {
-			core.info('Dry run - skipping notification send. Done.');
-		}
-	} catch (err) {
-		core.setFailed(err.message);
-	}
+    if (dry_run === '' || dry_run === 'false') {
+      await msteams.notify(webhook_url, payload);
+      core.info('Sent message to Microsoft Teams');
+    } else {
+      core.info('Dry run - skipping notification send. Done.');
+    }
+  } catch (err) {
+    core.setFailed(err.message);
+  }
 }
 
 if (require.main === require.cache[eval('__filename')]) {
-	run();
+  run();
 } else {
-	exports.run = run;
+  exports.run = run;
 }
 
 })();
