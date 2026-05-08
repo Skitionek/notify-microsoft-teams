@@ -59,8 +59,8 @@ jobs:
           # PAT is preferred so the fix PR triggers downstream CI workflows.
           # Falls back to GITHUB_TOKEN if PAT is not set.
           token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
-          commit-message: "fix(ci): apply Copilot auto-fix for failing tests"
-          title: "fix(ci): Copilot auto-fix for failing tests on ${{ github.event.workflow_run.head_branch }}"
+          commit-message: 'fix(ci): apply Copilot auto-fix for failing tests'
+          title: 'fix(ci): Copilot auto-fix for failing tests on ${{ github.event.workflow_run.head_branch }}'
           labels: |
             bot
             copilot-fix
