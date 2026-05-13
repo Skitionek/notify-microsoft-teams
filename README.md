@@ -1,4 +1,5 @@
 # Notify Microsoft Teams
+
 ![CI](https://github.com/Skitionek/notify-microsoft-teams/workflows/CI/badge.svg)
 ![GitHub](https://img.shields.io/github/license/homoluctus/slatify?color=brightgreen)
 
@@ -9,14 +10,15 @@ Generated from [actions/javascript-template](https://github.com/actions/javascri
 
 # ToC
 
-- [Feature](#Feature)
-- [Usage](#Usage)
-  - [Examples](#Examples)
+- [Feature](#feature)
+- [Usage](#usage)
+  - [Examples](#examples)
 - [Microsoft Teams UI](#Microsoft_Teams_UI)
-- [Contribution](#Contribution)
-- [LICENSE](#LICENSE)
+- [Contribution](#contribution)
+- [LICENSE](#license)
 
 # Feature
+
 - Notify the result of GitHub Actions
 - Support all job statuses (reference: [job-context](https://help.github.com/en/articles/contexts-and-expression-syntax-for-github-actions#job-context))
 - Logs relevant jobs and steps along with their output in case of failure
@@ -25,21 +27,22 @@ Generated from [actions/javascript-template](https://github.com/actions/javascri
 - Allows tagging msteams member
 
 # Usage
+
 First of all, you need to set GitHub secrets for MSTEAMS_WEBHOOK that is Incoming Webhook URL.
 
 You can customize the following parameters:
 
-| with parameter |required/optional|default| description                                                                                              |
-|:--------------:|:--:|:--|:---------------------------------------------------------------------------------------------------------|
-|  webhook_url   |optional|$MSTEAMS_WEBHOOK| Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable |
-|      job       |optional|{}}| JSON parsed job context                                                                                  |
-|     steps      |optional|{}| JSON parsed steps context                                                                                |
-|     needs      |optional|{}| JSON parsed needs context                                                                                |
-|    dry_run     |optional|False| Do not actually send the message                                                                         |
-|      raw       |optional|''| JSON object to send to Microsoft Teams                                                                   |
-|     title      |optional|''| Overwrite default title                                                                                  |
-| msteams_emails |optional|''| Microsoft teams email ids in CSV to tag in the message                                                   |
-| github_token   |optional|${{ github.token }}| GitHub token used to fetch commits between tags when the event payload does not include commits (e.g. `release` or tag push events). Set to empty string to disable. |
+| with parameter | required/optional | default          | description                                                                                              |
+|:--------------:|:-----------------:|:-----------------|:---------------------------------------------------------------------------------------------------------|
+|  webhook_url   |     optional      | $MSTEAMS_WEBHOOK | Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable |
+|      job       |     optional      | {}}              | JSON parsed job context                                                                                  |
+|     steps      |     optional      | {}               | JSON parsed steps context                                                                                |
+|     needs      |     optional      | {}               | JSON parsed needs context                                                                                |
+|    dry_run     |     optional      | False            | Do not actually send the message                                                                         |
+|      raw       |     optional      | ''               | JSON object to send to Microsoft Teams                                                                   |
+|     title      |     optional      | ''               | Overwrite default title                                                                                  |
+| msteams_emails |     optional      | ''               | Microsoft teams email ids in CSV to tag in the message                                                   |
+| github_token   |     optional      | ${{ github.token }} | GitHub token used to fetch commits between tags when the event payload does not include commits (e.g. `release` or tag push events). Set to empty string to disable. |
 
 Please refer [action.yml](./action.yml) for more details.
 
@@ -67,8 +70,7 @@ jobs:
           job: ${{ toJson(job) }}
           steps: ${{ toJson(steps) }}
           dry_run: True
-          
-          
+
   with_emails:
     name: One with emails
     runs-on: ubuntu-latest
@@ -79,12 +81,11 @@ jobs:
         if: always()
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          title: "`Overwrote title in ${workflow_link}`"
-          msteams_emails: "mm@mm.mm, yy@yy.yy, rr@rr.rr"
+          title: '`Overwrote title in ${workflow_link}`'
+          msteams_emails: 'mm@mm.mm, yy@yy.yy, rr@rr.rr'
           job: ${{ toJson(job) }}
           steps: ${{ toJson(steps) }}
           dry_run: ${{ !github.event.action == 'release' }}
-
 
   without_optional_params:
     name: One with little info
@@ -107,7 +108,7 @@ jobs:
         if: always()
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
-          title: "`Overwrote title in ${workflow_link}`"
+          title: '`Overwrote title in ${workflow_link}`'
 
   with_raw:
     name: One with raw data
