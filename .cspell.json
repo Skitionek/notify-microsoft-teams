@@ -1,0 +1,42 @@
+{
+  "version": "0.2",
+  "ignorePaths": [
+    "dist/**",
+    "node_modules/**",
+    "package-lock.json",
+    ".idea/**"
+  ],
+  "words": [
+    "Skitionek",
+    "skitionek",
+    "botbuilder",
+    "msteams",
+    "slatify",
+    "initialised",
+    "abcdefghijklmnoprstuwxyz",
+    "megalinter",
+    "actionlint",
+    "devskim",
+    "grype",
+    "kics",
+    "jscpd",
+    "cspell",
+    "trivy",
+    "syft",
+    "lychee",
+    "trufflehog",
+    "gitleaks",
+    "dustilock",
+    "checkov",
+    "dependabot",
+    "automerge",
+    "trueish",
+    "SARIF",
+    "sarif",
+    "ipynb",
+    "tfvars",
+    "marocchino",
+    "hmarr",
+    "CODEOWNERS"
+  ]
+}
