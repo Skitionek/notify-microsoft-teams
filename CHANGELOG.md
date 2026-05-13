@@ -1,253 +1,244 @@
 # [1.1.0](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.9...v1.1.0) (2026-02-19)
 
-
 ### Bug Fixes
 
-* response status check - use && instead of || to avoid always-true condition ([c463ec9](https://github.com/Skitionek/notify-microsoft-teams/commit/c463ec91a33ffe6d625085ca4a8b4c11e5f49f2b))
-
-
-### Features
-
-* allow sponsorship ([a4a4b07](https://github.com/Skitionek/notify-microsoft-teams/commit/a4a4b0783229a5c9c0b166baa75b2e8784d981e8))
-
-## Upcoming Release
+- response status check - use && instead of || to avoid always-true condition ([c463ec9](https://github.com/Skitionek/notify-microsoft-teams/commit/c463ec91a33ffe6d625085ca4a8b4c11e5f49f2b))
 
 ### Features
 
-* Upgrades to use node 24.
+- allow sponsorship ([a4a4b07](https://github.com/Skitionek/notify-microsoft-teams/commit/a4a4b0783229a5c9c0b166baa75b2e8784d981e8))
 
+## [Unreleased]
+
+### Fixed
+
+- Remove `"parser": "typescript"` from `.prettierrc.json` to prevent prettier from corrupting YAML files (action.yml) which was breaking yamllint and actionlint ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Simplify `eslint.config.mjs` to use standard flat config and add `ESLINT_USE_FLAT_CONFIG: "false"` to MegaLinter step so eslint v8 uses legacy `.eslintrc.json` mode ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Update `.eslintrc.json` ecmaVersion from 2018 to 2020 to support optional chaining (`?.`) and add jest globals for test files ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Add `.idea/**` to cspell `ignorePaths` to suppress false-positive spelling errors in JetBrains IDE configuration files ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Remove unused variables in `MSTeams.js` and `index.test.js` ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+
+### Changed
+
+- Make `JAVASCRIPT_STANDARD` linter non-blocking in MegaLinter: snake_case identifiers in `MSTeams.js` are intentional as they mirror GitHub Actions context property names ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Demote `SPELL_CSPELL` to non-blocking in MegaLinter so spell-check issues do not block CI ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Integrity workflow: auto-rebuild and commit `dist/` back to the PR branch when it is out of date, so contributors don't need to run `npm run package` manually ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
+- Automated rebuild of `dist/index.js` in CI; sync dist with catch-binding rename in source ([#160](https://github.com/Skitionek/notify-microsoft-teams/pull/160))
 
 ## [1.0.9](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.8...v1.0.9) (2025-04-14)
 
-
 ### Bug Fixes
 
-* package.json & package-lock.json to reduce vulnerabilities ([#105](https://github.com/Skitionek/notify-microsoft-teams/issues/105)) ([678ccea](https://github.com/Skitionek/notify-microsoft-teams/commit/678ccea461944c9a3baaab394a1994c87a1d3cc2))
-* package.json & package-lock.json to reduce vulnerabilities ([#111](https://github.com/Skitionek/notify-microsoft-teams/issues/111)) ([5a842b7](https://github.com/Skitionek/notify-microsoft-teams/commit/5a842b7c2e9a6fcf86327f629335a31f1be0b6be))
-* package.json & package-lock.json to reduce vulnerabilities ([#112](https://github.com/Skitionek/notify-microsoft-teams/issues/112)) ([bae9b81](https://github.com/Skitionek/notify-microsoft-teams/commit/bae9b8184d0e43f42a3edd1451631ba6765f418f))
+- package.json & package-lock.json to reduce vulnerabilities ([#105](https://github.com/Skitionek/notify-microsoft-teams/issues/105)) ([678ccea](https://github.com/Skitionek/notify-microsoft-teams/commit/678ccea461944c9a3baaab394a1994c87a1d3cc2))
+- package.json & package-lock.json to reduce vulnerabilities ([#111](https://github.com/Skitionek/notify-microsoft-teams/issues/111)) ([5a842b7](https://github.com/Skitionek/notify-microsoft-teams/commit/5a842b7c2e9a6fcf86327f629335a31f1be0b6be))
+- package.json & package-lock.json to reduce vulnerabilities ([#112](https://github.com/Skitionek/notify-microsoft-teams/issues/112)) ([bae9b81](https://github.com/Skitionek/notify-microsoft-teams/commit/bae9b8184d0e43f42a3edd1451631ba6765f418f))
 
 ## [1.0.8](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.7...v1.0.8) (2023-02-02)
 
-
 ### Bug Fixes
 
-* package.json, package-lock.json & .snyk to reduce vulnerabilities ([#53](https://github.com/Skitionek/notify-microsoft-teams/issues/53)) ([3c11469](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1146970a8206bab2c8a9f58cca6ec422c0a359))
+- package.json, package-lock.json & .snyk to reduce vulnerabilities ([#53](https://github.com/Skitionek/notify-microsoft-teams/issues/53)) ([3c11469](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1146970a8206bab2c8a9f58cca6ec422c0a359))
 
 ## [1.0.7](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.6...v1.0.7) (2023-02-02)
 
-
 ### Bug Fixes
 
-* package.json & package-lock.json to reduce vulnerabilities ([#52](https://github.com/Skitionek/notify-microsoft-teams/issues/52)) ([ecc73bd](https://github.com/Skitionek/notify-microsoft-teams/commit/ecc73bd6261aab197bcce992a71cf230955ba734))
+- package.json & package-lock.json to reduce vulnerabilities ([#52](https://github.com/Skitionek/notify-microsoft-teams/issues/52)) ([ecc73bd](https://github.com/Skitionek/notify-microsoft-teams/commit/ecc73bd6261aab197bcce992a71cf230955ba734))
 
 ## [1.0.6](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.5...v1.0.6) (2021-11-29)
 
-
 ### Bug Fixes
 
-* package.json & package-lock.json to reduce vulnerabilities ([27e451c](https://github.com/Skitionek/notify-microsoft-teams/commit/27e451c44cf8c5dcea56eb70063cc276137aa59d))
+- package.json & package-lock.json to reduce vulnerabilities ([27e451c](https://github.com/Skitionek/notify-microsoft-teams/commit/27e451c44cf8c5dcea56eb70063cc276137aa59d))
 
 ## [1.0.5](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.4...v1.0.5) (2021-09-07)
 
-
 ### Bug Fixes
 
-* upgrade @octokit/rest from 17.5.2 to 17.11.2 ([9753f36](https://github.com/Skitionek/notify-microsoft-teams/commit/9753f36cc5eff08b4b9e3ff6855c4ead278828a6))
+- upgrade @octokit/rest from 17.5.2 to 17.11.2 ([9753f36](https://github.com/Skitionek/notify-microsoft-teams/commit/9753f36cc5eff08b4b9e3ff6855c4ead278828a6))
 
 ## [1.0.4](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.3...v1.0.4) (2020-04-24)
 
-
 ### Bug Fixes
 
-* missing color ([fb1129d](https://github.com/Skitionek/notify-microsoft-teams/commit/fb1129dab806996e088be139cb8e10fa530a845f))
+- missing color ([fb1129d](https://github.com/Skitionek/notify-microsoft-teams/commit/fb1129dab806996e088be139cb8e10fa530a845f))
 
 ## [1.0.3](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.2...v1.0.3) (2020-04-24)
 
-
 ### Bug Fixes
 
-* flood with notifications upon release publishing ([f9057c0](https://github.com/Skitionek/notify-microsoft-teams/commit/f9057c0665c7343d5eb020c3b70a98626decbaee))
+- flood with notifications upon release publishing ([f9057c0](https://github.com/Skitionek/notify-microsoft-teams/commit/f9057c0665c7343d5eb020c3b70a98626decbaee))
 
 ## [1.0.2](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.1...v1.0.2) (2020-04-24)
 
-
 ### Bug Fixes
 
-* response just being trueish ([7a871d8](https://github.com/Skitionek/notify-microsoft-teams/commit/7a871d89fe844d5756332c56e71335c221dd6b95))
+- response just being trueish ([7a871d8](https://github.com/Skitionek/notify-microsoft-teams/commit/7a871d89fe844d5756332c56e71335c221dd6b95))
 
 ## [1.0.1](https://github.com/Skitionek/notify-microsoft-teams/compare/v1.0.0...v1.0.1) (2020-04-24)
 
-
 ### Bug Fixes
 
-* response error? ([834d9da](https://github.com/Skitionek/notify-microsoft-teams/commit/834d9da3bdb498c3345cde9ec1766b9e58d0c5da))
+- response error? ([834d9da](https://github.com/Skitionek/notify-microsoft-teams/commit/834d9da3bdb498c3345cde9ec1766b9e58d0c5da))
 
 # 1.0.0 (2020-04-24)
 
-
 ### Bug Fixes
 
-* action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
-* add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
-* add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
-* add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
-* apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
-* argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
-* change to use workflow name  due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
-* CI ([3c1f8fe](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1f8fe7b04cc0b56228c9f0a358acd04a7a10f6))
-* CI & update README ([771d779](https://github.com/Skitionek/notify-microsoft-teams/commit/771d7790068f6a8cc6071d5d970d7920a823eca8))
-* corr icon path and response status ([564d288](https://github.com/Skitionek/notify-microsoft-teams/commit/564d2888863f811e69b2a2ab674dea90d48ec52d))
-* fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
-* fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
-* invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
-* invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
-* modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
-* modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
-* modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
-* modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
-* modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
-* modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
-* not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
-* not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
-* remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
-* remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
-* remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
-* terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
-* the prefix "GITHUB_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
-* typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
-* typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
-* typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
-* workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
-* wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
-* yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
-
+- action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
+- add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
+- add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
+- add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
+- apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
+- argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
+- change to use workflow name due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
+- CI ([3c1f8fe](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1f8fe7b04cc0b56228c9f0a358acd04a7a10f6))
+- CI & update README ([771d779](https://github.com/Skitionek/notify-microsoft-teams/commit/771d7790068f6a8cc6071d5d970d7920a823eca8))
+- corr icon path and response status ([564d288](https://github.com/Skitionek/notify-microsoft-teams/commit/564d2888863f811e69b2a2ab674dea90d48ec52d))
+- fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
+- fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
+- invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
+- invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
+- modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
+- modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
+- modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
+- modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
+- modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
+- modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
+- not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
+- not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
+- remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
+- remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
+- remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
+- terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
+- the prefix "GITHUB\_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
+- typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
+- typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
+- typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
+- workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
+- wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
+- yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
 
 ### Features
 
-* use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
+- use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
 
 # 1.0.0 (2020-04-24)
 
-
 ### Bug Fixes
 
-* action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
-* add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
-* add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
-* add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
-* apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
-* argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
-* change to use workflow name  due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
-* CI ([3c1f8fe](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1f8fe7b04cc0b56228c9f0a358acd04a7a10f6))
-* CI & update README ([771d779](https://github.com/Skitionek/notify-microsoft-teams/commit/771d7790068f6a8cc6071d5d970d7920a823eca8))
-* fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
-* fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
-* invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
-* invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
-* modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
-* modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
-* modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
-* modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
-* modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
-* modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
-* not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
-* not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
-* remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
-* remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
-* remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
-* terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
-* the prefix "GITHUB_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
-* typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
-* typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
-* typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
-* workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
-* wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
-* yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
-
+- action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
+- add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
+- add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
+- add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
+- apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
+- argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
+- change to use workflow name due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
+- CI ([3c1f8fe](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1f8fe7b04cc0b56228c9f0a358acd04a7a10f6))
+- CI & update README ([771d779](https://github.com/Skitionek/notify-microsoft-teams/commit/771d7790068f6a8cc6071d5d970d7920a823eca8))
+- fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
+- fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
+- invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
+- invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
+- modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
+- modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
+- modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
+- modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
+- modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
+- modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
+- not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
+- not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
+- remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
+- remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
+- remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
+- terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
+- the prefix "GITHUB\_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
+- typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
+- typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
+- typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
+- workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
+- wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
+- yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
 
 ### Features
 
-* use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
+- use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
 
 # 1.0.0 (2020-04-24)
 
-
 ### Bug Fixes
 
-* action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
-* add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
-* add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
-* add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
-* apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
-* argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
-* change to use workflow name  due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
-* CI ([3c1f8fe](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1f8fe7b04cc0b56228c9f0a358acd04a7a10f6))
-* fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
-* fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
-* invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
-* invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
-* modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
-* modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
-* modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
-* modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
-* modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
-* modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
-* not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
-* not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
-* remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
-* remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
-* remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
-* terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
-* the prefix "GITHUB_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
-* typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
-* typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
-* typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
-* workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
-* wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
-* yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
-
+- action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
+- add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
+- add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
+- add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
+- apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
+- argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
+- change to use workflow name due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
+- CI ([3c1f8fe](https://github.com/Skitionek/notify-microsoft-teams/commit/3c1f8fe7b04cc0b56228c9f0a358acd04a7a10f6))
+- fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
+- fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
+- invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
+- invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
+- modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
+- modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
+- modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
+- modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
+- modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
+- modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
+- not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
+- not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
+- remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
+- remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
+- remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
+- terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
+- the prefix "GITHUB\_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
+- typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
+- typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
+- typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
+- workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
+- wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
+- yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
 
 ### Features
 
-* use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
+- use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
 
 # 1.0.0 (2020-04-24)
 
-
 ### Bug Fixes
 
-* action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
-* add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
-* add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
-* add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
-* apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
-* argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
-* change to use workflow name  due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
-* fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
-* fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
-* invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
-* invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
-* modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
-* modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
-* modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
-* modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
-* modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
-* modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
-* not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
-* not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
-* remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
-* remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
-* remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
-* terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
-* the prefix "GITHUB_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
-* typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
-* typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
-* typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
-* workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
-* wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
-* yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
-
+- action icon name ([f41a338](https://github.com/Skitionek/notify-microsoft-teams/commit/f41a3386d995028a40137fd283d1c1be0536617a))
+- add channel key to test.yml ([63ba796](https://github.com/Skitionek/notify-microsoft-teams/commit/63ba79663de1b8296043e3c5d238110fca8e0143))
+- add description for cancel ([973f218](https://github.com/Skitionek/notify-microsoft-teams/commit/973f218a13c2b44473726f7cdeba69b103e9b18f))
+- add jobs id ([5d6647c](https://github.com/Skitionek/notify-microsoft-teams/commit/5d6647ccc9782e60f851be9af64f03ef16be00d3))
+- apply lint check to all branches except master ([3aec5e0](https://github.com/Skitionek/notify-microsoft-teams/commit/3aec5e0b91590284d512dd665b5cb05c107d3913))
+- argument error ([0d5671b](https://github.com/Skitionek/notify-microsoft-teams/commit/0d5671bf2ae5ef8c45bbaef13ec2cc2e87bf6bf6))
+- change to use workflow name due to show badge ([ffb29f1](https://github.com/Skitionek/notify-microsoft-teams/commit/ffb29f125cd9d303c181a17db254a7a14dd2646b))
+- fix error message when "type" parameter is invalid word ([8f3ec4f](https://github.com/Skitionek/notify-microsoft-teams/commit/8f3ec4f7d5849e075e9c92d647bf1c8d559ac221))
+- fix workflows filepath ([d342318](https://github.com/Skitionek/notify-microsoft-teams/commit/d342318b7150851ef01999d62a3669788ed7a423))
+- invalid syntax ([9fe116f](https://github.com/Skitionek/notify-microsoft-teams/commit/9fe116fbaddd212511e601ac480deafde05e4a37))
+- invalid syntax ([4753b62](https://github.com/Skitionek/notify-microsoft-teams/commit/4753b627359327d98abfb29d3b97cccc65c208ee))
+- modify default value of slack channel ([4871c6b](https://github.com/Skitionek/notify-microsoft-teams/commit/4871c6beec96e92a91f083ad2d48f8db253fe272))
+- modify invalid indent ([3fac941](https://github.com/Skitionek/notify-microsoft-teams/commit/3fac94191ff8be8a5f19c3c87ccf59be59fd64b6))
+- modify template name ([b65052f](https://github.com/Skitionek/notify-microsoft-teams/commit/b65052fefde334a073d09f0d7518c995e7e6dd14))
+- modify to checkout releases/v1 ([3349637](https://github.com/Skitionek/notify-microsoft-teams/commit/33496377905b701f8116adc158b672b559de0582))
+- modify to checkout remotes/origin/releases/v1 ([0b8f7cd](https://github.com/Skitionek/notify-microsoft-teams/commit/0b8f7cd767349a241abad5d2fc01da22a4568183))
+- modify url parameter is required ([ca5581c](https://github.com/Skitionek/notify-microsoft-teams/commit/ca5581c4c97a5c7ca1cd435e9c1e2f15cc35595e))
+- not loop ([e2fc8fb](https://github.com/Skitionek/notify-microsoft-teams/commit/e2fc8fbc5522b6649d0e2753cfe232b139d59393))
+- not use "!" ([f7028ce](https://github.com/Skitionek/notify-microsoft-teams/commit/f7028ce1fe8971b0df5e4f9c096685d4d45b0e73))
+- remove dot before .node_modules ([4d55013](https://github.com/Skitionek/notify-microsoft-teams/commit/4d55013b1516413cfb184b27bbb6a4fc5d1ba484))
+- remove the default value of channel from action.yml ([e4a9ddb](https://github.com/Skitionek/notify-microsoft-teams/commit/e4a9ddb4f7c2275f10e1258c2ecedc846ab7191d))
+- remove the rest of slack channel default value ([b3e6e83](https://github.com/Skitionek/notify-microsoft-teams/commit/b3e6e838efe738775c4fa43bc2482f0c2306d659))
+- terminate safely if no git diff ([8ed5377](https://github.com/Skitionek/notify-microsoft-teams/commit/8ed537708f94567b7cbc72f4505e4f99b61aeb8a))
+- the prefix "GITHUB\_" can not be used, modify ACCESS_TOKEN ([ab4f64a](https://github.com/Skitionek/notify-microsoft-teams/commit/ab4f64a68a45067b9a365269d066551be919bbc5))
+- typo ([d70e6e5](https://github.com/Skitionek/notify-microsoft-teams/commit/d70e6e5f46f64fb40c0214ed28fe35f152d7893f))
+- typo ([feffaf3](https://github.com/Skitionek/notify-microsoft-teams/commit/feffaf339d5215808f4cd1e090652bebf01e3fa1))
+- typo ([ca68110](https://github.com/Skitionek/notify-microsoft-teams/commit/ca68110017e48abe31f5172f2756aa4b1317d255))
+- workflow link is invalid when event name is pull_request ([226e184](https://github.com/Skitionek/notify-microsoft-teams/commit/226e184a981ed2feee11ff1e3b03185e7ed6a4c1))
+- wrong icon name ([38a5213](https://github.com/Skitionek/notify-microsoft-teams/commit/38a521337e785aca276c2ab5a239da9482d708ac))
+- yaml syntax error ([1626ac8](https://github.com/Skitionek/notify-microsoft-teams/commit/1626ac8e9fa6adc62186be3e26971bfe22170d9d))
 
 ### Features
 
-* use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
+- use local action in tests ([cd1291c](https://github.com/Skitionek/notify-microsoft-teams/commit/cd1291cce1df3872136338db95867918d36a5711))
