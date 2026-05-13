@@ -1,5 +1,6 @@
 name: Manual Test
 
+# checkov:skip=CKV_GHA_7: workflow_dispatch inputs are intentional for manual testing
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +16,8 @@ on:
           - 'true'
           - 'false'
 
+permissions: read-all
+
 jobs:
   test-with-title:
     name: Test with title
@@ -22,7 +25,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Notify with title
         uses: ./
         with:
@@ -36,7 +39,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Notify with job context
         uses: ./
         with:
@@ -50,7 +53,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Example step
         id: example
@@ -70,7 +73,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Notify with raw payload
         uses: ./
         with:
@@ -104,7 +107,7 @@ jobs:
       - test-with-raw
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Notify with needs context
         uses: ./
         with:
