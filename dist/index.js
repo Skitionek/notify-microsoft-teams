@@ -104865,22 +104865,24 @@ class MSTeams {
 
     const actionLinks = {
       type: 'ActionSet',
-      actions: actions !== null ? actions : [
-        {
-          type: 'Action.OpenUrl',
-          title: 'Repository',
-          url: repository.html_url
-        },
-        ...(compare
-          ? [
-              {
-                type: 'Action.OpenUrl',
-                title: 'Compare',
-                url: compare
-              }
-            ]
-          : [])
-      ]
+      actions: actions !== null
+        ? actions
+        : [
+            {
+              type: 'Action.OpenUrl',
+              title: 'Repository',
+              url: repository.html_url
+            },
+            ...(compare
+              ? [
+                  {
+                    type: 'Action.OpenUrl',
+                    title: 'Compare',
+                    url: compare
+                  }
+                ]
+              : [])
+          ]
     }
 
     const entities =
