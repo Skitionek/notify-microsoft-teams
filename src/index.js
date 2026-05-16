@@ -78,7 +78,7 @@ async function run () {
         msteams_emails
       })
     } else {
-      payload = Object.assign({}, msteams.header, JSON.parse(raw))
+      payload = JSON.parse(raw)
     }
 
     try {
