@@ -41,6 +41,7 @@ You can customize the following parameters:
 |    dry_run     |     optional      | False            | Do not actually send the message                                                                         |
 |      raw       |     optional      | ''               | JSON object to send to Microsoft Teams                                                                   |
 |     title      |     optional      | ''               | Overwrite default title                                                                                  |
+|    actions     |     optional      | ''               | JSON array of Adaptive Card Action objects to replace the default Repository/Compare buttons             |
 | msteams_emails |     optional      | ''               | Microsoft teams email ids in CSV to tag in the message                                                   |
 
 Please refer [action.yml](./action.yml) for more details.
@@ -108,6 +109,31 @@ jobs:
         with:
           webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
           title: '`Overwrote title in ${workflow_link}`'
+
+  with_custom_actions:
+    name: One with custom action buttons
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: Microsoft Teams Notification
+        uses: skitionek/notify-microsoft-teams@master
+        if: always()
+        with:
+          webhook_url: ${{ secrets.MSTEAMS_WEBHOOK }}
+          job: ${{ toJson(job) }}
+          actions: >-
+            [
+              {
+                "type": "Action.OpenUrl",
+                "title": "View Run",
+                "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              {
+                "type": "Action.OpenUrl",
+                "title": "Repository",
+                "url": "https://github.com/${{ github.repository }}"
+              }
+            ]
 
   with_raw:
     name: One with raw data
