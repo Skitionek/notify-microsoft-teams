@@ -1,0 +1,80 @@
+name: 'CodeQL Advanced'
+
+on:
+  push:
+    branches: ['master']
+  pull_request:
+    branches: ['master']
+  schedule:
+    - cron: '36 0 * * 0'
+
+permissions: read-all
+
+jobs:
+  # Check whether Code scanning is enabled before running the expensive analysis.
+  # The GitHub API returns 403 when the feature is disabled; any other successful
+  # response (even an empty list) means it IS enabled.
+  check-code-scanning:
+    name: Check Code Scanning enabled
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: read
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Check via API
+        id: check
+        uses: actions/github-script@v9
+        with:
+          script: |
+            try {
+              await github.rest.codeScanning.listAlertsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 1,
+              });
+              core.setOutput('enabled', 'true');
+            } catch (err) {
+              if (err.status === 403) {
+                core.warning('Code scanning is not enabled for this repository — skipping CodeQL analysis.');
+                core.setOutput('enabled', 'false');
+              } else {
+                // Any other error (e.g. 404 empty repo) — still try to run.
+                core.setOutput('enabled', 'true');
+              }
+            }
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    needs: check-code-scanning
+    if: needs.check-code-scanning.outputs.enabled == 'true'
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v3
+        with:
+          category: '/language:${{matrix.language}}'

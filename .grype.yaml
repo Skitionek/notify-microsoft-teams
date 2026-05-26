@@ -1,0 +1,15 @@
+# Grype vulnerability ignore rules
+# These ignores are for packages that have no available fix and are dev-only
+# dependencies (not included in the production bundle).
+ignore:
+  # No fix available; dev-only via @actions/github → @octokit/rest
+  - package:
+      name: lodash.set
+
+  # No fix available; dev-only via semantic-release → npm → socks-proxy-agent
+  - package:
+      name: ip
+
+  # No fix available; dev-only via semantic-release → npm → node-gyp
+  - package:
+      name: request

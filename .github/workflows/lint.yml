@@ -1,20 +1,165 @@
 name: Lint
 
 on:
-  pull_request:
-    paths:
-      - src/*
   push:
-    paths:
-      - src/*
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+# Default to read-only; individual jobs grant only the permissions they need.
+permissions: read-all
 
 jobs:
-  eslint:
+  megalinter:
+    name: MegaLinter
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to commit auto-fixes
+      issues: write
+      pull-requests: write
+      security-events: write # needed to upload SARIF
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run lint
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Detect MegaLinter flavor
+        id: detect_flavor
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD 2>/dev/null || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1 2>/dev/null || true)
+          fi
+          echo "Changed files:"
+          echo "${CHANGED:-<none>}"
+          LANGS=()
+          if [[ -n "$CHANGED" ]]; then
+            grep -qiE '\.(py|ipynb|pyx|pyi)$'                <<< "$CHANGED" && LANGS+=(python)
+            grep -qiE '\.(js|ts|jsx|tsx|mjs|cjs|vue|svelte)$' <<< "$CHANGED" && LANGS+=(javascript)
+            grep -qiE '\.java$'                                <<< "$CHANGED" && LANGS+=(java)
+            grep -qiE '\.go$'                                  <<< "$CHANGED" && LANGS+=(go)
+            grep -qiE '\.rb$'                                  <<< "$CHANGED" && LANGS+=(ruby)
+            grep -qiE '\.php$'                                 <<< "$CHANGED" && LANGS+=(php)
+            grep -qiE '\.rs$'                                  <<< "$CHANGED" && LANGS+=(rust)
+            grep -qiE '\.(cs|vb|fs|fsx)$'                     <<< "$CHANGED" && LANGS+=(dotnet)
+            grep -qiE '\.(tf|tfvars)$'                         <<< "$CHANGED" && LANGS+=(terraform)
+            grep -qiE '\.swift$'                               <<< "$CHANGED" && LANGS+=(swift)
+          fi
+          if [[ ${#LANGS[@]} -eq 1 ]]; then
+            FLAVOR="${LANGS[0]}"
+            IMAGE="docker://ghcr.io/oxsecurity/megalinter-${FLAVOR}:v9.4.0"
+          else
+            FLAVOR="all"
+            IMAGE="docker://ghcr.io/oxsecurity/megalinter:v9.4.0"
+          fi
+          echo "Detected flavor: $FLAVOR (matched languages: ${LANGS[*]:-none})"
+          echo "flavor=$FLAVOR" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE"   >> "$GITHUB_OUTPUT"
+
+      # Build a minimal Docker action on the fly pointing at the single
+      # flavor image determined above. Only that one image will be pulled.
+      - name: Create dynamic MegaLinter action
+        run: |
+          mkdir -p .github/actions/_megalinter
+          printf 'name: MegaLinter (%s)\ndescription: Run MegaLinter\nruns:\n  using: docker\n  image: "%s"\n' \
+            "${{ steps.detect_flavor.outputs.flavor }}" \
+            "${{ steps.detect_flavor.outputs.image }}" \
+            > .github/actions/_megalinter/action.yml
+          echo "Generated action.yml:"
+          cat .github/actions/_megalinter/action.yml
+
+      - name: Run MegaLinter
+        id: ml_run
+        uses: ./.github/actions/_megalinter
+        env:
+          VALIDATE_ALL_CODEBASE: ${{ github.event_name == 'push' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_COMMENT_REPORTER: false
+          SARIF_REPORTER: true
+          APPLY_FIXES: all
+          # Force eslint v8 (used by MegaLinter) to use legacy .eslintrc config
+          # mode so the --no-eslintrc flag it passes remains valid. Local dev
+          # with eslint v9 continues to use eslint.config.mjs (flat config).
+          ESLINT_USE_FLAT_CONFIG: 'false'
+
+      # Remove the ephemeral action before create-pull-request runs so it
+      # is never committed to the repository.
+      - name: Clean up dynamic action
+        if: always()
+        run: rm -rf .github/actions/_megalinter
+
+      # Derive has_updated_sources from git status so downstream steps work.
+      - name: Collect MegaLinter result
+        if: always()
+        id: ml
+        run: |
+          if git diff --quiet; then
+            echo "has_updated_sources=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_updated_sources=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Auto-fix pull request (PR only) ───────────────────────────────────
+      - name: Set fix-PR flag
+        if: always()
+        id: fix_check
+        env:
+          HAS_UPDATES: ${{ steps.ml.outputs.has_updated_sources }}
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          SKIP_FIX: ${{ contains(github.event.head_commit.message, 'skip fix') }}
+        run: |
+          if [[ "$HAS_UPDATES" == "1" && "$IS_PR" == "true" && "$SAME_REPO" == "true" && "$SKIP_FIX" != "true" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request with applied fixes
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        id: cpr
+        if: always() && steps.fix_check.outputs.enabled == 'true'
+        with:
+          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
+          commit-message: '[MegaLinter] Apply linters automatic fixes'
+          title: '[MegaLinter] Apply linters automatic fixes'
+          labels: bot
+          branch: megalinter-fixes-pr-${{ github.event.pull_request.number }}
+          body: |
+            MegaLinter has automatically applied linters fixes on this PR.
+            Please review the changes and merge if they are correct.
+          base: ${{ github.head_ref }}
+
+      - name: Post PR Comment
+        if: always() && steps.fix_check.outputs.enabled == 'true'
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v2
+        with:
+          message: |
+            MegaLinter has automatically applied linters fixes on this PR.
+            Please review the changes and merge if they are correct.
+            PR: ${{ steps.cpr.outputs.pull-request-url }}
+          hide_and_recreate: true
+
+      - name: Fail if PR Created
+        if: always() && steps.fix_check.outputs.enabled == 'true' && steps.cpr.outputs.pull-request-url != ''
+        run: |
+          echo "A PR with formatting fixes has been created. Please merge it before proceeding."
+          echo "PR: ${{ steps.cpr.outputs.pull-request-url }}"
+          exit 1
+
+      # ── Upload SARIF for PR annotations ───────────────────────────────────
+      - name: Upload SARIF report
+        if: >
+          (github.event_name == 'pull_request' || github.event_name == 'push') &&
+          always()
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v3
+        continue-on-error: true
+        with:
+          sarif_file: megalinter-reports/megalinter-report.sarif
+          category: megalinter

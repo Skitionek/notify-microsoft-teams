@@ -124,7 +124,6 @@ async function fetchCommitsFromApi (github_token) {
     return []
   }
 }
-
 const outputs2markdown = outputs =>
   Object.keys(outputs).reduce(
     (o, output_name) =>
@@ -236,6 +235,7 @@ class MSTeams {
    * @param steps
    * @param needs
    * @param title {string} msteams message title
+   * @param actions {Array} optional array of Adaptive Card Action objects to replace default buttons
    * @param msteams_emails {string} msteams emails in CSV
    * @param github_token {string} GitHub token for API access
    * @return
@@ -245,6 +245,7 @@ class MSTeams {
     steps = {},
     needs = {},
     title = '',
+    actions = null,
     msteams_emails = '',
     github_token = ''
   }) {
@@ -270,6 +271,7 @@ class MSTeams {
           }
         ]
       : []
+
 
     const mentionedIds =
       msteams_emails.length > 1
@@ -303,22 +305,24 @@ class MSTeams {
 
     const actionLinks = {
       type: 'ActionSet',
-      actions: [
-        {
-          type: 'Action.OpenUrl',
-          title: 'Repository',
-          url: repository.html_url
-        },
-        ...(compare
-          ? [
-              {
-                type: 'Action.OpenUrl',
-                title: 'Compare',
-                url: compare
-              }
-            ]
-          : [])
-      ]
+      actions: actions !== null
+        ? actions
+        : [
+            {
+              type: 'Action.OpenUrl',
+              title: 'Repository',
+              url: repository.html_url
+            },
+            ...(compare
+              ? [
+                  {
+                    type: 'Action.OpenUrl',
+                    title: 'Compare',
+                    url: compare
+                  }
+                ]
+              : [])
+          ]
     }
 
     const entities =

@@ -1,0 +1,20 @@
+---
+# yamllint configuration
+# https://yamllint.readthedocs.io/en/stable/configuration.html
+extends: default
+
+rules:
+  # GitHub Actions workflows use 'on:' as the event trigger keyword; yamllint
+  # flags it as a YAML truthy value. Allow it explicitly.
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
+    check-keys: false
+
+  # The YAML document-start marker ('---') is optional in GitHub Actions
+  # workflow files and most CI configuration files. Disable this check.
+  document-start: disable
+
+  # Allow long lines (workflow files often have long run: commands)
+  line-length:
+    max: 200
+    level: warning
