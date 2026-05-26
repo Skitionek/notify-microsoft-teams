@@ -32,18 +32,18 @@ First of all, you need to set GitHub secrets for MSTEAMS_WEBHOOK that is Incomin
 
 You can customize the following parameters:
 
-| with parameter | required/optional | default          | description                                                                                              |
-|:--------------:|:-----------------:|:-----------------|:---------------------------------------------------------------------------------------------------------|
-|  webhook_url   |     optional      | $MSTEAMS_WEBHOOK | Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable |
-|      job       |     optional      | {}}              | JSON parsed job context                                                                                  |
-|     steps      |     optional      | {}               | JSON parsed steps context                                                                                |
-|     needs      |     optional      | {}               | JSON parsed needs context                                                                                |
-|    dry_run     |     optional      | False            | Do not actually send the message                                                                         |
-|      raw       |     optional      | ''               | JSON object to send to Microsoft Teams                                                                   |
-|     title      |     optional      | ''               | Overwrite default title                                                                                  |
-|    actions     |     optional      | ''               | JSON array of Adaptive Card Action objects to replace the default Repository/Compare buttons             |
-| msteams_emails |     optional      | ''               | Microsoft teams email ids in CSV to tag in the message                                                   |
-| github_token   |     optional      | ${{ github.token }} | GitHub token used to fetch commits between tags when the event payload does not include commits (e.g. `release` or tag push events). Set to empty string to disable. |
+| with parameter | required/optional | default             | description                                                                                                                                                          |
+|:--------------:|:-----------------:|:--------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|  webhook_url   |     optional      | $MSTEAMS_WEBHOOK    | Microsoft Teams Incoming Webhooks URL<br>Please specify this key or MSTEAMS_WEBHOOK environment variable                                                             |
+|      job       |     optional      | {}}                 | JSON parsed job context                                                                                                                                              |
+|     steps      |     optional      | {}                  | JSON parsed steps context                                                                                                                                            |
+|     needs      |     optional      | {}                  | JSON parsed needs context                                                                                                                                            |
+|    dry_run     |     optional      | False               | Do not actually send the message                                                                                                                                     |
+|      raw       |     optional      | ''                  | JSON object to send to Microsoft Teams                                                                                                                               |
+|     title      |     optional      | ''                  | Overwrite default title                                                                                                                                              |
+|    actions     |     optional      | ''                  | JSON array of Adaptive Card Action objects to replace the default Repository/Compare buttons                                                                         |
+| msteams_emails |     optional      | ''                  | Microsoft teams email ids in CSV to tag in the message                                                                                                               |
+|  github_token  |     optional      | ${{ github.token }} | GitHub token used to fetch commits between tags when the event payload does not include commits (e.g. `release` or tag push events). Set to empty string to disable. |
 
 Please refer [action.yml](./action.yml) for more details.
 
