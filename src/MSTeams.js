@@ -272,7 +272,6 @@ class MSTeams {
         ]
       : []
 
-
     const mentionedIds =
       msteams_emails.length > 1
         ? [
