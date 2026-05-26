@@ -27,6 +27,43 @@ jest.mock('@actions/github', () => ({
 
 jest.mock('ms-teams-webhook')
 
+describe('MSTeams.generatePayload', () => {
+  it('should use custom actions when provided', async () => {
+    const customActions = [
+      { type: 'Action.OpenUrl', title: 'Custom Link', url: 'https://example.com' }
+    ]
+    const msTeams = new MSTeams()
+    const payload = await msTeams.generatePayload({ actions: customActions })
+
+    const actionSet = payload.attachments[0].content.body.find(b => b.type === 'ActionSet')
+    expect(actionSet).toBeDefined()
+    expect(actionSet.actions).toEqual(customActions)
+  })
+
+  it('should use default Repository/Compare actions when actions is null', async () => {
+    const msTeams = new MSTeams()
+    const payload = await msTeams.generatePayload({ actions: null })
+
+    const actionSet = payload.attachments[0].content.body.find(b => b.type === 'ActionSet')
+    expect(actionSet).toBeDefined()
+    expect(actionSet.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Repository' }),
+        expect.objectContaining({ title: 'Compare' })
+      ])
+    )
+  })
+
+  it('should use default Repository/Compare actions when actions is not provided', async () => {
+    const msTeams = new MSTeams()
+    const payload = await msTeams.generatePayload({})
+
+    const actionSet = payload.attachments[0].content.body.find(b => b.type === 'ActionSet')
+    expect(actionSet).toBeDefined()
+    expect(actionSet.actions.some(a => a.title === 'Repository')).toBe(true)
+  })
+})
+
 describe('MSTeams.notify', () => {
   const webhookUrl = 'test-webhook-url'
   const payload = { message: 'Test Payload' }

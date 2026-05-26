@@ -30,6 +30,7 @@ async function run () {
     const needs = access_context('needs')
 
     const title = core.getInput('title')
+    const actions = core.getInput('actions')
     const msteams_emails = core.getInput('msteams_emails')
     let raw = core.getInput('raw')
     const dry_run = core.getInput('dry_run')
@@ -50,6 +51,7 @@ async function run () {
         needs,
         raw,
         title,
+        actions,
         msteams_emails,
         dry_run
       })}`
@@ -58,15 +60,26 @@ async function run () {
     const msteams = new MSTeams()
     let payload
     if (raw === '') {
+      let parsedActions = null
+      if (actions) {
+        try {
+          parsedActions = JSON.parse(actions)
+        } catch (e) {
+          throw new Error(
+            `Invalid JSON provided for "actions" input: ${e.message}. Please ensure the "actions" input is a valid JSON array of Adaptive Card Action objects (see https://adaptivecards.io/explorer/Action.OpenUrl.html).`
+          )
+        }
+      }
       payload = await msteams.generatePayload({
         job,
         steps,
         needs,
         title,
+        actions: parsedActions,
         msteams_emails
       })
     } else {
-      payload = Object.assign({}, msteams.header, JSON.parse(raw))
+      payload = JSON.parse(raw)
     }
 
     try {
