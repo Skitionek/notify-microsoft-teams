@@ -33,6 +33,7 @@ async function run () {
     const msteams_emails = core.getInput('msteams_emails')
     let raw = core.getInput('raw')
     const dry_run = core.getInput('dry_run')
+    const github_token = core.getInput('github_token')
 
     const overwrite = core.getInput('overwrite')
     if (overwrite) {
@@ -52,7 +53,8 @@ async function run () {
         title,
         actions,
         msteams_emails,
-        dry_run
+        dry_run,
+        github_token: github_token ? '***' : ''
       })}`
     )
 
@@ -75,7 +77,8 @@ async function run () {
         needs,
         title,
         actions: parsedActions,
-        msteams_emails
+        msteams_emails,
+        github_token
       })
     } else {
       payload = JSON.parse(raw)
@@ -92,7 +95,7 @@ async function run () {
     } catch (stringifyError) {
       core.error(
         `Generated payload for Microsoft Teams (contains circular references, showing keys only):
-		${stringifyError}`
+${stringifyError}`
       )
     }
 
