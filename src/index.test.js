@@ -300,6 +300,20 @@ describe('run function with dry_run', () => {
     expect(mockNotify).toHaveBeenCalled()
     expect(mockInfo).toHaveBeenCalledWith('Sent message to Microsoft Teams')
   })
+
+  it('should mask the webhook_url', async () => {
+    core.getInput.mockImplementation(name => {
+      if (name === 'dry_run') return 'false'
+      if (name === 'webhook_url') return 'dummy_webhook'
+      return '{}'
+    })
+    jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn())
+    const mockSetSecret = jest.spyOn(core, 'setSecret')
+
+    await run()
+
+    expect(mockSetSecret).toHaveBeenCalledWith('dummy_webhook')
+  })
 })
 
 describe('run function when webhook_url is missing', () => {
