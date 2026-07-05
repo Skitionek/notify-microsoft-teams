@@ -35,6 +35,10 @@ inputs:
   dry_run:
     description: 'Do not actually send the message'
     required: false
+  github_token:
+    description: 'GitHub token used to fetch commits between tags when the event payload does not include commits (e.g. release or tag push events)'
+    required: false
+    default: ${{ github.token }}
 runs:
   using: 'node24'
   main: 'dist/index.js'
