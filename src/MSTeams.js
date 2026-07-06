@@ -200,15 +200,12 @@ class MSTeams {
 		payload
 	) {
 		const client = new IncomingWebhook(url);
-		const response = await client.send(payload);
-
-		if (!response.text) {
-			throw new Error(
-				"Failed to send notification to Microsoft Teams.\n" +
-				"Response:\n" +
-				JSON.stringify(response, null, 2)
-			);
-		}
+		// IncomingWebhook.send() already throws on any non-2xx response, so
+		// reaching this point means Teams accepted the message. The old O365
+		// Connector webhook echoed back "1" on success, but the Power Automate
+		// HTTP trigger that replaced it returns an empty body, so we can no
+		// longer treat an empty response.text as a failure.
+		await client.send(payload);
 	}
 }
 
