@@ -35,6 +35,9 @@ inputs:
   dry_run:
     description: 'Do not actually send the message'
     required: false
+  retries:
+    description: 'Number of retries on notification errors (non-negative integer)'
+    required: false
 runs:
   using: 'node24'
   main: 'dist/index.js'

@@ -110697,6 +110697,49 @@ const missing_functionality_warning = objective =>
     `Missing ${objective} parameter will result in reduced functionality.`
   ) || {}
 
+const isDebugFlagEnabled = value => {
+  if (!value) return false
+
+  const normalizedValue = String(value).trim().toLowerCase()
+  return normalizedValue === '1' || normalizedValue === 'true'
+}
+
+const isDebugEnabled = () =>
+  isDebugFlagEnabled(process.env.RUNNER_DEBUG) ||
+  isDebugFlagEnabled(process.env.ACTIONS_STEP_DEBUG)
+
+const serializeError = err => {
+  if (!err) return 'Unknown error'
+  if (err.stack) return err.stack
+  if (err.message) return err.message
+
+  try {
+    return JSON.stringify(err, null, 2)
+  } catch {
+    return String(err)
+  }
+}
+
+const logError = (message, err) => {
+  core.error(`${message}: ${err && err.message ? err.message : String(err)}`)
+  if (isDebugEnabled()) {
+    core.debug(`Error details:\n${serializeError(err)}`)
+  }
+}
+
+const parseRetryInput = value => {
+  if (!value) return 0
+
+  const retries = Number.parseInt(value, 10)
+  if (Number.isNaN(retries) || retries < 0) {
+    throw new Error(
+      `Invalid "retries" input: "${value}". Please provide a non-negative integer.`
+    )
+  }
+
+  return retries
+}
+
 const access_context = context_name => {
   const context = core.getInput(context_name)
   if (!context) missing_functionality_warning(context_name)
@@ -110724,6 +110767,7 @@ async function run () {
     const msteams_emails = core.getInput('msteams_emails')
     let raw = core.getInput('raw')
     const dry_run = core.getInput('dry_run')
+    const retries = parseRetryInput(core.getInput('retries'))
 
     const overwrite = core.getInput('overwrite')
     if (overwrite) {
@@ -110743,9 +110787,14 @@ async function run () {
         title,
         actions,
         msteams_emails,
-        dry_run
+        dry_run,
+        retries
       })}`
     )
+
+    if (isDebugEnabled()) {
+      core.debug('GitHub Actions step debug logging is enabled.')
+    }
 
     const msteams = new MSTeams()
     let payload
@@ -110788,13 +110837,47 @@ async function run () {
     }
 
     if (dry_run === '' || dry_run === 'false') {
-      await msteams.notify(webhook_url, payload)
-      core.info('Sent message to Microsoft Teams')
+      const attempts = retries + 1
+      let sent = false
+      let lastError
+
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        if (isDebugEnabled()) {
+          core.debug(`Sending notification attempt ${attempt}/${attempts}`)
+        }
+
+        try {
+          await msteams.notify(webhook_url, payload)
+          sent = true
+          core.info('Sent message to Microsoft Teams')
+          break
+        } catch (err) {
+          lastError = err
+          logError(`Notification attempt ${attempt}/${attempts} failed`, err)
+
+          if (attempt < attempts) {
+            core.warning(`Retrying Microsoft Teams notification (${attempt + 1}/${attempts})`)
+          }
+        }
+      }
+
+      if (!sent) {
+        const lastErrorMessage =
+          lastError && lastError.message
+            ? lastError.message
+            : serializeError(lastError)
+
+        throw new Error(
+          `Failed to send notification to Microsoft Teams after ${attempts} attempt(s): ${lastErrorMessage}`
+        )
+      }
     } else {
       core.info('Dry run - skipping notification send. Done.')
     }
   } catch (err) {
-    core.setFailed(err.message)
+    logError('Action execution failed', err)
+    const failureMessage = err && err.message ? err.message : serializeError(err)
+    core.setFailed(failureMessage)
   }
 }
 
