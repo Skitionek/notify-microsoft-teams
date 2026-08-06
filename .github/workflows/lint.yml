@@ -158,7 +158,7 @@ jobs:
         if: >
           (github.event_name == 'pull_request' || github.event_name == 'push') &&
           always()
-        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v3
+        uses: github/codeql-action/upload-sarif@d1ba80a13dd99fba24a470575428917156a28b43 # v3
         continue-on-error: true
         with:
           sarif_file: megalinter-reports/megalinter-report.sarif
