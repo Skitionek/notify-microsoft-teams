@@ -35,6 +35,9 @@ inputs:
   dry_run:
     description: 'Do not actually send the message'
     required: false
+  retries:
+    description: 'Number of retries on notification errors (non-negative integer)'
+    required: false
   github_token:
     description: 'GitHub token used to fetch commits between tags when the event payload does not include commits (e.g. release or tag push events)'
     required: false
