@@ -66,6 +66,7 @@ async function run () {
           'specify the key called "webhook_url" in "with" section.'
       )
     }
+    core.setSecret(webhook_url)
 
     const job = access_context('job')
     const steps = access_context('steps')
