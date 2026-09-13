@@ -1,9 +1,9 @@
 "use strict";
-exports.id = 484;
-exports.ids = [484];
+exports.id = 96;
+exports.ids = [96];
 exports.modules = {
 
-/***/ 18484:
+/***/ 1096:
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 // ESM COMPAT FLAG
@@ -26,7 +26,7 @@ __webpack_require__.d(__webpack_exports__, {
   supportsColorStderr: () => (/* binding */ stderrColor)
 });
 
-;// CONCATENATED MODULE: ./node_modules/ms-teams-webhook/node_modules/chalk/source/vendor/ansi-styles/index.js
+;// CONCATENATED MODULE: ../../node_modules/ms-teams-webhook/node_modules/chalk/source/vendor/ansi-styles/index.js
 const ANSI_BACKGROUND_OFFSET = 10;
 
 const wrapAnsi16 = (offset = 0) => code => `\u001B[${code + offset}m`;
@@ -257,7 +257,7 @@ var external_node_process_ = __webpack_require__(1708);
 var external_node_os_ = __webpack_require__(48161);
 // EXTERNAL MODULE: external "node:tty"
 var external_node_tty_ = __webpack_require__(7066);
-;// CONCATENATED MODULE: ./node_modules/ms-teams-webhook/node_modules/chalk/source/vendor/supports-color/index.js
+;// CONCATENATED MODULE: ../../node_modules/ms-teams-webhook/node_modules/chalk/source/vendor/supports-color/index.js
 
 
 
@@ -441,7 +441,7 @@ const supportsColor = {
 
 /* harmony default export */ const supports_color = (supportsColor);
 
-;// CONCATENATED MODULE: ./node_modules/ms-teams-webhook/node_modules/chalk/source/utilities.js
+;// CONCATENATED MODULE: ../../node_modules/ms-teams-webhook/node_modules/chalk/source/utilities.js
 // TODO: When targeting Node.js 16, use `String.prototype.replaceAll`.
 function stringReplaceAll(string, substring, replacer) {
 	let index = string.indexOf(substring);
@@ -476,7 +476,7 @@ function stringEncaseCRLFWithFirstIndex(string, prefix, postfix, index) {
 	return returnValue;
 }
 
-;// CONCATENATED MODULE: ./node_modules/ms-teams-webhook/node_modules/chalk/source/index.js
+;// CONCATENATED MODULE: ../../node_modules/ms-teams-webhook/node_modules/chalk/source/index.js
 
 
 
