@@ -21480,15 +21480,15 @@ exports.getUserAgent = getUserAgent;
 /**
  * Ponyfill for `Array.prototype.find` which is only available in ES6 runtimes.
  *
- * Works with anything that has a `length` property and index access properties, including NodeList.
+ * Works with anything that has a `length` property and index access properties,
+ * including NodeList.
  *
- * @template {unknown} T
- * @param {Array<T> | ({length:number, [number]: T})} list
- * @param {function (item: T, index: number, list:Array<T> | ({length:number, [number]: T})):boolean} predicate
- * @param {Partial<Pick<ArrayConstructor['prototype'], 'find'>>?} ac `Array.prototype` by default,
- * 				allows injecting a custom implementation in tests
+ * @param {T[] | { length: number; [number]: T }} list
+ * @param {function (item: T, index: number, list:T[]):boolean} predicate
+ * @param {Partial<Pick<ArrayConstructor['prototype'], 'find'>>?} ac
+ * Allows injecting a custom implementation in tests (`Array.prototype` by default).
  * @returns {T | undefined}
- *
+ * @template {unknown} T
  * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find
  * @see https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.find
  */
@@ -21500,7 +21500,7 @@ function find(list, predicate, ac) {
 		return ac.find.call(list, predicate);
 	}
 	for (var i = 0; i < list.length; i++) {
-		if (Object.prototype.hasOwnProperty.call(list, i)) {
+		if (hasOwn(list, i)) {
 			var item = list[i];
 			if (predicate.call(undefined, item, i, list)) {
 				return item;
@@ -21516,90 +21516,292 @@ function find(list, predicate, ac) {
  *
  * Is used to create "enum like" objects.
  *
- * @template T
- * @param {T} object the object to freeze
- * @param {Pick<ObjectConstructor, 'freeze'> = Object} oc `Object` by default,
- * 				allows to inject custom object constructor for tests
- * @returns {Readonly<T>}
+ * If `Object.getOwnPropertyDescriptors` is available,
+ * a new object with all properties of object but without any prototype is created and returned
+ * after freezing it.
  *
+ * @param {T} object
+ * The object to freeze.
+ * @param {Pick<ObjectConstructor, 'create' | 'freeze' | 'getOwnPropertyDescriptors'>} [oc=Object]
+ * `Object` by default,
+ * allows to inject custom object constructor for tests.
+ * @returns {Readonly<T>}
+ * @template {Object} T
  * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
+ * @prettierignore
  */
 function freeze(object, oc) {
 	if (oc === undefined) {
-		oc = Object
+		oc = Object;
 	}
-	return oc && typeof oc.freeze === 'function' ? oc.freeze(object) : object
+	if (oc && typeof oc.getOwnPropertyDescriptors === 'function') {
+		object = oc.create(null, oc.getOwnPropertyDescriptors(object));
+	}
+	return oc && typeof oc.freeze === 'function' ? oc.freeze(object) : object;
 }
 
 /**
- * Since we can not rely on `Object.assign` we provide a simplified version
- * that is sufficient for our needs.
+ * Implementation for `Object.hasOwn` but ES5 compatible.
+ *
+ * @param {any} object
+ * @param {string | number} key
+ * @returns {boolean}
+ */
+function hasOwn(object, key) {
+	return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+/**
+ * Since xmldom can not rely on `Object.assign`,
+ * it uses/provides a simplified version that is sufficient for its needs.
  *
  * @param {Object} target
  * @param {Object | null | undefined} source
- *
- * @returns {Object} target
- * @throws TypeError if target is not an object
- *
+ * @returns {Object}
+ * The target with the merged/overridden properties.
+ * @throws {TypeError}
+ * If target is not an object.
  * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
  * @see https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.assign
  */
 function assign(target, source) {
 	if (target === null || typeof target !== 'object') {
-		throw new TypeError('target is not an object')
+		throw new TypeError('target is not an object');
 	}
 	for (var key in source) {
-		if (Object.prototype.hasOwnProperty.call(source, key)) {
-			target[key] = source[key]
+		if (hasOwn(source, key)) {
+			target[key] = source[key];
 		}
 	}
-	return target
+	return target;
+}
+
+/**
+ * A number of attributes are boolean attributes.
+ * The presence of a boolean attribute on an element represents the `true` value,
+ * and the absence of the attribute represents the `false` value.
+ *
+ * If the attribute is present, its value must either be the empty string, or a value that is
+ * an ASCII case-insensitive match for the attribute's canonical name,
+ * with no leading or trailing whitespace.
+ *
+ * Note: The values `"true"` and `"false"` are not allowed on boolean attributes.
+ * To represent a `false` value, the attribute has to be omitted altogether.
+ *
+ * @see https://html.spec.whatwg.org/#boolean-attributes
+ * @see https://html.spec.whatwg.org/#attributes-3
+ */
+var HTML_BOOLEAN_ATTRIBUTES = freeze({
+	allowfullscreen: true,
+	async: true,
+	autofocus: true,
+	autoplay: true,
+	checked: true,
+	controls: true,
+	default: true,
+	defer: true,
+	disabled: true,
+	formnovalidate: true,
+	hidden: true,
+	ismap: true,
+	itemscope: true,
+	loop: true,
+	multiple: true,
+	muted: true,
+	nomodule: true,
+	novalidate: true,
+	open: true,
+	playsinline: true,
+	readonly: true,
+	required: true,
+	reversed: true,
+	selected: true,
+});
+
+/**
+ * Check if `name` is matching one of the HTML boolean attribute names.
+ * This method doesn't check if such attributes are allowed in the context of the current
+ * document/parsing.
+ *
+ * @param {string} name
+ * @returns {boolean}
+ * @see {@link HTML_BOOLEAN_ATTRIBUTES}
+ * @see https://html.spec.whatwg.org/#boolean-attributes
+ * @see https://html.spec.whatwg.org/#attributes-3
+ */
+function isHTMLBooleanAttribute(name) {
+	return hasOwn(HTML_BOOLEAN_ATTRIBUTES, name.toLowerCase());
+}
+
+/**
+ * Void elements only have a start tag; end tags must not be specified for void elements.
+ * These elements should be written as self-closing like this: `<area />`.
+ * This should not be confused with optional tags that HTML allows to omit the end tag for
+ * (like `li`, `tr` and others), which can have content after them,
+ * so they can not be written as self-closing.
+ * xmldom does not have any logic for optional end tags cases,
+ * and will report them as a warning.
+ * Content that would go into the unopened element,
+ * will instead be added as a sibling text node.
+ *
+ * @type {Readonly<{
+ * 	area: boolean;
+ * 	col: boolean;
+ * 	img: boolean;
+ * 	wbr: boolean;
+ * 	link: boolean;
+ * 	hr: boolean;
+ * 	source: boolean;
+ * 	br: boolean;
+ * 	input: boolean;
+ * 	param: boolean;
+ * 	meta: boolean;
+ * 	embed: boolean;
+ * 	track: boolean;
+ * 	base: boolean;
+ * }>}
+ * @see https://html.spec.whatwg.org/#void-elements
+ * @see https://html.spec.whatwg.org/#optional-tags
+ */
+var HTML_VOID_ELEMENTS = freeze({
+	area: true,
+	base: true,
+	br: true,
+	col: true,
+	embed: true,
+	hr: true,
+	img: true,
+	input: true,
+	link: true,
+	meta: true,
+	param: true,
+	source: true,
+	track: true,
+	wbr: true,
+});
+
+/**
+ * Check if `tagName` is matching one of the HTML void element names.
+ * This method doesn't check if such tags are allowed in the context of the current
+ * document/parsing.
+ *
+ * @param {string} tagName
+ * @returns {boolean}
+ * @see {@link HTML_VOID_ELEMENTS}
+ * @see https://html.spec.whatwg.org/#void-elements
+ */
+function isHTMLVoidElement(tagName) {
+	return hasOwn(HTML_VOID_ELEMENTS, tagName.toLowerCase());
+}
+
+/**
+ * Tag names that are raw text elements according to HTML spec.
+ * The value denotes whether they are escapable or not.
+ *
+ * @see {@link isHTMLEscapableRawTextElement}
+ * @see {@link isHTMLRawTextElement}
+ * @see https://html.spec.whatwg.org/#raw-text-elements
+ * @see https://html.spec.whatwg.org/#escapable-raw-text-elements
+ */
+var HTML_RAW_TEXT_ELEMENTS = freeze({
+	script: false,
+	style: false,
+	textarea: true,
+	title: true,
+});
+
+/**
+ * Check if `tagName` is matching one of the HTML raw text element names.
+ * This method doesn't check if such tags are allowed in the context of the current
+ * document/parsing.
+ *
+ * @param {string} tagName
+ * @returns {boolean}
+ * @see {@link isHTMLEscapableRawTextElement}
+ * @see {@link HTML_RAW_TEXT_ELEMENTS}
+ * @see https://html.spec.whatwg.org/#raw-text-elements
+ * @see https://html.spec.whatwg.org/#escapable-raw-text-elements
+ */
+function isHTMLRawTextElement(tagName) {
+	var key = tagName.toLowerCase();
+	return hasOwn(HTML_RAW_TEXT_ELEMENTS, key) && !HTML_RAW_TEXT_ELEMENTS[key];
+}
+/**
+ * Check if `tagName` is matching one of the HTML escapable raw text element names.
+ * This method doesn't check if such tags are allowed in the context of the current
+ * document/parsing.
+ *
+ * @param {string} tagName
+ * @returns {boolean}
+ * @see {@link isHTMLRawTextElement}
+ * @see {@link HTML_RAW_TEXT_ELEMENTS}
+ * @see https://html.spec.whatwg.org/#raw-text-elements
+ * @see https://html.spec.whatwg.org/#escapable-raw-text-elements
+ */
+function isHTMLEscapableRawTextElement(tagName) {
+	var key = tagName.toLowerCase();
+	return hasOwn(HTML_RAW_TEXT_ELEMENTS, key) && HTML_RAW_TEXT_ELEMENTS[key];
+}
+/**
+ * Only returns true if `value` matches MIME_TYPE.HTML, which indicates an HTML document.
+ *
+ * @param {string} mimeType
+ * @returns {mimeType is 'text/html'}
+ * @see https://www.iana.org/assignments/media-types/text/html
+ * @see https://en.wikipedia.org/wiki/HTML
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString
+ * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-domparser-parsefromstring
+ */
+function isHTMLMimeType(mimeType) {
+	return mimeType === MIME_TYPE.HTML;
+}
+/**
+ * For both the `text/html` and the `application/xhtml+xml` namespace the spec defines that the
+ * HTML namespace is provided as the default.
+ *
+ * @param {string} mimeType
+ * @returns {boolean}
+ * @see https://dom.spec.whatwg.org/#dom-document-createelement
+ * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocument
+ * @see https://dom.spec.whatwg.org/#dom-domimplementation-createhtmldocument
+ */
+function hasDefaultHTMLNamespace(mimeType) {
+	return isHTMLMimeType(mimeType) || mimeType === MIME_TYPE.XML_XHTML_APPLICATION;
 }
 
 /**
  * All mime types that are allowed as input to `DOMParser.parseFromString`
  *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString#Argument02 MDN
- * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#domparsersupportedtype WHATWG HTML Spec
- * @see DOMParser.prototype.parseFromString
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString#Argument02
+ *      MDN
+ * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#domparsersupportedtype
+ *      WHATWG HTML Spec
+ * @see {@link DOMParser.prototype.parseFromString}
  */
 var MIME_TYPE = freeze({
 	/**
 	 * `text/html`, the only mime type that triggers treating an XML document as HTML.
 	 *
-	 * @see DOMParser.SupportedType.isHTML
 	 * @see https://www.iana.org/assignments/media-types/text/html IANA MimeType registration
 	 * @see https://en.wikipedia.org/wiki/HTML Wikipedia
 	 * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString MDN
-	 * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-domparser-parsefromstring WHATWG HTML Spec
+	 * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-domparser-parsefromstring
+	 *      WHATWG HTML Spec
 	 */
 	HTML: 'text/html',
 
 	/**
-	 * Helper method to check a mime type if it indicates an HTML document
-	 *
-	 * @param {string} [value]
-	 * @returns {boolean}
-	 *
-	 * @see https://www.iana.org/assignments/media-types/text/html IANA MimeType registration
-	 * @see https://en.wikipedia.org/wiki/HTML Wikipedia
-	 * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString MDN
-	 * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-domparser-parsefromstring 	 */
-	isHTML: function (value) {
-		return value === MIME_TYPE.HTML
-	},
-
-	/**
 	 * `application/xml`, the standard mime type for XML documents.
 	 *
-	 * @see https://www.iana.org/assignments/media-types/application/xml IANA MimeType registration
+	 * @see https://www.iana.org/assignments/media-types/application/xml IANA MimeType
+	 *      registration
 	 * @see https://tools.ietf.org/html/rfc7303#section-9.1 RFC 7303
 	 * @see https://en.wikipedia.org/wiki/XML_and_MIME Wikipedia
 	 */
 	XML_APPLICATION: 'application/xml',
 
 	/**
-	 * `text/html`, an alias for `application/xml`.
+	 * `text/xml`, an alias for `application/xml`.
 	 *
 	 * @see https://tools.ietf.org/html/rfc7303#section-9.2 RFC 7303
 	 * @see https://www.iana.org/assignments/media-types/text/xml IANA MimeType registration
@@ -21611,7 +21813,8 @@ var MIME_TYPE = freeze({
 	 * `application/xhtml+xml`, indicates an XML document that has the default HTML namespace,
 	 * but is parsed as an XML document.
 	 *
-	 * @see https://www.iana.org/assignments/media-types/application/xhtml+xml IANA MimeType registration
+	 * @see https://www.iana.org/assignments/media-types/application/xhtml+xml IANA MimeType
+	 *      registration
 	 * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocument WHATWG DOM Spec
 	 * @see https://en.wikipedia.org/wiki/XHTML Wikipedia
 	 */
@@ -21625,8 +21828,31 @@ var MIME_TYPE = freeze({
 	 * @see https://en.wikipedia.org/wiki/Scalable_Vector_Graphics Wikipedia
 	 */
 	XML_SVG_IMAGE: 'image/svg+xml',
-})
+});
+/**
+ * @typedef {'application/xhtml+xml' | 'application/xml' | 'image/svg+xml' | 'text/html' | 'text/xml'}
+ * MimeType
+ */
+/**
+ * @type {MimeType[]}
+ * @private
+ * Basically `Object.values`, which is not available in ES5.
+ */
+var _MIME_TYPES = Object.keys(MIME_TYPE).map(function (key) {
+	return MIME_TYPE[key];
+});
 
+/**
+ * Only returns true if `mimeType` is one of the allowed values for
+ * `DOMParser.parseFromString`.
+ *
+ * @param {string} mimeType
+ * @returns {mimeType is 'application/xhtml+xml' | 'application/xml' | 'image/svg+xml' |  'text/html' | 'text/xml'}
+ *
+ */
+function isValidMimeType(mimeType) {
+	return _MIME_TYPES.indexOf(mimeType) > -1;
+}
 /**
  * Namespaces that are used in this code base.
  *
@@ -21639,17 +21865,6 @@ var NAMESPACE = freeze({
 	 * @see http://www.w3.org/1999/xhtml
 	 */
 	HTML: 'http://www.w3.org/1999/xhtml',
-
-	/**
-	 * Checks if `uri` equals `NAMESPACE.HTML`.
-	 *
-	 * @param {string} [uri]
-	 *
-	 * @see NAMESPACE.HTML
-	 */
-	isHTML: function (uri) {
-		return uri === NAMESPACE.HTML
-	},
 
 	/**
 	 * The SVG namespace.
@@ -21666,16 +21881,27 @@ var NAMESPACE = freeze({
 	XML: 'http://www.w3.org/XML/1998/namespace',
 
 	/**
-	 * The `xmlns:` namespace
+	 * The `xmlns:` namespace.
 	 *
 	 * @see https://www.w3.org/2000/xmlns/
 	 */
 	XMLNS: 'http://www.w3.org/2000/xmlns/',
-})
+});
 
 exports.assign = assign;
 exports.find = find;
 exports.freeze = freeze;
+exports.HTML_BOOLEAN_ATTRIBUTES = HTML_BOOLEAN_ATTRIBUTES;
+exports.HTML_RAW_TEXT_ELEMENTS = HTML_RAW_TEXT_ELEMENTS;
+exports.HTML_VOID_ELEMENTS = HTML_VOID_ELEMENTS;
+exports.hasDefaultHTMLNamespace = hasDefaultHTMLNamespace;
+exports.hasOwn = hasOwn;
+exports.isHTMLBooleanAttribute = isHTMLBooleanAttribute;
+exports.isHTMLRawTextElement = isHTMLRawTextElement;
+exports.isHTMLEscapableRawTextElement = isHTMLEscapableRawTextElement;
+exports.isHTMLMimeType = isHTMLMimeType;
+exports.isHTMLVoidElement = isHTMLVoidElement;
+exports.isValidMimeType = isValidMimeType;
 exports.MIME_TYPE = MIME_TYPE;
 exports.NAMESPACE = NAMESPACE;
 
@@ -21685,21 +21911,29 @@ exports.NAMESPACE = NAMESPACE;
 /***/ 74847:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-var __webpack_unused_export__;
+"use strict";
+
+
 var conventions = __nccwpck_require__(37855);
-var dom = __nccwpck_require__(67311)
+var dom = __nccwpck_require__(67311);
+var errors = __nccwpck_require__(57368);
 var entities = __nccwpck_require__(24124);
 var sax = __nccwpck_require__(11995);
 
 var DOMImplementation = dom.DOMImplementation;
 
+var hasDefaultHTMLNamespace = conventions.hasDefaultHTMLNamespace;
+var isHTMLMimeType = conventions.isHTMLMimeType;
+var isValidMimeType = conventions.isValidMimeType;
+var MIME_TYPE = conventions.MIME_TYPE;
 var NAMESPACE = conventions.NAMESPACE;
+var ParseError = errors.ParseError;
 
-var ParseError = sax.ParseError;
 var XMLReader = sax.XMLReader;
 
 /**
- * Normalizes line ending according to https://www.w3.org/TR/xml11/#sec-line-ends:
+ * Normalizes line ending according to <https://www.w3.org/TR/xml11/#sec-line-ends>,
+ * including some Unicode "newline" characters:
  *
  * > XML parsed entities are often stored in computer files which,
  * > for editing convenience, are organized into lines.
@@ -21708,21 +21942,21 @@ var XMLReader = sax.XMLReader;
  * >
  * > To simplify the tasks of applications, the XML processor must behave
  * > as if it normalized all line breaks in external parsed entities (including the document entity)
- * > on input, before parsing, by translating all of the following to a single #xA character:
+ * > on input, before parsing, by translating the following to a single #xA character:
  * >
- * > 1. the two-character sequence #xD #xA
- * > 2. the two-character sequence #xD #x85
- * > 3. the single character #x85
- * > 4. the single character #x2028
- * > 5. any #xD character that is not immediately followed by #xA or #x85.
+ * > 1. the two-character sequence #xD #xA,
+ * > 2. the two-character sequence #xD #x85,
+ * > 3. the single character #x85,
+ * > 4. the single character #x2028,
+ * > 5. the single character #x2029,
+ * > 6. any #xD character that is not immediately followed by #xA or #x85.
  *
  * @param {string} input
  * @returns {string}
+ * @prettierignore
  */
 function normalizeLineEndings(input) {
-	return input
-		.replace(/\r[\n\u0085]/g, '\n')
-		.replace(/[\r\u0085\u2028]/g, '\n')
+	return input.replace(/\r[\n\u0085]/g, '\n').replace(/[\r\u0085\u2028\u2029]/g, '\n');
 }
 
 /**
@@ -21733,229 +21967,462 @@ function normalizeLineEndings(input) {
 
 /**
  * @typedef DOMParserOptions
- * @property {DOMHandler} [domBuilder]
+ * @property {typeof assign} [assign]
+ * The method to use instead of `conventions.assign`, which is used to copy values from
+ * `options` before they are used for parsing.
+ * @property {typeof DOMHandler} [domHandler]
+ * For internal testing: The class for creating an instance for handling events from the SAX
+ * parser.
+ * *****Warning: By configuring a faulty implementation, the specified behavior can completely
+ * be broken.*****.
  * @property {Function} [errorHandler]
- * @property {(string) => string} [normalizeLineEndings] used to replace line endings before parsing
- * 						defaults to `normalizeLineEndings`
- * @property {Locator} [locator]
- * @property {Record<string, string>} [xmlns]
+ * DEPRECATED! use `onError` instead.
+ * @property {function(level:ErrorLevel, message:string, context: DOMHandler):void}
+ * [onError]
+ * A function invoked for every error that occurs during parsing.
  *
- * @see normalizeLineEndings
+ * If it is not provided, all errors are reported to `console.error`
+ * and only `fatalError`s are thrown as a `ParseError`,
+ * which prevents any further processing.
+ * If the provided method throws, a `ParserError` is thrown,
+ * which prevents any further processing.
+ *
+ * Be aware that many `warning`s are considered an error that prevents further processing in
+ * most implementations.
+ * @property {boolean} [locator=true]
+ * Configures if the nodes created during parsing will have a `lineNumber` and a `columnNumber`
+ * attribute describing their location in the XML string.
+ * Default is true.
+ * @property {(string) => string} [normalizeLineEndings]
+ * used to replace line endings before parsing, defaults to exported `normalizeLineEndings`,
+ * which normalizes line endings according to <https://www.w3.org/TR/xml11/#sec-line-ends>,
+ * including some Unicode "newline" characters.
+ * @property {Object} [xmlns]
+ * The XML namespaces that should be assumed when parsing.
+ * The default namespace can be provided by the key that is the empty string.
+ * When the `mimeType` for HTML, XHTML or SVG are passed to `parseFromString`,
+ * the default namespace that will be used,
+ * will be overridden according to the specification.
+ * @see {@link normalizeLineEndings}
  */
 
 /**
- * The DOMParser interface provides the ability to parse XML or HTML source code
- * from a string into a DOM `Document`.
+ * The DOMParser interface provides the ability to parse XML or HTML source code from a string
+ * into a DOM `Document`.
  *
- * _xmldom is different from the spec in that it allows an `options` parameter,
- * to override the default behavior._
+ * ***xmldom is different from the spec in that it allows an `options` parameter,
+ * to control the behavior***.
  *
+ * @class
  * @param {DOMParserOptions} [options]
- * @constructor
- *
  * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser
  * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-parsing-and-serialization
  */
-function DOMParser(options){
-	this.options = options ||{locator:{}};
+function DOMParser(options) {
+	options = options || {};
+	if (options.locator === undefined) {
+		options.locator = true;
+	}
+
+	/**
+	 * The method to use instead of `conventions.assign`, which is used to copy values from
+	 * `options`
+	 * before they are used for parsing.
+	 *
+	 * @type {conventions.assign}
+	 * @private
+	 * @see {@link conventions.assign}
+	 * @readonly
+	 */
+	this.assign = options.assign || conventions.assign;
+
+	/**
+	 * For internal testing: The class for creating an instance for handling events from the SAX
+	 * parser.
+	 * *****Warning: By configuring a faulty implementation, the specified behavior can completely
+	 * be broken*****.
+	 *
+	 * @type {typeof DOMHandler}
+	 * @private
+	 * @readonly
+	 */
+	this.domHandler = options.domHandler || DOMHandler;
+
+	/**
+	 * A function that is invoked for every error that occurs during parsing.
+	 *
+	 * If it is not provided, all errors are reported to `console.error`
+	 * and only `fatalError`s are thrown as a `ParseError`,
+	 * which prevents any further processing.
+	 * If the provided method throws, a `ParserError` is thrown,
+	 * which prevents any further processing.
+	 *
+	 * Be aware that many `warning`s are considered an error that prevents further processing in
+	 * most implementations.
+	 *
+	 * @type {function(level:ErrorLevel, message:string, context: DOMHandler):void}
+	 * @see {@link onErrorStopParsing}
+	 * @see {@link onWarningStopParsing}
+	 */
+	this.onError = options.onError || options.errorHandler;
+	if (options.errorHandler && typeof options.errorHandler !== 'function') {
+		throw new TypeError('errorHandler object is no longer supported, switch to onError!');
+	} else if (options.errorHandler) {
+		options.errorHandler('warning', 'The `errorHandler` option has been deprecated, use `onError` instead!', this);
+	}
+
+	/**
+	 * used to replace line endings before parsing, defaults to `normalizeLineEndings`
+	 *
+	 * @type {(string) => string}
+	 * @readonly
+	 */
+	this.normalizeLineEndings = options.normalizeLineEndings || normalizeLineEndings;
+
+	/**
+	 * Configures if the nodes created during parsing will have a `lineNumber` and a
+	 * `columnNumber`
+	 * attribute describing their location in the XML string.
+	 * Default is true.
+	 *
+	 * @type {boolean}
+	 * @readonly
+	 */
+	this.locator = !!options.locator;
+
+	/**
+	 * The default namespace can be provided by the key that is the empty string.
+	 * When the `mimeType` for HTML, XHTML or SVG are passed to `parseFromString`,
+	 * the default namespace that will be used,
+	 * will be overridden according to the specification.
+	 *
+	 * @type {Readonly<Object>}
+	 * @readonly
+	 */
+	this.xmlns = this.assign(Object.create(null), options.xmlns);
 }
 
-DOMParser.prototype.parseFromString = function(source,mimeType){
-	var options = this.options;
-	var sax =  new XMLReader();
-	var domBuilder = options.domBuilder || new DOMHandler();//contentHandler and LexicalHandler
-	var errorHandler = options.errorHandler;
-	var locator = options.locator;
-	var defaultNSMap = options.xmlns||{};
-	var isHTML = /\/x?html?$/.test(mimeType);//mimeType.toLowerCase().indexOf('html') > -1;
-  	var entityMap = isHTML ? entities.HTML_ENTITIES : entities.XML_ENTITIES;
-	if(locator){
-		domBuilder.setDocumentLocator(locator)
+/**
+ * Parses `source` using the options in the way configured by the `DOMParserOptions` of `this`
+ * `DOMParser`. If `mimeType` is `text/html` an HTML `Document` is created,
+ * otherwise an XML `Document` is created.
+ *
+ * __It behaves different from the description in the living standard__:
+ * - Uses the `options` passed to the `DOMParser` constructor to modify the behavior.
+ * - Any unexpected input is reported to `onError` with either a `warning`,
+ * `error` or `fatalError` level.
+ * - Any `fatalError` throws a `ParseError` which prevents further processing.
+ * - Any error thrown by `onError` is converted to a `ParseError` which prevents further
+ * processing - If no `Document` was created during parsing it is reported as a `fatalError`.
+ * - A `DOMException` raised while building the DOM (e.g. an unbound namespace prefix) is
+ * reported as a `fatalError` and rethrown as a `ParseError` with the `DOMException` as its
+ * `cause`.
+ * *****Warning: By configuring a faulty DOMHandler implementation,
+ * the specified behavior can completely be broken*****.
+ *
+ * @param {string} source
+ * The XML mime type only allows string input!
+ * @param {string} [mimeType='application/xml']
+ * the mimeType or contentType of the document to be created determines the `type` of document
+ * created (XML or HTML)
+ * @returns {Document}
+ * The `Document` node.
+ * @throws {ParseError}
+ * for any `fatalError` or anything that is thrown by `onError`
+ * @throws {TypeError}
+ * for any invalid `mimeType`
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString
+ * @see https://html.spec.whatwg.org/#dom-domparser-parsefromstring-dev
+ */
+DOMParser.prototype.parseFromString = function (source, mimeType) {
+	if (!isValidMimeType(mimeType)) {
+		throw new TypeError('DOMParser.parseFromString: the provided mimeType "' + mimeType + '" is not valid.');
+	}
+	var defaultNSMap = this.assign(Object.create(null), this.xmlns);
+	var entityMap = entities.XML_ENTITIES;
+	var defaultNamespace = defaultNSMap[''] || null;
+	if (hasDefaultHTMLNamespace(mimeType)) {
+		entityMap = entities.HTML_ENTITIES;
+		defaultNamespace = NAMESPACE.HTML;
+	} else if (mimeType === MIME_TYPE.XML_SVG_IMAGE) {
+		defaultNamespace = NAMESPACE.SVG;
+	}
+	defaultNSMap[''] = defaultNamespace;
+	defaultNSMap.xml = defaultNSMap.xml || NAMESPACE.XML;
+
+	var domBuilder = new this.domHandler({
+		mimeType: mimeType,
+		defaultNamespace: defaultNamespace,
+		onError: this.onError,
+	});
+	var locator = this.locator ? {} : undefined;
+	if (this.locator) {
+		domBuilder.setDocumentLocator(locator);
 	}
 
-	sax.errorHandler = buildErrorHandler(errorHandler,domBuilder,locator);
-	sax.domBuilder = options.domBuilder || domBuilder;
-	if(isHTML){
-		defaultNSMap[''] = NAMESPACE.HTML;
+	var sax = new XMLReader();
+	sax.errorHandler = domBuilder;
+	sax.domBuilder = domBuilder;
+	var isXml = !conventions.isHTMLMimeType(mimeType);
+	if (isXml && typeof source !== 'string') {
+		sax.errorHandler.fatalError('source is not a string');
 	}
-	defaultNSMap.xml = defaultNSMap.xml || NAMESPACE.XML;
-	var normalize = options.normalizeLineEndings || normalizeLineEndings;
-	if (source && typeof source === 'string') {
-		sax.parse(
-			normalize(source),
-			defaultNSMap,
-			entityMap
-		)
-	} else {
-		sax.errorHandler.error('invalid doc source')
+	sax.parse(this.normalizeLineEndings(String(source)), defaultNSMap, entityMap);
+	if (!domBuilder.doc.documentElement) {
+		sax.errorHandler.fatalError('missing root element');
 	}
 	return domBuilder.doc;
-}
-function buildErrorHandler(errorImpl,domBuilder,locator){
-	if(!errorImpl){
-		if(domBuilder instanceof DOMHandler){
-			return domBuilder;
-		}
-		errorImpl = domBuilder ;
-	}
-	var errorHandler = {}
-	var isCallback = errorImpl instanceof Function;
-	locator = locator||{}
-	function build(key){
-		var fn = errorImpl[key];
-		if(!fn && isCallback){
-			fn = errorImpl.length == 2?function(msg){errorImpl(key,msg)}:errorImpl;
-		}
-		errorHandler[key] = fn && function(msg){
-			fn('[xmldom '+key+']\t'+msg+_locator(locator));
-		}||function(){};
-	}
-	build('warning');
-	build('error');
-	build('fatalError');
-	return errorHandler;
+};
+
+/**
+ * @typedef DOMHandlerOptions
+ * @property {string} [mimeType=MIME_TYPE.XML_APPLICATION]
+ * @property {string | null} [defaultNamespace=null]
+ */
+/**
+ * The class that is used to handle events from the SAX parser to create the related DOM
+ * elements.
+ *
+ * Some methods are only implemented as an empty function,
+ * since they are (at least currently) not relevant for xmldom.
+ *
+ * @class
+ * @param {DOMHandlerOptions} [options]
+ * @see http://www.saxproject.org/apidoc/org/xml/sax/ext/DefaultHandler2.html
+ */
+function DOMHandler(options) {
+	var opt = options || {};
+	/**
+	 * The mime type is used to determine if the DOM handler will create an XML or HTML document.
+	 * Only if it is set to `text/html` it will create an HTML document.
+	 * It defaults to MIME_TYPE.XML_APPLICATION.
+	 *
+	 * @type {string}
+	 * @see {@link MIME_TYPE}
+	 * @readonly
+	 */
+	this.mimeType = opt.mimeType || MIME_TYPE.XML_APPLICATION;
+
+	/**
+	 * The namespace to use to create an XML document.
+	 * For the following reasons this is required:
+	 * - The SAX API for `startDocument` doesn't offer any way to pass a namespace,
+	 * since at that point there is no way for the parser to know what the default namespace from
+	 * the document will be.
+	 * - When creating using `DOMImplementation.createDocument` it is required to pass a
+	 * namespace,
+	 * to determine the correct `Document.contentType`, which should match `this.mimeType`.
+	 * - When parsing an XML document with the `application/xhtml+xml` mimeType,
+	 * the HTML namespace needs to be the default namespace.
+	 *
+	 * @type {string | null}
+	 * @private
+	 * @readonly
+	 */
+	this.defaultNamespace = opt.defaultNamespace || null;
+
+	/**
+	 * @type {boolean}
+	 * @private
+	 */
+	this.cdata = false;
+
+	/**
+	 * The last `Element` that was created by `startElement`.
+	 * `endElement` sets it to the `currentElement.parentNode`.
+	 *
+	 * Note: The sax parser currently sets it to white space text nodes between tags.
+	 *
+	 * @type {Element | Node | undefined}
+	 * @private
+	 */
+	this.currentElement = undefined;
+
+	/**
+	 * The Document that is created as part of `startDocument`,
+	 * and returned by `DOMParser.parseFromString`.
+	 *
+	 * @type {Document | undefined}
+	 * @readonly
+	 */
+	this.doc = undefined;
+
+	/**
+	 * The locator is stored as part of setDocumentLocator.
+	 * It is controlled and mutated by the SAX parser to store the current parsing position.
+	 * It is used by DOMHandler to set `columnNumber` and `lineNumber`
+	 * on the DOM nodes.
+	 *
+	 * @type {Readonly<Locator> | undefined}
+	 * @private
+	 * @readonly (the
+	 * sax parser currently sometimes set's it)
+	 */
+	this.locator = undefined;
+	/**
+	 * @type {function (level:ErrorLevel ,message:string, context:DOMHandler):void}
+	 * @readonly
+	 */
+	this.onError = opt.onError;
 }
 
-//console.log('#\n\n\n\n\n\n\n####')
-/**
- * +ContentHandler+ErrorHandler
- * +LexicalHandler+EntityResolver2
- * -DeclHandler-DTDHandler
- *
- * DefaultHandler:EntityResolver, DTDHandler, ContentHandler, ErrorHandler
- * DefaultHandler2:DefaultHandler,LexicalHandler, DeclHandler, EntityResolver2
- * @link http://www.saxproject.org/apidoc/org/xml/sax/helpers/DefaultHandler.html
- */
-function DOMHandler() {
-    this.cdata = false;
-}
-function position(locator,node){
+function position(locator, node) {
 	node.lineNumber = locator.lineNumber;
 	node.columnNumber = locator.columnNumber;
 }
-/**
- * @see org.xml.sax.ContentHandler#startDocument
- * @link http://www.saxproject.org/apidoc/org/xml/sax/ContentHandler.html
- */
-DOMHandler.prototype = {
-	startDocument : function() {
-    	this.doc = new DOMImplementation().createDocument(null, null, null);
-    	if (this.locator) {
-        	this.doc.documentURI = this.locator.systemId;
-    	}
-	},
-	startElement:function(namespaceURI, localName, qName, attrs) {
-		var doc = this.doc;
-	    var el = doc.createElementNS(namespaceURI, qName||localName);
-	    var len = attrs.length;
-	    appendElement(this, el);
-	    this.currentElement = el;
 
-		this.locator && position(this.locator,el)
-	    for (var i = 0 ; i < len; i++) {
-	        var namespaceURI = attrs.getURI(i);
-	        var value = attrs.getValue(i);
-	        var qName = attrs.getQName(i);
+DOMHandler.prototype = {
+	/**
+	 * Either creates an XML or an HTML document and stores it under `this.doc`.
+	 * If it is an XML document, `this.defaultNamespace` is used to create it,
+	 * and it will not contain any `childNodes`.
+	 * If it is an HTML document, it will be created without any `childNodes`.
+	 *
+	 * @see http://www.saxproject.org/apidoc/org/xml/sax/ContentHandler.html
+	 */
+	startDocument: function () {
+		var impl = new DOMImplementation();
+		this.doc = isHTMLMimeType(this.mimeType) ? impl.createHTMLDocument(false) : impl.createDocument(this.defaultNamespace, '');
+	},
+	startElement: function (namespaceURI, localName, qName, attrs) {
+		var doc = this.doc;
+		var el = doc.createElementNS(namespaceURI, qName || localName);
+		var len = attrs.length;
+		appendElement(this, el);
+		this.currentElement = el;
+
+		this.locator && position(this.locator, el);
+		for (var i = 0; i < len; i++) {
+			var namespaceURI = attrs.getURI(i);
+			var value = attrs.getValue(i);
+			var qName = attrs.getQName(i);
 			var attr = doc.createAttributeNS(namespaceURI, qName);
-			this.locator &&position(attrs.getLocator(i),attr);
+			this.locator && position(attrs.getLocator(i), attr);
 			attr.value = attr.nodeValue = value;
-			el.setAttributeNode(attr)
-	    }
+			el.setAttributeNode(attr);
+		}
 	},
-	endElement:function(namespaceURI, localName, qName) {
-		var current = this.currentElement
-		var tagName = current.tagName;
-		this.currentElement = current.parentNode;
+	endElement: function (namespaceURI, localName, qName) {
+		this.currentElement = this.currentElement.parentNode;
 	},
-	startPrefixMapping:function(prefix, uri) {
+	startPrefixMapping: function (prefix, uri) {},
+	endPrefixMapping: function (prefix) {},
+	processingInstruction: function (target, data) {
+		var ins = this.doc.createProcessingInstruction(target, data);
+		this.locator && position(this.locator, ins);
+		appendElement(this, ins);
 	},
-	endPrefixMapping:function(prefix) {
-	},
-	processingInstruction:function(target, data) {
-	    var ins = this.doc.createProcessingInstruction(target, data);
-	    this.locator && position(this.locator,ins)
-	    appendElement(this, ins);
-	},
-	ignorableWhitespace:function(ch, start, length) {
-	},
-	characters:function(chars, start, length) {
-		chars = _toString.apply(this,arguments)
+	ignorableWhitespace: function (ch, start, length) {},
+	characters: function (chars, start, length) {
+		chars = _toString.apply(this, arguments);
 		//console.log(chars)
-		if(chars){
+		if (chars) {
 			if (this.cdata) {
 				var charNode = this.doc.createCDATASection(chars);
 			} else {
 				var charNode = this.doc.createTextNode(chars);
 			}
-			if(this.currentElement){
+			if (this.currentElement) {
 				this.currentElement.appendChild(charNode);
-			}else if(/^\s*$/.test(chars)){
+			} else if (/^\s*$/.test(chars)) {
 				this.doc.appendChild(charNode);
 				//process xml
 			}
-			this.locator && position(this.locator,charNode)
+			this.locator && position(this.locator, charNode);
 		}
 	},
-	skippedEntity:function(name) {
-	},
-	endDocument:function() {
+	skippedEntity: function (name) {},
+	endDocument: function () {
 		this.doc.normalize();
 	},
-	setDocumentLocator:function (locator) {
-	    if(this.locator = locator){// && !('lineNumber' in locator)){
-	    	locator.lineNumber = 0;
-	    }
+	/**
+	 * Stores the locator to be able to set the `columnNumber` and `lineNumber`
+	 * on the created DOM nodes.
+	 *
+	 * @param {Locator} locator
+	 */
+	setDocumentLocator: function (locator) {
+		if (locator) {
+			locator.lineNumber = 0;
+		}
+		this.locator = locator;
 	},
 	//LexicalHandler
-	comment:function(chars, start, length) {
-		chars = _toString.apply(this,arguments)
-	    var comm = this.doc.createComment(chars);
-	    this.locator && position(this.locator,comm)
-	    appendElement(this, comm);
+	comment: function (chars, start, length) {
+		chars = _toString.apply(this, arguments);
+		var comm = this.doc.createComment(chars);
+		this.locator && position(this.locator, comm);
+		appendElement(this, comm);
 	},
 
-	startCDATA:function() {
-	    //used in characters() methods
-	    this.cdata = true;
+	startCDATA: function () {
+		//used in characters() methods
+		this.cdata = true;
 	},
-	endCDATA:function() {
-	    this.cdata = false;
+	endCDATA: function () {
+		this.cdata = false;
 	},
 
-	startDTD:function(name, publicId, systemId) {
+	startDTD: function (name, publicId, systemId, internalSubset) {
 		var impl = this.doc.implementation;
-	    if (impl && impl.createDocumentType) {
-	        var dt = impl.createDocumentType(name, publicId, systemId);
-	        this.locator && position(this.locator,dt)
-	        appendElement(this, dt);
-					this.doc.doctype = dt;
-	    }
+		if (impl && impl.createDocumentType) {
+			var dt = impl.createDocumentType(name, publicId, systemId, internalSubset);
+			this.locator && position(this.locator, dt);
+			appendElement(this, dt);
+			this.doc.doctype = dt;
+		}
+	},
+	reportError: function (level, message) {
+		if (typeof this.onError === 'function') {
+			try {
+				this.onError(level, message, this);
+			} catch (e) {
+				throw new ParseError('Reporting ' + level + ' "' + message + '" caused ' + e, this.locator);
+			}
+		} else {
+			console.error('[xmldom ' + level + ']\t' + message, _locator(this.locator));
+		}
 	},
 	/**
-	 * @see org.xml.sax.ErrorHandler
-	 * @link http://www.saxproject.org/apidoc/org/xml/sax/ErrorHandler.html
+	 * @see http://www.saxproject.org/apidoc/org/xml/sax/ErrorHandler.html
 	 */
-	warning:function(error) {
-		console.warn('[xmldom warning]\t'+error,_locator(this.locator));
+	warning: function (message) {
+		this.reportError('warning', message);
 	},
-	error:function(error) {
-		console.error('[xmldom error]\t'+error,_locator(this.locator));
+	error: function (message) {
+		this.reportError('error', message);
 	},
-	fatalError:function(error) {
-		throw new ParseError(error, this.locator);
+	/**
+	 * This function reports a fatal error and throws a ParseError.
+	 *
+	 * @param {string} message
+	 * - The message to be used for reporting and throwing the error.
+	 * @param {Error} [cause]
+	 * The error that caused this fatal error, preserved as the thrown `ParseError`'s `cause`.
+	 * @returns {never}
+	 * This function always throws an error and never returns a value.
+	 * @throws {ParseError}
+	 * Always throws a ParseError with the provided message.
+	 */
+	fatalError: function (message, cause) {
+		this.reportError('fatalError', message);
+		throw new ParseError(message, this.locator, cause);
+	},
+};
+
+function _locator(l) {
+	if (l) {
+		return '\n@#[line:' + l.lineNumber + ',col:' + l.columnNumber + ']';
 	}
 }
-function _locator(l){
-	if(l){
-		return '\n@'+(l.systemId ||'')+'#[line:'+l.lineNumber+',col:'+l.columnNumber+']'
-	}
-}
-function _toString(chars,start,length){
-	if(typeof chars == 'string'){
-		return chars.substr(start,length)
-	}else{//java sax connect width xmldom on rhino(what about: "? && !(chars instanceof String)")
-		if(chars.length >= start+length || start){
-			return new java.lang.String(chars,start,length)+'';
+
+function _toString(chars, start, length) {
+	if (typeof chars == 'string') {
+		return chars.substr(start, length);
+	} else {
+		//java sax connect width xmldom on rhino(what about: "? && !(chars instanceof String)")
+		if (chars.length >= start + length || start) {
+			return new java.lang.String(chars, start, length) + '';
 		}
 		return chars;
 	}
@@ -21992,22 +22459,50 @@ function _toString(chars,start,length){
  *  #notationDecl(name, publicId, systemId) {};
  *  #unparsedEntityDecl(name, publicId, systemId, notationName) {};
  */
-"endDTD,startEntity,endEntity,attributeDecl,elementDecl,externalEntityDecl,internalEntityDecl,resolveEntity,getExternalSubset,notationDecl,unparsedEntityDecl".replace(/\w+/g,function(key){
-	DOMHandler.prototype[key] = function(){return null}
-})
+'endDTD,startEntity,endEntity,attributeDecl,elementDecl,externalEntityDecl,internalEntityDecl,resolveEntity,getExternalSubset,notationDecl,unparsedEntityDecl'.replace(
+	/\w+/g,
+	function (key) {
+		DOMHandler.prototype[key] = function () {
+			return null;
+		};
+	}
+);
 
 /* Private static helpers treated below as private instance methods, so don't need to add these to the public API; we might use a Relator to also get rid of non-standard public properties */
-function appendElement (hander,node) {
-    if (!hander.currentElement) {
-        hander.doc.appendChild(node);
-    } else {
-        hander.currentElement.appendChild(node);
-    }
-}//appendChild and setAttributeNS are preformance key
+function appendElement(handler, node) {
+	if (!handler.currentElement) {
+		handler.doc.appendChild(node);
+	} else {
+		handler.currentElement.appendChild(node);
+	}
+}
 
-__webpack_unused_export__ = DOMHandler;
-__webpack_unused_export__ = normalizeLineEndings;
+/**
+ * A method that prevents any further parsing when an `error`
+ * with level `error` is reported during parsing.
+ *
+ * @see {@link DOMParserOptions.onError}
+ * @see {@link onWarningStopParsing}
+ */
+function onErrorStopParsing(level) {
+	if (level === 'error') throw 'onErrorStopParsing';
+}
+
+/**
+ * A method that prevents any further parsing when any `error` is reported during parsing.
+ *
+ * @see {@link DOMParserOptions.onError}
+ * @see {@link onErrorStopParsing}
+ */
+function onWarningStopParsing() {
+	throw 'onWarningStopParsing';
+}
+
+exports.__DOMHandler = DOMHandler;
 exports.DOMParser = DOMParser;
+exports.normalizeLineEndings = normalizeLineEndings;
+exports.onErrorStopParsing = onErrorStopParsing;
+exports.onWarningStopParsing = onWarningStopParsing;
 
 
 /***/ }),
@@ -22015,516 +22510,1410 @@ exports.DOMParser = DOMParser;
 /***/ 67311:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-var conventions = __nccwpck_require__(37855);
+"use strict";
 
+
+var conventions = __nccwpck_require__(37855);
 var find = conventions.find;
+var hasDefaultHTMLNamespace = conventions.hasDefaultHTMLNamespace;
+var hasOwn = conventions.hasOwn;
+var isHTMLMimeType = conventions.isHTMLMimeType;
+var isHTMLRawTextElement = conventions.isHTMLRawTextElement;
+var isHTMLVoidElement = conventions.isHTMLVoidElement;
+var MIME_TYPE = conventions.MIME_TYPE;
 var NAMESPACE = conventions.NAMESPACE;
 
 /**
- * A prerequisite for `[].filter`, to drop elements that are empty
- * @param {string} input
- * @returns {boolean}
+ * Private DOM Constructor symbol
+ *
+ * Internal symbol used for construction of all classes whose constructors should be private.
+ * Currently used for checks in `Node`, `Document`, `Element`, `Attr`, `CharacterData`, `Text`, `Comment`,
+ * `CDATASection`, `DocumentType`, `Notation`, `Entity`, `EntityReference`, `DocumentFragment`, `ProcessingInstruction`
+ * so the constructor can't be used from outside the module.
  */
-function notEmptyString (input) {
-	return input !== ''
-}
+var PDC = Symbol();
+
+var errors = __nccwpck_require__(57368);
+var DOMException = errors.DOMException;
+var DOMExceptionName = errors.DOMExceptionName;
+
+var g = __nccwpck_require__(12062);
+
 /**
- * @see https://infra.spec.whatwg.org/#split-on-ascii-whitespace
- * @see https://infra.spec.whatwg.org/#ascii-whitespace
+ * Checks if the given symbol equals the Private DOM Constructor symbol (PDC)
+ * and throws an Illegal constructor exception when the symbols don't match.
+ * This ensures that the constructor remains private and can't be used outside this module.
+ */
+function checkSymbol(symbol) {
+	if (symbol !== PDC) {
+		throw new TypeError('Illegal constructor');
+	}
+}
+
+/**
+ * A prerequisite for `[].filter`, to drop elements that are empty.
  *
  * @param {string} input
- * @returns {string[]} (can be empty)
+ * The string to be checked.
+ * @returns {boolean}
+ * Returns `true` if the input string is not empty, `false` otherwise.
+ */
+function notEmptyString(input) {
+	return input !== '';
+}
+/**
+ * Splits a string on ASCII whitespace characters (U+0009 TAB, U+000A LF, U+000C FF, U+000D CR,
+ * U+0020 SPACE).
+ * It follows the definition from the infra specification from WHATWG.
+ *
+ * @param {string} input
+ * The string to be split.
+ * @returns {string[]}
+ * An array of the split strings. The array can be empty if the input string is empty or only
+ * contains whitespace characters.
+ * @see {@link https://infra.spec.whatwg.org/#split-on-ascii-whitespace}
+ * @see {@link https://infra.spec.whatwg.org/#ascii-whitespace}
  */
 function splitOnASCIIWhitespace(input) {
 	// U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, U+0020 SPACE
-	return input ? input.split(/[\t\n\f\r ]+/).filter(notEmptyString) : []
+	return input ? input.split(/[\t\n\f\r ]+/).filter(notEmptyString) : [];
 }
 
 /**
  * Adds element as a key to current if it is not already present.
  *
  * @param {Record<string, boolean | undefined>} current
+ * The current record object to which the element will be added as a key.
+ * The object's keys are string types and values are either boolean or undefined.
  * @param {string} element
+ * The string to be added as a key to the current record.
  * @returns {Record<string, boolean | undefined>}
+ * The updated record object after the addition of the new element.
  */
-function orderedSetReducer (current, element) {
-	if (!current.hasOwnProperty(element)) {
+function orderedSetReducer(current, element) {
+	if (!hasOwn(current, element)) {
 		current[element] = true;
 	}
 	return current;
 }
 
 /**
- * @see https://infra.spec.whatwg.org/#ordered-set
+ * Converts a string into an ordered set by splitting the input on ASCII whitespace and
+ * ensuring uniqueness of elements.
+ * This follows the definition of an ordered set from the infra specification by WHATWG.
+ *
  * @param {string} input
+ * The input string to be transformed into an ordered set.
  * @returns {string[]}
+ * An array of unique strings obtained from the input, preserving the original order.
+ * The array can be empty if the input string is empty or only contains whitespace characters.
+ * @see {@link https://infra.spec.whatwg.org/#ordered-set}
  */
 function toOrderedSet(input) {
 	if (!input) return [];
 	var list = splitOnASCIIWhitespace(input);
-	return Object.keys(list.reduce(orderedSetReducer, {}))
+	return Object.keys(list.reduce(orderedSetReducer, {}));
 }
 
 /**
- * Uses `list.indexOf` to implement something like `Array.prototype.includes`,
- * which we can not rely on being available.
+ * Uses `list.indexOf` to implement a function that behaves like `Array.prototype.includes`.
+ * This function is used in environments where `Array.prototype.includes` may not be available.
  *
  * @param {any[]} list
+ * The array in which to search for the element.
  * @returns {function(any): boolean}
+ * A function that accepts an element and returns a boolean indicating whether the element is
+ * included in the provided list.
  */
-function arrayIncludes (list) {
-	return function(element) {
+function arrayIncludes(list) {
+	return function (element) {
 		return list && list.indexOf(element) !== -1;
+	};
+}
+
+/**
+ * Validates a qualified name based on the criteria provided in the DOM specification by
+ * WHATWG.
+ *
+ * @param {string} qualifiedName
+ * The qualified name to be validated.
+ * @throws {DOMException}
+ * With code {@link DOMException.INVALID_CHARACTER_ERR} if the qualified name contains an
+ * invalid character.
+ * @see {@link https://dom.spec.whatwg.org/#validate}
+ */
+function validateQualifiedName(qualifiedName) {
+	if (!g.QName_exact.test(qualifiedName)) {
+		throw new DOMException(DOMException.INVALID_CHARACTER_ERR, 'invalid character in qualified name "' + qualifiedName + '"');
 	}
 }
 
-function copy(src,dest){
-	for(var p in src){
-		if (Object.prototype.hasOwnProperty.call(src, p)) {
+/**
+ * Validates a qualified name and the namespace associated with it,
+ * based on the criteria provided in the DOM specification by WHATWG.
+ *
+ * @param {string | null} namespace
+ * The namespace to be validated. It can be a string or null.
+ * @param {string} qualifiedName
+ * The qualified name to be validated.
+ * @returns {[namespace: string | null, prefix: string | null, localName: string]}
+ * Returns a tuple with the namespace,
+ * prefix and local name of the qualified name.
+ * @throws {DOMException}
+ * Throws a DOMException if the qualified name or the namespace is not valid.
+ * @see {@link https://dom.spec.whatwg.org/#validate-and-extract}
+ */
+function validateAndExtract(namespace, qualifiedName) {
+	validateQualifiedName(qualifiedName);
+	namespace = namespace || null;
+	/**
+	 * @type {string | null}
+	 */
+	var prefix = null;
+	var localName = qualifiedName;
+	if (qualifiedName.indexOf(':') >= 0) {
+		var splitResult = qualifiedName.split(':');
+		prefix = splitResult[0];
+		localName = splitResult[1];
+	}
+	if (prefix !== null && namespace === null) {
+		throw new DOMException(DOMException.NAMESPACE_ERR, 'prefix is non-null and namespace is null');
+	}
+	if (prefix === 'xml' && namespace !== conventions.NAMESPACE.XML) {
+		throw new DOMException(DOMException.NAMESPACE_ERR, 'prefix is "xml" and namespace is not the XML namespace');
+	}
+	if ((prefix === 'xmlns' || qualifiedName === 'xmlns') && namespace !== conventions.NAMESPACE.XMLNS) {
+		throw new DOMException(
+			DOMException.NAMESPACE_ERR,
+			'either qualifiedName or prefix is "xmlns" and namespace is not the XMLNS namespace'
+		);
+	}
+	if (namespace === conventions.NAMESPACE.XMLNS && prefix !== 'xmlns' && qualifiedName !== 'xmlns') {
+		throw new DOMException(
+			DOMException.NAMESPACE_ERR,
+			'namespace is the XMLNS namespace and neither qualifiedName nor prefix is "xmlns"'
+		);
+	}
+	return [namespace, prefix, localName];
+}
+
+/**
+ * Copies properties from one object to another.
+ * It only copies the object's own (not inherited) properties.
+ *
+ * @param {Object} src
+ * The source object from which properties are copied.
+ * @param {Object} dest
+ * The destination object to which properties are copied.
+ */
+function copy(src, dest) {
+	for (var p in src) {
+		if (hasOwn(src, p)) {
 			dest[p] = src[p];
 		}
 	}
 }
 
 /**
-^\w+\.prototype\.([_\w]+)\s*=\s*((?:.*\{\s*?[\r\n][\s\S]*?^})|\S.*?(?=[;\r\n]));?
-^\w+\.prototype\.([_\w]+)\s*=\s*(\S.*?(?=[;\r\n]));?
+ * Extends a class with the properties and methods of a super class.
+ * It uses a form of prototypal inheritance, and establishes the `constructor` property
+ * correctly(?).
+ *
+ * It is not clear to the current maintainers if this implementation is making sense,
+ * since it creates an intermediate prototype function,
+ * which all properties of `Super` are copied onto using `_copy`.
+ *
+ * @param {Object} Class
+ * The class that is to be extended.
+ * @param {Object} Super
+ * The super class from which properties and methods are inherited.
+ * @private
  */
-function _extends(Class,Super){
+function _extends(Class, Super) {
 	var pt = Class.prototype;
-	if(!(pt instanceof Super)){
-		function t(){};
+	if (!(pt instanceof Super)) {
+		function t() {}
 		t.prototype = Super.prototype;
 		t = new t();
-		copy(pt,t);
+		copy(pt, t);
 		Class.prototype = pt = t;
 	}
-	if(pt.constructor != Class){
-		if(typeof Class != 'function'){
-			console.error("unknown Class:"+Class)
+	if (pt.constructor != Class) {
+		if (typeof Class != 'function') {
+			console.error('unknown Class:' + Class);
 		}
-		pt.constructor = Class
+		pt.constructor = Class;
 	}
 }
 
-// Node Types
-var NodeType = {}
-var ELEMENT_NODE                = NodeType.ELEMENT_NODE                = 1;
-var ATTRIBUTE_NODE              = NodeType.ATTRIBUTE_NODE              = 2;
-var TEXT_NODE                   = NodeType.TEXT_NODE                   = 3;
-var CDATA_SECTION_NODE          = NodeType.CDATA_SECTION_NODE          = 4;
-var ENTITY_REFERENCE_NODE       = NodeType.ENTITY_REFERENCE_NODE       = 5;
-var ENTITY_NODE                 = NodeType.ENTITY_NODE                 = 6;
-var PROCESSING_INSTRUCTION_NODE = NodeType.PROCESSING_INSTRUCTION_NODE = 7;
-var COMMENT_NODE                = NodeType.COMMENT_NODE                = 8;
-var DOCUMENT_NODE               = NodeType.DOCUMENT_NODE               = 9;
-var DOCUMENT_TYPE_NODE          = NodeType.DOCUMENT_TYPE_NODE          = 10;
-var DOCUMENT_FRAGMENT_NODE      = NodeType.DOCUMENT_FRAGMENT_NODE      = 11;
-var NOTATION_NODE               = NodeType.NOTATION_NODE               = 12;
+var NodeType = {};
+var ELEMENT_NODE = (NodeType.ELEMENT_NODE = 1);
+var ATTRIBUTE_NODE = (NodeType.ATTRIBUTE_NODE = 2);
+var TEXT_NODE = (NodeType.TEXT_NODE = 3);
+var CDATA_SECTION_NODE = (NodeType.CDATA_SECTION_NODE = 4);
+var ENTITY_REFERENCE_NODE = (NodeType.ENTITY_REFERENCE_NODE = 5);
+var ENTITY_NODE = (NodeType.ENTITY_NODE = 6);
+var PROCESSING_INSTRUCTION_NODE = (NodeType.PROCESSING_INSTRUCTION_NODE = 7);
+var COMMENT_NODE = (NodeType.COMMENT_NODE = 8);
+var DOCUMENT_NODE = (NodeType.DOCUMENT_NODE = 9);
+var DOCUMENT_TYPE_NODE = (NodeType.DOCUMENT_TYPE_NODE = 10);
+var DOCUMENT_FRAGMENT_NODE = (NodeType.DOCUMENT_FRAGMENT_NODE = 11);
+var NOTATION_NODE = (NodeType.NOTATION_NODE = 12);
 
-// ExceptionCode
-var ExceptionCode = {}
-var ExceptionMessage = {};
-var INDEX_SIZE_ERR              = ExceptionCode.INDEX_SIZE_ERR              = ((ExceptionMessage[1]="Index size error"),1);
-var DOMSTRING_SIZE_ERR          = ExceptionCode.DOMSTRING_SIZE_ERR          = ((ExceptionMessage[2]="DOMString size error"),2);
-var HIERARCHY_REQUEST_ERR       = ExceptionCode.HIERARCHY_REQUEST_ERR       = ((ExceptionMessage[3]="Hierarchy request error"),3);
-var WRONG_DOCUMENT_ERR          = ExceptionCode.WRONG_DOCUMENT_ERR          = ((ExceptionMessage[4]="Wrong document"),4);
-var INVALID_CHARACTER_ERR       = ExceptionCode.INVALID_CHARACTER_ERR       = ((ExceptionMessage[5]="Invalid character"),5);
-var NO_DATA_ALLOWED_ERR         = ExceptionCode.NO_DATA_ALLOWED_ERR         = ((ExceptionMessage[6]="No data allowed"),6);
-var NO_MODIFICATION_ALLOWED_ERR = ExceptionCode.NO_MODIFICATION_ALLOWED_ERR = ((ExceptionMessage[7]="No modification allowed"),7);
-var NOT_FOUND_ERR               = ExceptionCode.NOT_FOUND_ERR               = ((ExceptionMessage[8]="Not found"),8);
-var NOT_SUPPORTED_ERR           = ExceptionCode.NOT_SUPPORTED_ERR           = ((ExceptionMessage[9]="Not supported"),9);
-var INUSE_ATTRIBUTE_ERR         = ExceptionCode.INUSE_ATTRIBUTE_ERR         = ((ExceptionMessage[10]="Attribute in use"),10);
-//level2
-var INVALID_STATE_ERR        	= ExceptionCode.INVALID_STATE_ERR        	= ((ExceptionMessage[11]="Invalid state"),11);
-var SYNTAX_ERR               	= ExceptionCode.SYNTAX_ERR               	= ((ExceptionMessage[12]="Syntax error"),12);
-var INVALID_MODIFICATION_ERR 	= ExceptionCode.INVALID_MODIFICATION_ERR 	= ((ExceptionMessage[13]="Invalid modification"),13);
-var NAMESPACE_ERR            	= ExceptionCode.NAMESPACE_ERR           	= ((ExceptionMessage[14]="Invalid namespace"),14);
-var INVALID_ACCESS_ERR       	= ExceptionCode.INVALID_ACCESS_ERR      	= ((ExceptionMessage[15]="Invalid access"),15);
+var DocumentPosition = conventions.freeze({
+	DOCUMENT_POSITION_DISCONNECTED: 1,
+	DOCUMENT_POSITION_PRECEDING: 2,
+	DOCUMENT_POSITION_FOLLOWING: 4,
+	DOCUMENT_POSITION_CONTAINS: 8,
+	DOCUMENT_POSITION_CONTAINED_BY: 16,
+	DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: 32,
+});
 
+//helper functions for compareDocumentPosition
 /**
- * DOM Level 2
- * Object DOMException
- * @see http://www.w3.org/TR/2000/REC-DOM-Level-2-Core-20001113/ecma-script-binding.html
- * @see http://www.w3.org/TR/REC-DOM-Level-1/ecma-script-language-binding.html
+ * Finds the common ancestor in two parent chains.
+ *
+ * @param {Node[]} a
+ * The first parent chain.
+ * @param {Node[]} b
+ * The second parent chain.
+ * @returns {Node}
+ * The common ancestor node if it exists. If there is no common ancestor, the function will
+ * return `null`.
  */
-function DOMException(code, message) {
-	if(message instanceof Error){
-		var error = message;
-	}else{
-		error = this;
-		Error.call(this, ExceptionMessage[code]);
-		this.message = ExceptionMessage[code];
-		if(Error.captureStackTrace) Error.captureStackTrace(this, DOMException);
+function commonAncestor(a, b) {
+	if (b.length < a.length) return commonAncestor(b, a);
+	var c = null;
+	for (var n in a) {
+		if (a[n] !== b[n]) return c;
+		c = a[n];
 	}
-	error.code = code;
-	if(message) this.message = this.message + ": " + message;
-	return error;
-};
-DOMException.prototype = Error.prototype;
-copy(ExceptionCode,DOMException)
+	return c;
+}
 
 /**
- * @see http://www.w3.org/TR/2000/REC-DOM-Level-2-Core-20001113/core.html#ID-536297177
- * The NodeList interface provides the abstraction of an ordered collection of nodes, without defining or constraining how this collection is implemented. NodeList objects in the DOM are live.
- * The items in the NodeList are accessible via an integral index, starting from 0.
+ * Assigns a unique identifier to a document to ensure consistency while comparing unrelated
+ * nodes.
+ *
+ * @param {Document} doc
+ * The document to which a unique identifier is to be assigned.
+ * @returns {string}
+ * The unique identifier of the document. If the document already had a unique identifier, the
+ * function will return the existing one.
  */
-function NodeList() {
-};
+function docGUID(doc) {
+	if (!doc.guid) doc.guid = Math.random();
+	return doc.guid;
+}
+//-- end of helper functions
+
+/**
+ * The NodeList interface provides the abstraction of an ordered collection of nodes,
+ * without defining or constraining how this collection is implemented.
+ * NodeList objects in the DOM are live.
+ * The items in the NodeList are accessible via an integral index, starting from 0.
+ * You can also access the items of the NodeList with a `for...of` loop.
+ *
+ * @class NodeList
+ * @see http://www.w3.org/TR/2000/REC-DOM-Level-2-Core-20001113/core.html#ID-536297177
+ * @constructs NodeList
+ */
+function NodeList() {}
 NodeList.prototype = {
 	/**
-	 * The number of nodes in the list. The range of valid child node indices is 0 to length-1 inclusive.
-	 * @standard level1
+	 * The number of nodes in the list. The range of valid child node indices is 0 to length-1
+	 * inclusive.
+	 *
+	 * @type {number}
 	 */
-	length:0,
+	length: 0,
 	/**
-	 * Returns the indexth item in the collection. If index is greater than or equal to the number of nodes in the list, this returns null.
-	 * @standard level1
-	 * @param index  unsigned long
-	 *   Index into the collection.
-	 * @return Node
-	 * 	The node at the indexth position in the NodeList, or null if that is not a valid index.
+	 * Returns the item at `index`. If index is greater than or equal to the number of nodes in
+	 * the list, this returns null.
+	 *
+	 * @param index
+	 * Unsigned long Index into the collection.
+	 * @returns {Node | null}
+	 * The node at position `index` in the NodeList,
+	 * or null if that is not a valid index.
 	 */
-	item: function(index) {
+	item: function (index) {
 		return index >= 0 && index < this.length ? this[index] : null;
 	},
-	toString:function(isHTML,nodeFilter,options){
-		var requireWellFormed = !!options && !!options.requireWellFormed;
-		for(var buf = [], i = 0;i<this.length;i++){
-			serializeToString(this[i],buf,isHTML,nodeFilter,null,requireWellFormed);
+	/**
+	 * Returns a string representation of the NodeList.
+	 *
+	 * Accepts the same `options` object as `XMLSerializer.prototype.serializeToString`
+	 * (`requireWellFormed`, `splitCDATASections`, `nodeFilter`). Passing a function is treated as
+	 * a legacy `nodeFilter` for backward compatibility.
+	 *
+	 * @param {Object | function} [options]
+	 * @param {boolean} [options.requireWellFormed=false]
+	 * @param {boolean} [options.splitCDATASections=true]
+	 * @param {function} [options.nodeFilter]
+	 * @returns {string}
+	 */
+	toString: function (options) {
+		var opts;
+		if (typeof options === 'function') {
+			opts = { requireWellFormed: false, splitCDATASections: true, nodeFilter: options };
+		} else if (!!options) {
+			opts = {
+				requireWellFormed: !!options.requireWellFormed,
+				splitCDATASections: options.splitCDATASections !== false,
+				nodeFilter: options.nodeFilter || null,
+			};
+		} else {
+			opts = { requireWellFormed: false, splitCDATASections: true, nodeFilter: null };
+		}
+		for (var buf = [], i = 0; i < this.length; i++) {
+			serializeToString(this[i], buf, null, opts);
 		}
 		return buf.join('');
 	},
 	/**
-	 * @private
-	 * @param {function (Node):boolean} predicate
+	 * Filters the NodeList based on a predicate.
+	 *
+	 * @param {function(Node): boolean} predicate
+	 * - A predicate function to filter the NodeList.
 	 * @returns {Node[]}
+	 * An array of nodes that satisfy the predicate.
+	 * @private
 	 */
 	filter: function (predicate) {
 		return Array.prototype.filter.call(this, predicate);
 	},
 	/**
-	 * @private
+	 * Returns the first index at which a given node can be found in the NodeList, or -1 if it is
+	 * not present.
+	 *
 	 * @param {Node} item
+	 * - The Node item to locate in the NodeList.
 	 * @returns {number}
+	 * The first index of the node in the NodeList; -1 if not found.
+	 * @private
 	 */
 	indexOf: function (item) {
 		return Array.prototype.indexOf.call(this, item);
 	},
 };
+NodeList.prototype[Symbol.iterator] = function () {
+	var me = this;
+	var index = 0;
 
-function LiveNodeList(node,refresh){
+	return {
+		next: function () {
+			if (index < me.length) {
+				return {
+					value: me[index++],
+					done: false,
+				};
+			} else {
+				return {
+					done: true,
+				};
+			}
+		},
+		return: function () {
+			return {
+				done: true,
+			};
+		},
+	};
+};
+
+/**
+ * Represents a live collection of nodes that is automatically updated when its associated
+ * document changes.
+ *
+ * @class LiveNodeList
+ * @param {Node} node
+ * The associated node.
+ * @param {function} refresh
+ * The function to refresh the live node list.
+ * @augments NodeList
+ * @constructs LiveNodeList
+ */
+function LiveNodeList(node, refresh) {
 	this._node = node;
-	this._refresh = refresh
+	this._refresh = refresh;
 	_updateLiveList(this);
 }
-function _updateLiveList(list){
+/**
+ * Updates the live node list.
+ *
+ * @param {LiveNodeList} list
+ * The live node list to update.
+ * @private
+ */
+function _updateLiveList(list) {
 	var inc = list._node._inc || list._node.ownerDocument._inc;
 	if (list._inc !== inc) {
 		var ls = list._refresh(list._node);
-		__set__(list,'length',ls.length);
+		__set__(list, 'length', ls.length);
 		if (!list.$$length || ls.length < list.$$length) {
 			for (var i = ls.length; i in list; i++) {
-				if (Object.prototype.hasOwnProperty.call(list, i)) {
+				if (hasOwn(list, i)) {
 					delete list[i];
 				}
 			}
 		}
-		copy(ls,list);
+		copy(ls, list);
 		list._inc = inc;
 	}
 }
-LiveNodeList.prototype.item = function(i){
+/**
+ * Returns the node at position `index` in the LiveNodeList, or null if that is not a valid
+ * index.
+ *
+ * @param {number} i
+ * Index into the collection.
+ * @returns {Node | null}
+ * The node at position `index` in the LiveNodeList, or null if that is not a valid index.
+ */
+LiveNodeList.prototype.item = function (i) {
 	_updateLiveList(this);
 	return this[i] || null;
-}
+};
 
-_extends(LiveNodeList,NodeList);
+_extends(LiveNodeList, NodeList);
 
 /**
- * Objects implementing the NamedNodeMap interface are used
- * to represent collections of nodes that can be accessed by name.
+ * Objects implementing the NamedNodeMap interface are used to represent collections of nodes
+ * that can be accessed by name.
  * Note that NamedNodeMap does not inherit from NodeList;
  * NamedNodeMaps are not maintained in any particular order.
- * Objects contained in an object implementing NamedNodeMap may also be accessed by an ordinal index,
+ * Objects contained in an object implementing NamedNodeMap may also be accessed by an ordinal
+ * index,
  * but this is simply to allow convenient enumeration of the contents of a NamedNodeMap,
  * and does not imply that the DOM specifies an order to these Nodes.
  * NamedNodeMap objects in the DOM are live.
  * used for attributes or DocumentType entities
+ *
+ * This implementation only supports property indices, but does not support named properties,
+ * as specified in the living standard.
+ *
+ * @class NamedNodeMap
+ * @see https://dom.spec.whatwg.org/#interface-namednodemap
+ * @see https://webidl.spec.whatwg.org/#dfn-supported-property-names
+ * @constructs NamedNodeMap
+ */
+/**
+ * A live collection of an element's attributes, keyed by name.
+ *
+ * The numbered entries and `length` are the sole authority for attribute order.
+ * A separate two-level null-prototype membership index (`namespaceURI` ->
+ * `localName` -> `Attr`, with the null/empty namespace held in its own bucket)
+ * lets the parse-time de-duplication in `setNamedItem` resolve an existing
+ * attribute in O(1) instead of scanning the list, so building an element with M
+ * attributes costs O(M) rather than O(M^2). The index never reorders attributes.
  */
 function NamedNodeMap() {
-};
-
-function _findNodeIndex(list,node){
-	var i = list.length;
-	while(i--){
-		if(list[i] === node){return i}
+	// namespaceURI (non-empty string) -> (localName -> Attr)
+	this._nsIndex = Object.create(null);
+	// localName -> Attr, for the null / empty-string namespace
+	this._noNsIndex = Object.create(null);
+}
+/**
+ * Returns the index of a node within the list.
+ *
+ * @param {Array} list
+ * The list of nodes.
+ * @param {Node} node
+ * The node to find.
+ * @returns {number}
+ * The index of the node within the list, or -1 if not found.
+ * @private
+ */
+function _findNodeIndex(list, node) {
+	var i = 0;
+	while (i < list.length) {
+		if (list[i] === node) {
+			return i;
+		}
+		i++;
 	}
 }
-
-function _addNamedNode(el,list,newAttr,oldAttr){
-	if(oldAttr){
-		list[_findNodeIndex(list,oldAttr)] = newAttr;
-	}else{
-		list[list.length++] = newAttr;
+/**
+ * Returns the second-level index bucket (`localName` -> `Attr`) for a namespace,
+ * replicating `getNamedItemNS`'s falsy-namespace normalization: `null`,
+ * `undefined` and `''` all resolve to the dedicated null-namespace bucket, kept separate from
+ * any real URI (so a namespace URI equal to the string `"null"`
+ * cannot collide with the null namespace). Both levels are null-prototype objects, so an
+ * attribute named `__proto__` or `constructor` is an ordinary key.
+ *
+ * @param {NamedNodeMap} map
+ * @param {string | null | undefined} namespaceURI
+ * @param {boolean} create
+ * Create the bucket if it does not exist yet.
+ * @returns {Object | undefined}
+ * @private
+ */
+function _nnmBucket(map, namespaceURI, create) {
+	if (!namespaceURI) {
+		return map._noNsIndex;
 	}
-	if(el){
+	var bucket = map._nsIndex[namespaceURI];
+	if (!bucket && create) {
+		bucket = map._nsIndex[namespaceURI] = Object.create(null);
+	}
+	return bucket;
+}
+/**
+ * Looks up an attribute by namespace and local name through the membership index.
+ *
+ * @param {NamedNodeMap} map
+ * @param {string | null | undefined} namespaceURI
+ * @param {string} localName
+ * @returns {Attr | null}
+ * The matching attribute, or `null` when absent.
+ * @private
+ */
+function _nnmIndexFind(map, namespaceURI, localName) {
+	var bucket = _nnmBucket(map, namespaceURI, false);
+	var found = bucket && bucket[localName];
+	return found ? found : null;
+}
+/**
+ * Records `attr` in the membership index under its namespace and local name,
+ * replacing any previous attribute with the same key.
+ *
+ * @param {NamedNodeMap} map
+ * @param {Attr} attr
+ * @private
+ */
+function _nnmIndexAdd(map, attr) {
+	_nnmBucket(map, attr.namespaceURI, true)[attr.localName] = attr;
+}
+/**
+ * Removes `attr` from the membership index.
+ *
+ * @param {NamedNodeMap} map
+ * @param {Attr} attr
+ * @private
+ */
+function _nnmIndexRemove(map, attr) {
+	var bucket = _nnmBucket(map, attr.namespaceURI, false);
+	if (bucket) {
+		delete bucket[attr.localName];
+	}
+}
+/**
+ * Adds a new attribute to the list and updates the owner element of the attribute.
+ *
+ * @param {Element} el
+ * The element which will become the owner of the new attribute.
+ * @param {NamedNodeMap} list
+ * The list to which the new attribute will be added.
+ * @param {Attr} newAttr
+ * The new attribute to be added.
+ * @param {Attr} oldAttr
+ * The old attribute to be replaced, or null if no attribute is to be replaced.
+ * @returns {void}
+ * @private
+ */
+function _addNamedNode(el, list, newAttr, oldAttr) {
+	if (oldAttr) {
+		list[_findNodeIndex(list, oldAttr)] = newAttr;
+	} else {
+		list[list.length] = newAttr;
+		list.length++;
+	}
+	// Keep the membership index in sync with the ordered list. On replacement
+	// `oldAttr` shares `newAttr`'s (namespace, localName) key, so this overwrites
+	// its entry; on append it adds a new one.
+	_nnmIndexAdd(list, newAttr);
+	if (el) {
 		newAttr.ownerElement = el;
 		var doc = el.ownerDocument;
-		if(doc){
-			oldAttr && _onRemoveAttribute(doc,el,oldAttr);
-			_onAddAttribute(doc,el,newAttr);
+		if (doc) {
+			oldAttr && _onRemoveAttribute(doc, el, oldAttr);
+			_onAddAttribute(doc, el, newAttr);
 		}
 	}
 }
-function _removeNamedNode(el,list,attr){
+/**
+ * Removes an attribute from the list and updates the owner element of the attribute.
+ *
+ * @param {Element} el
+ * The element which is the current owner of the attribute.
+ * @param {NamedNodeMap} list
+ * The list from which the attribute will be removed.
+ * @param {Attr} attr
+ * The attribute to be removed.
+ * @returns {void}
+ * @private
+ */
+function _removeNamedNode(el, list, attr) {
 	//console.log('remove attr:'+attr)
-	var i = _findNodeIndex(list,attr);
-	if(i>=0){
-		var lastIndex = list.length-1
-		while(i<lastIndex){
-			list[i] = list[++i]
+	var i = _findNodeIndex(list, attr);
+	if (i >= 0) {
+		var lastIndex = list.length - 1;
+		while (i <= lastIndex) {
+			list[i] = list[++i];
 		}
 		list.length = lastIndex;
-		if(el){
+		_nnmIndexRemove(list, attr);
+		if (el) {
 			var doc = el.ownerDocument;
-			if(doc){
-				_onRemoveAttribute(doc,el,attr);
-				attr.ownerElement = null;
+			if (doc) {
+				_onRemoveAttribute(doc, el, attr);
 			}
+			attr.ownerElement = null;
 		}
-	}else{
-		throw new DOMException(NOT_FOUND_ERR,new Error(el.tagName+'@'+attr))
 	}
 }
 NamedNodeMap.prototype = {
-	length:0,
-	item:NodeList.prototype.item,
-	getNamedItem: function(key) {
-//		if(key.indexOf(':')>0 || key == 'xmlns'){
-//			return null;
-//		}
-		//console.log()
-		var i = this.length;
-		while(i--){
+	length: 0,
+	item: NodeList.prototype.item,
+
+	/**
+	 * Get an attribute by name. Note: Name is in lower case in case of HTML namespace and
+	 * document.
+	 *
+	 * @param {string} localName
+	 * The local name of the attribute.
+	 * @returns {Attr | null}
+	 * The attribute with the given local name, or null if no such attribute exists.
+	 * @see https://dom.spec.whatwg.org/#concept-element-attributes-get-by-name
+	 */
+	getNamedItem: function (localName) {
+		if (this._ownerElement && this._ownerElement._isInHTMLDocumentAndNamespace()) {
+			localName = localName.toLowerCase();
+		}
+		var i = 0;
+		while (i < this.length) {
 			var attr = this[i];
-			//console.log(attr.nodeName,key)
-			if(attr.nodeName == key){
+			if (attr.nodeName === localName) {
 				return attr;
 			}
-		}
-	},
-	setNamedItem: function(attr) {
-		var el = attr.ownerElement;
-		if(el && el!=this._ownerElement){
-			throw new DOMException(INUSE_ATTRIBUTE_ERR);
-		}
-		var oldAttr = this.getNamedItem(attr.nodeName);
-		_addNamedNode(this._ownerElement,this,attr,oldAttr);
-		return oldAttr;
-	},
-	/* returns Node */
-	setNamedItemNS: function(attr) {// raises: WRONG_DOCUMENT_ERR,NO_MODIFICATION_ALLOWED_ERR,INUSE_ATTRIBUTE_ERR
-		var el = attr.ownerElement, oldAttr;
-		if(el && el!=this._ownerElement){
-			throw new DOMException(INUSE_ATTRIBUTE_ERR);
-		}
-		oldAttr = this.getNamedItemNS(attr.namespaceURI,attr.localName);
-		_addNamedNode(this._ownerElement,this,attr,oldAttr);
-		return oldAttr;
-	},
-
-	/* returns Node */
-	removeNamedItem: function(key) {
-		var attr = this.getNamedItem(key);
-		_removeNamedNode(this._ownerElement,this,attr);
-		return attr;
-
-
-	},// raises: NOT_FOUND_ERR,NO_MODIFICATION_ALLOWED_ERR
-
-	//for level2
-	removeNamedItemNS:function(namespaceURI,localName){
-		var attr = this.getNamedItemNS(namespaceURI,localName);
-		_removeNamedNode(this._ownerElement,this,attr);
-		return attr;
-	},
-	getNamedItemNS: function(namespaceURI, localName) {
-		var i = this.length;
-		while(i--){
-			var node = this[i];
-			if(node.localName == localName && node.namespaceURI == namespaceURI){
-				return node;
-			}
+			i++;
 		}
 		return null;
-	}
+	},
+
+	/**
+	 * Set an attribute.
+	 *
+	 * @param {Attr} attr
+	 * The attribute to set.
+	 * @returns {Attr | null}
+	 * The old attribute with the same local name and namespace URI as the new one, or null if no
+	 * such attribute exists.
+	 * @throws {DOMException}
+	 * With code:
+	 * - {@link INUSE_ATTRIBUTE_ERR} - If the attribute is already an attribute of another
+	 * element.
+	 * @see https://dom.spec.whatwg.org/#concept-element-attributes-set
+	 */
+	setNamedItem: function (attr) {
+		var el = attr.ownerElement;
+		if (el && el !== this._ownerElement) {
+			throw new DOMException(DOMException.INUSE_ATTRIBUTE_ERR);
+		}
+		// Resolve any existing attribute with the same (namespace, localName)
+		// through the O(1) membership index rather than an O(M) scan — this is the
+		// parse-dedup hot path (`setAttributeNode` per attribute during parse).
+		var oldAttr = _nnmIndexFind(this, attr.namespaceURI, attr.localName);
+		if (oldAttr === attr) {
+			return attr;
+		}
+		_addNamedNode(this._ownerElement, this, attr, oldAttr);
+		return oldAttr;
+	},
+
+	/**
+	 * Set an attribute, replacing an existing attribute with the same local name and namespace
+	 * URI if one exists.
+	 *
+	 * @param {Attr} attr
+	 * The attribute to set.
+	 * @returns {Attr | null}
+	 * The old attribute with the same local name and namespace URI as the new one, or null if no
+	 * such attribute exists.
+	 * @throws {DOMException}
+	 * Throws a DOMException with the name "InUseAttributeError" if the attribute is already an
+	 * attribute of another element.
+	 * @see https://dom.spec.whatwg.org/#concept-element-attributes-set
+	 */
+	setNamedItemNS: function (attr) {
+		return this.setNamedItem(attr);
+	},
+
+	/**
+	 * Removes an attribute specified by the local name.
+	 *
+	 * @param {string} localName
+	 * The local name of the attribute to be removed.
+	 * @returns {Attr}
+	 * The attribute node that was removed.
+	 * @throws {DOMException}
+	 * With code:
+	 * - {@link DOMException.NOT_FOUND_ERR} if no attribute with the given name is found.
+	 * @see https://dom.spec.whatwg.org/#dom-namednodemap-removenameditem
+	 * @see https://dom.spec.whatwg.org/#concept-element-attributes-remove-by-name
+	 */
+	removeNamedItem: function (localName) {
+		var attr = this.getNamedItem(localName);
+		if (!attr) {
+			throw new DOMException(DOMException.NOT_FOUND_ERR, localName);
+		}
+		_removeNamedNode(this._ownerElement, this, attr);
+		return attr;
+	},
+
+	/**
+	 * Removes an attribute specified by the namespace and local name.
+	 *
+	 * @param {string | null} namespaceURI
+	 * The namespace URI of the attribute to be removed.
+	 * @param {string} localName
+	 * The local name of the attribute to be removed.
+	 * @returns {Attr}
+	 * The attribute node that was removed.
+	 * @throws {DOMException}
+	 * With code:
+	 * - {@link DOMException.NOT_FOUND_ERR} if no attribute with the given namespace URI and local
+	 * name is found.
+	 * @see https://dom.spec.whatwg.org/#dom-namednodemap-removenameditemns
+	 * @see https://dom.spec.whatwg.org/#concept-element-attributes-remove-by-namespace
+	 */
+	removeNamedItemNS: function (namespaceURI, localName) {
+		var attr = this.getNamedItemNS(namespaceURI, localName);
+		if (!attr) {
+			throw new DOMException(DOMException.NOT_FOUND_ERR, namespaceURI ? namespaceURI + ' : ' + localName : localName);
+		}
+		_removeNamedNode(this._ownerElement, this, attr);
+		return attr;
+	},
+
+	/**
+	 * Get an attribute by namespace and local name.
+	 *
+	 * @param {string | null} namespaceURI
+	 * The namespace URI of the attribute.
+	 * @param {string} localName
+	 * The local name of the attribute.
+	 * @returns {Attr | null}
+	 * The attribute with the given namespace URI and local name, or null if no such attribute
+	 * exists.
+	 * @see https://dom.spec.whatwg.org/#concept-element-attributes-get-by-namespace
+	 */
+	getNamedItemNS: function (namespaceURI, localName) {
+		if (!namespaceURI) {
+			namespaceURI = null;
+		}
+		var i = 0;
+		while (i < this.length) {
+			var node = this[i];
+			if (node.localName === localName && node.namespaceURI === namespaceURI) {
+				return node;
+			}
+			i++;
+		}
+		return null;
+	},
+};
+NamedNodeMap.prototype[Symbol.iterator] = function () {
+	var me = this;
+	var index = 0;
+
+	return {
+		next: function () {
+			if (index < me.length) {
+				return {
+					value: me[index++],
+					done: false,
+				};
+			} else {
+				return {
+					done: true,
+				};
+			}
+		},
+		return: function () {
+			return {
+				done: true,
+			};
+		},
+	};
 };
 
 /**
- * The DOMImplementation interface represents an object providing methods
- * which are not dependent on any particular document.
+ * The DOMImplementation interface provides a number of methods for performing operations that
+ * are independent of any particular instance of the document object model.
+ *
+ * The DOMImplementation interface represents an object providing methods which are not
+ * dependent on any particular document.
  * Such an object is returned by the `Document.implementation` property.
  *
- * __The individual methods describe the differences compared to the specs.__
+ * **The individual methods describe the differences compared to the specs**.
  *
- * @constructor
- *
+ * @class DOMImplementation
  * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation MDN
- * @see https://www.w3.org/TR/REC-DOM-Level-1/level-one-core.html#ID-102161490 DOM Level 1 Core (Initial)
+ * @see https://www.w3.org/TR/REC-DOM-Level-1/level-one-core.html#ID-102161490 DOM Level 1 Core
+ *      (Initial)
  * @see https://www.w3.org/TR/DOM-Level-2-Core/core.html#ID-102161490 DOM Level 2 Core
  * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-102161490 DOM Level 3 Core
  * @see https://dom.spec.whatwg.org/#domimplementation DOM Living Standard
+ * @constructs DOMImplementation
  */
-function DOMImplementation() {
-}
+function DOMImplementation() {}
 
 DOMImplementation.prototype = {
 	/**
-	 * The DOMImplementation.hasFeature() method returns a Boolean flag indicating if a given feature is supported.
-	 * The different implementations fairly diverged in what kind of features were reported.
-	 * The latest version of the spec settled to force this method to always return true, where the functionality was accurate and in use.
+	 * Test if the DOM implementation implements a specific feature and version, as specified in
+	 * {@link https://www.w3.org/TR/DOM-Level-3-Core/core.html#DOMFeatures DOM Features}.
 	 *
-	 * @deprecated It is deprecated and modern browsers return true in all cases.
+	 * The DOMImplementation.hasFeature() method returns a Boolean flag indicating if a given
+	 * feature is supported. The different implementations fairly diverged in what kind of
+	 * features were reported. The latest version of the spec settled to force this method to
+	 * always return true, where the functionality was accurate and in use.
 	 *
+	 * @deprecated
+	 * It is deprecated and modern browsers return true in all cases.
+	 * @function DOMImplementation#hasFeature
 	 * @param {string} feature
+	 * The name of the feature to test.
 	 * @param {string} [version]
-	 * @returns {boolean} always true
-	 *
+	 * This is the version number of the feature to test.
+	 * @returns {boolean}
+	 * Always returns true.
 	 * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation/hasFeature MDN
 	 * @see https://www.w3.org/TR/REC-DOM-Level-1/level-one-core.html#ID-5CED94D7 DOM Level 1 Core
 	 * @see https://dom.spec.whatwg.org/#dom-domimplementation-hasfeature DOM Living Standard
+	 * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-5CED94D7 DOM Level 3 Core
 	 */
-	hasFeature: function(feature, version) {
-			return true;
+	hasFeature: function (feature, version) {
+		return true;
 	},
 	/**
-	 * Creates an XML Document object of the specified type with its document element.
+	 * Creates a DOM Document object of the specified type with its document element. Note that
+	 * based on the {@link DocumentType}
+	 * given to create the document, the implementation may instantiate specialized
+	 * {@link Document} objects that support additional features than the "Core", such as "HTML"
+	 * {@link https://www.w3.org/TR/DOM-Level-3-Core/references.html#DOM2HTML DOM Level 2 HTML}.
+	 * On the other hand, setting the {@link DocumentType} after the document was created makes
+	 * this very unlikely to happen. Alternatively, specialized {@link Document} creation methods,
+	 * such as createHTMLDocument
+	 * {@link https://www.w3.org/TR/DOM-Level-3-Core/references.html#DOM2HTML DOM Level 2 HTML},
+	 * can be used to obtain specific types of {@link Document} objects.
 	 *
 	 * __It behaves slightly different from the description in the living standard__:
-	 * - There is no interface/class `XMLDocument`, it returns a `Document` instance.
-	 * - `contentType`, `encoding`, `mode`, `origin`, `url` fields are currently not declared.
-	 * - this implementation is not validating names or qualified names
-	 *   (when parsing XML strings, the SAX parser takes care of that)
+	 * - There is no interface/class `XMLDocument`, it returns a `Document`
+	 * instance (with it's `type` set to `'xml'`).
+	 * - `encoding`, `mode`, `origin`, `url` fields are currently not declared.
 	 *
-	 * @param {string|null} namespaceURI
-	 * @param {string} qualifiedName
-	 * @param {DocumentType=null} doctype
+	 * @function DOMImplementation.createDocument
+	 * @param {string | null} namespaceURI
+	 * The
+	 * {@link https://www.w3.org/TR/DOM-Level-3-Core/glossary.html#dt-namespaceURI namespace URI}
+	 * of the document element to create or null.
+	 * @param {string | null} qualifiedName
+	 * The
+	 * {@link https://www.w3.org/TR/DOM-Level-3-Core/glossary.html#dt-qualifiedname qualified name}
+	 * of the document element to be created or null.
+	 * @param {DocumentType | null} [doctype=null]
+	 * The type of document to be created or null. When doctype is not null, its
+	 * {@link Node#ownerDocument} attribute is set to the document being created. Default is
+	 * `null`
 	 * @returns {Document}
+	 * A new {@link Document} object with its document element. If the NamespaceURI,
+	 * qualifiedName, and doctype are null, the returned {@link Document} is empty with no
+	 * document element.
+	 * @throws {DOMException}
+	 * With code:
 	 *
+	 * - `INVALID_CHARACTER_ERR`: Raised if the specified qualified name is not an XML name
+	 * according to {@link https://www.w3.org/TR/DOM-Level-3-Core/references.html#XML XML 1.0}.
+	 * - `NAMESPACE_ERR`: Raised if the qualifiedName is malformed, if the qualifiedName has a
+	 * prefix and the namespaceURI is null, or if the qualifiedName is null and the namespaceURI
+	 * is different from null, or if the qualifiedName has a prefix that is "xml" and the
+	 * namespaceURI is different from "{@link http://www.w3.org/XML/1998/namespace}"
+	 * {@link https://www.w3.org/TR/DOM-Level-3-Core/references.html#Namespaces XML Namespaces},
+	 * or if the DOM implementation does not support the "XML" feature but a non-null namespace
+	 * URI was provided, since namespaces were defined by XML.
+	 * - `WRONG_DOCUMENT_ERR`: Raised if doctype has already been used with a different document
+	 * or was created from a different implementation.
+	 * - `NOT_SUPPORTED_ERR`: May be raised if the implementation does not support the feature
+	 * "XML" and the language exposed through the Document does not support XML Namespaces (such
+	 * as {@link https://www.w3.org/TR/DOM-Level-3-Core/references.html#HTML40 HTML 4.01}).
+	 * @since DOM Level 2.
+	 * @see {@link #createHTMLDocument}
 	 * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation/createDocument MDN
-	 * @see https://www.w3.org/TR/DOM-Level-2-Core/core.html#Level-2-Core-DOM-createDocument DOM Level 2 Core (initial)
-	 * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocument  DOM Level 2 Core
-	 *
-	 * @see https://dom.spec.whatwg.org/#validate-and-extract DOM: Validate and extract
-	 * @see https://www.w3.org/TR/xml/#NT-NameStartChar XML Spec: Names
-	 * @see https://www.w3.org/TR/xml-names/#ns-qualnames XML Namespaces: Qualified names
+	 * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocument DOM Living Standard
+	 * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#Level-2-Core-DOM-createDocument DOM
+	 *      Level 3 Core
+	 * @see https://www.w3.org/TR/DOM-Level-2-Core/core.html#Level-2-Core-DOM-createDocument DOM
+	 *      Level 2 Core (initial)
 	 */
-	createDocument: function(namespaceURI,  qualifiedName, doctype){
-		var doc = new Document();
+	createDocument: function (namespaceURI, qualifiedName, doctype) {
+		var contentType = MIME_TYPE.XML_APPLICATION;
+		if (namespaceURI === NAMESPACE.HTML) {
+			contentType = MIME_TYPE.XML_XHTML_APPLICATION;
+		} else if (namespaceURI === NAMESPACE.SVG) {
+			contentType = MIME_TYPE.XML_SVG_IMAGE;
+		}
+		var doc = new Document(PDC, { contentType: contentType });
 		doc.implementation = this;
 		doc.childNodes = new NodeList();
 		doc.doctype = doctype || null;
-		if (doctype){
+		if (doctype) {
 			doc.appendChild(doctype);
 		}
-		if (qualifiedName){
+		if (qualifiedName) {
 			var root = doc.createElementNS(namespaceURI, qualifiedName);
 			doc.appendChild(root);
 		}
 		return doc;
 	},
 	/**
-	 * Returns a doctype, with the given `qualifiedName`, `publicId`, and `systemId`.
+	 * Creates an empty DocumentType node. Entity declarations and notations are not made
+	 * available. Entity reference expansions and default attribute additions do not occur.
 	 *
-	 * __This implementation differs from the specification:__
-	 * - this implementation is not validating names or qualified names
-	 *   (when parsing XML strings, the SAX parser takes care of that)
+	 * **This behavior is slightly different from the one in the specs**:
+	 * - `encoding`, `mode`, `origin`, `url` fields are currently not declared.
+	 * - `publicId` and `systemId` contain the raw data including any possible quotes,
+	 *   so they can always be serialized back to the original value
+	 * - `internalSubset` contains the raw string between `[` and `]` if present,
+	 *   but is not parsed or validated in any form.
 	 *
-	 * Note: `internalSubset` can only be introduced via a direct property write to `node.internalSubset` after creation.
-	 * Creation-time validation of `publicId`, `systemId` is not enforced.
-	 * The serializer-level check covers all mutation vectors, including direct property writes.
-	 * `internalSubset` is only serialized as `[ ... ]` when both `publicId` and `systemId` are
-	 * absent (empty or `'.'`) — if either external identifier is present, `internalSubset` is
-	 * silently omitted from the serialized output.
-	 *
+	 * @function DOMImplementation#createDocumentType
 	 * @param {string} qualifiedName
+	 * The {@link https://www.w3.org/TR/DOM-Level-3-Core/glossary.html#dt-qualifiedname qualified
+	 * name} of the document type to be created.
 	 * @param {string} [publicId]
 	 * The external subset public identifier. Stored verbatim including surrounding quotes.
-	 * When serialized with `requireWellFormed: true` (via the 4th-parameter options object),
-	 * throws `DOMException` with code `INVALID_STATE_ERR` if the value is non-empty and does
-	 * not match the XML `PubidLiteral` production (W3C DOM Parsing §3.2.1.3; XML 1.0 [12]).
+	 * When serialized with `requireWellFormed: true`, the serializer throws `InvalidStateError`
+	 * if the value is non-empty and does not match the XML `PubidLiteral` production
+	 * (W3C DOM Parsing §3.2.1.3; XML 1.0 production [12]). Creation-time validation is not
+	 * enforced — deferred to a future breaking release.
 	 * @param {string} [systemId]
 	 * The external subset system identifier. Stored verbatim including surrounding quotes.
-	 * When serialized with `requireWellFormed: true`, throws `DOMException` with code
-	 * `INVALID_STATE_ERR` if the value is non-empty and does not match the XML `SystemLiteral`
-	 * production (W3C DOM Parsing §3.2.1.3; XML 1.0 [11]).
-	 * @returns {DocumentType} which can either be used with `DOMImplementation.createDocument` upon document creation
-	 * 				  or can be put into the document via methods like `Node.insertBefore()` or `Node.replaceChild()`
+	 * When serialized with `requireWellFormed: true`, the serializer throws `InvalidStateError`
+	 * if the value is non-empty and does not match the XML `SystemLiteral` production
+	 * (W3C DOM Parsing §3.2.1.3; XML 1.0 production [11]). Creation-time validation is not
+	 * enforced — deferred to a future breaking release.
+	 * @param {string} [internalSubset]
+	 * The internal subset or an empty string if it is not present. Stored verbatim.
+	 * When serialized with `requireWellFormed: true`, the serializer throws `InvalidStateError`
+	 * if the value contains `"]>"`. Creation-time validation is not enforced.
+	 * @returns {DocumentType}
+	 * A new {@link DocumentType} node with {@link Node#ownerDocument} set to null.
+	 * @throws {DOMException}
+	 * With code:
 	 *
-	 * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation/createDocumentType MDN
-	 * @see https://www.w3.org/TR/DOM-Level-2-Core/core.html#Level-2-Core-DOM-createDocType DOM Level 2 Core
-	 * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocumenttype DOM Living Standard
-	 *
-	 * @see https://dom.spec.whatwg.org/#validate-and-extract DOM: Validate and extract
-	 * @see https://www.w3.org/TR/xml/#NT-NameStartChar XML Spec: Names
-	 * @see https://www.w3.org/TR/xml-names/#ns-qualnames XML Namespaces: Qualified names
+	 * - `INVALID_CHARACTER_ERR`: Raised if the specified qualified name is not an XML name
+	 * according to {@link https://www.w3.org/TR/DOM-Level-3-Core/references.html#XML XML 1.0}.
+	 * - `NAMESPACE_ERR`: Raised if the qualifiedName is malformed.
+	 * - `NOT_SUPPORTED_ERR`: May be raised if the implementation does not support the feature
+	 * "XML" and the language exposed through the Document does not support XML Namespaces (such
+	 * as {@link https://www.w3.org/TR/DOM-Level-3-Core/references.html#HTML40 HTML 4.01}).
+	 * @since DOM Level 2.
+	 * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation/createDocumentType
+	 *      MDN
+	 * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocumenttype DOM Living
+	 *      Standard
+	 * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#Level-3-Core-DOM-createDocType DOM
+	 *      Level 3 Core
+	 * @see https://www.w3.org/TR/DOM-Level-2-Core/core.html#Level-2-Core-DOM-createDocType DOM
+	 *      Level 2 Core
+	 * @see https://github.com/xmldom/xmldom/blob/master/CHANGELOG.md#050
+	 * @see https://www.w3.org/TR/DOM-Level-2-Core/#core-ID-Core-DocType-internalSubset
+	 * @prettierignore
 	 */
-	createDocumentType: function(qualifiedName, publicId, systemId){
-		var node = new DocumentType();
+	createDocumentType: function (qualifiedName, publicId, systemId, internalSubset) {
+		validateQualifiedName(qualifiedName);
+		var node = new DocumentType(PDC);
 		node.name = qualifiedName;
 		node.nodeName = qualifiedName;
 		node.publicId = publicId || '';
 		node.systemId = systemId || '';
+		node.internalSubset = internalSubset || '';
+		node.childNodes = new NodeList();
 
 		return node;
-	}
+	},
+	/**
+	 * Returns an HTML document, that might already have a basic DOM structure.
+	 *
+	 * __It behaves slightly different from the description in the living standard__:
+	 * - If the first argument is `false` no initial nodes are added (steps 3-7 in the specs are
+	 * omitted)
+	 * - `encoding`, `mode`, `origin`, `url` fields are currently not declared.
+	 *
+	 * @param {string | false} [title]
+	 * A string containing the title to give the new HTML document.
+	 * @returns {Document}
+	 * The HTML document.
+	 * @since WHATWG Living Standard.
+	 * @see {@link #createDocument}
+	 * @see https://dom.spec.whatwg.org/#dom-domimplementation-createhtmldocument
+	 * @see https://dom.spec.whatwg.org/#html-document
+	 */
+	createHTMLDocument: function (title) {
+		var doc = new Document(PDC, { contentType: MIME_TYPE.HTML });
+		doc.implementation = this;
+		doc.childNodes = new NodeList();
+		if (title !== false) {
+			doc.doctype = this.createDocumentType('html');
+			doc.doctype.ownerDocument = doc;
+			doc.appendChild(doc.doctype);
+			var htmlNode = doc.createElement('html');
+			doc.appendChild(htmlNode);
+			var headNode = doc.createElement('head');
+			htmlNode.appendChild(headNode);
+			if (typeof title === 'string') {
+				var titleNode = doc.createElement('title');
+				titleNode.appendChild(doc.createTextNode(title));
+				headNode.appendChild(titleNode);
+			}
+			htmlNode.appendChild(doc.createElement('body'));
+		}
+		return doc;
+	},
 };
-
 
 /**
+ * The DOM Node interface is an abstract base class upon which many other DOM API objects are
+ * based, thus letting those object types to be used similarly and often interchangeably. As an
+ * abstract class, there is no such thing as a plain Node object. All objects that implement
+ * Node functionality are based on one of its subclasses. Most notable are Document, Element,
+ * and DocumentFragment.
+ *
+ * In addition, every kind of DOM node is represented by an interface based on Node. These
+ * include Attr, CharacterData (which Text, Comment, CDATASection and ProcessingInstruction are
+ * all based on), and DocumentType.
+ *
+ * In some cases, a particular feature of the base Node interface may not apply to one of its
+ * child interfaces; in that case, the inheriting node may return null or throw an exception,
+ * depending on circumstances. For example, attempting to add children to a node type that
+ * cannot have children will throw an exception.
+ *
+ * **This behavior is slightly different from the in the specs**:
+ * - unimplemented interfaces: `EventTarget`
+ *
+ * @class
+ * @abstract
+ * @param {Symbol} symbol
  * @see http://www.w3.org/TR/2000/REC-DOM-Level-2-Core-20001113/core.html#ID-1950641247
+ * @see https://dom.spec.whatwg.org/#node
+ * @prettierignore
  */
-
-function Node() {
-};
+function Node(symbol) {
+	checkSymbol(symbol);
+}
 
 Node.prototype = {
-	firstChild : null,
-	lastChild : null,
-	previousSibling : null,
-	nextSibling : null,
-	attributes : null,
-	parentNode : null,
-	childNodes : null,
-	ownerDocument : null,
-	nodeValue : null,
-	namespaceURI : null,
-	prefix : null,
-	localName : null,
-	// Modified in DOM Level 2:
-	insertBefore:function(newChild, refChild){//raises
-		return _insertBefore(this,newChild,refChild);
+	/**
+	 * The first child of this node.
+	 *
+	 * @type {Node | null}
+	 */
+	firstChild: null,
+	/**
+	 * The last child of this node.
+	 *
+	 * @type {Node | null}
+	 */
+	lastChild: null,
+	/**
+	 * The previous sibling of this node.
+	 *
+	 * @type {Node | null}
+	 */
+	previousSibling: null,
+	/**
+	 * The next sibling of this node.
+	 *
+	 * @type {Node | null}
+	 */
+	nextSibling: null,
+	/**
+	 * The parent node of this node.
+	 *
+	 * @type {Node | null}
+	 */
+	parentNode: null,
+	/**
+	 * The parent element of this node.
+	 *
+	 * @type {Element | null}
+	 */
+	get parentElement() {
+		return this.parentNode && this.parentNode.nodeType === this.ELEMENT_NODE ? this.parentNode : null;
 	},
-	replaceChild:function(newChild, oldChild){//raises
-		_insertBefore(this, newChild,oldChild, assertPreReplacementValidityInDocument);
-		if(oldChild){
+	/**
+	 * The child nodes of this node.
+	 *
+	 * @type {NodeList}
+	 */
+	childNodes: null,
+	/**
+	 * The document object associated with this node.
+	 *
+	 * @type {Document | null}
+	 */
+	ownerDocument: null,
+	/**
+	 * The value of this node.
+	 *
+	 * @type {string | null}
+	 */
+	nodeValue: null,
+	/**
+	 * The namespace URI of this node.
+	 *
+	 * @type {string | null}
+	 */
+	namespaceURI: null,
+	/**
+	 * The prefix of the namespace for this node.
+	 *
+	 * @type {string | null}
+	 */
+	prefix: null,
+	/**
+	 * The local part of the qualified name of this node.
+	 *
+	 * @type {string | null}
+	 */
+	localName: null,
+	/**
+	 * The baseURI is currently always `about:blank`,
+	 * since that's what happens when you create a document from scratch.
+	 *
+	 * @type {'about:blank'}
+	 */
+	baseURI: 'about:blank',
+	/**
+	 * Is true if this node is part of a document.
+	 *
+	 * @type {boolean}
+	 */
+	get isConnected() {
+		var rootNode = this.getRootNode();
+		return rootNode && rootNode.nodeType === rootNode.DOCUMENT_NODE;
+	},
+	/**
+	 * Checks whether `other` is an inclusive descendant of this node.
+	 *
+	 * @param {Node | null | undefined} other
+	 * The node to check.
+	 * @returns {boolean}
+	 * True if `other` is an inclusive descendant of this node; false otherwise.
+	 * @see https://dom.spec.whatwg.org/#dom-node-contains
+	 */
+	contains: function (other) {
+		if (!other) return false;
+		var parent = other;
+		do {
+			if (this === parent) return true;
+			parent = parent.parentNode;
+		} while (parent);
+		return false;
+	},
+	/**
+	 * @typedef GetRootNodeOptions
+	 * @property {boolean} [composed=false]
+	 */
+	/**
+	 * Searches for the root node of this node.
+	 *
+	 * **This behavior is slightly different from the in the specs**:
+	 * - ignores `options.composed`, since `ShadowRoot`s are unsupported, always returns root.
+	 *
+	 * @param {GetRootNodeOptions} [options]
+	 * @returns {Node}
+	 * Root node.
+	 * @see https://dom.spec.whatwg.org/#dom-node-getrootnode
+	 * @see https://dom.spec.whatwg.org/#concept-shadow-including-root
+	 */
+	getRootNode: function (options) {
+		var parent = this;
+		do {
+			if (!parent.parentNode) {
+				return parent;
+			}
+			parent = parent.parentNode;
+		} while (parent);
+	},
+	/**
+	 * Checks whether the given node is equal to this node.
+	 *
+	 * Two nodes are equal when they have the same type, defining characteristics (for the type),
+	 * and the same childNodes. The comparison is iterative to avoid stack overflows on
+	 * deeply-nested trees. Attribute nodes of each Element pair are also pushed onto the stack
+	 * and compared the same way.
+	 *
+	 * @param {Node} [otherNode]
+	 * @returns {boolean}
+	 * @see https://dom.spec.whatwg.org/#concept-node-equals
+	 * @see ../docs/walk-dom.md.
+	 */
+	isEqualNode: function (otherNode) {
+		if (!otherNode) return false;
+
+		// Use an explicit {node, other} pair stack to avoid call-stack overflow on deep trees.
+		// walkDOM cannot be used here — parallel two-tree traversal requires pairing
+		// corresponding nodes at each step across both trees simultaneously.
+		var stack = [{ node: this, other: otherNode }];
+		while (stack.length > 0) {
+			var pair = stack.pop();
+			var node = pair.node;
+			var other = pair.other;
+
+			if (node.nodeType !== other.nodeType) return false;
+
+			switch (node.nodeType) {
+				case node.DOCUMENT_TYPE_NODE:
+					if (node.name !== other.name) return false;
+					if (node.publicId !== other.publicId) return false;
+					if (node.systemId !== other.systemId) return false;
+					break;
+				case node.ELEMENT_NODE:
+					if (node.namespaceURI !== other.namespaceURI) return false;
+					if (node.prefix !== other.prefix) return false;
+					if (node.localName !== other.localName) return false;
+					if (node.attributes.length !== other.attributes.length) return false;
+					for (var i = 0; i < node.attributes.length; i++) {
+						var attr = node.attributes.item(i);
+						var otherAttr = other.getAttributeNodeNS(attr.namespaceURI, attr.localName);
+						if (!otherAttr) return false;
+						stack.push({ node: attr, other: otherAttr });
+					}
+					break;
+				case node.ATTRIBUTE_NODE:
+					if (node.namespaceURI !== other.namespaceURI) return false;
+					if (node.localName !== other.localName) return false;
+					if (node.value !== other.value) return false;
+					break;
+				case node.PROCESSING_INSTRUCTION_NODE:
+					if (node.target !== other.target || node.data !== other.data) return false;
+					break;
+				case node.TEXT_NODE:
+				case node.CDATA_SECTION_NODE:
+				case node.COMMENT_NODE:
+					if (node.data !== other.data) return false;
+					break;
+			}
+
+			if (node.childNodes.length !== other.childNodes.length) return false;
+
+			// Push children in reverse order so index 0 is processed first (LIFO).
+			for (var i = node.childNodes.length - 1; i >= 0; i--) {
+				stack.push({ node: node.childNodes[i], other: other.childNodes[i] });
+			}
+		}
+
+		return true;
+	},
+	/**
+	 * Checks whether or not the given node is this node.
+	 *
+	 * @param {Node} [otherNode]
+	 */
+	isSameNode: function (otherNode) {
+		return this === otherNode;
+	},
+	/**
+	 * Inserts a node before a reference node as a child of this node.
+	 *
+	 * @param {Node} newChild
+	 * The new child node to be inserted.
+	 * @param {Node | null} refChild
+	 * The reference node before which newChild will be inserted.
+	 * @returns {Node}
+	 * The new child node successfully inserted.
+	 * @throws {DOMException}
+	 * Throws a DOMException if inserting the node would result in a DOM tree that is not
+	 * well-formed, or if `child` is provided but is not a child of `parent`.
+	 * See {@link _insertBefore} for more details.
+	 * @since Modified in DOM L2
+	 */
+	insertBefore: function (newChild, refChild) {
+		return _insertBefore(this, newChild, refChild);
+	},
+	/**
+	 * Replaces an old child node with a new child node within this node.
+	 *
+	 * @param {Node} newChild
+	 * The new node that is to replace the old node.
+	 * If it already exists in the DOM, it is removed from its original position.
+	 * @param {Node} oldChild
+	 * The existing child node to be replaced.
+	 * @returns {Node}
+	 * Returns the replaced child node.
+	 * @throws {DOMException}
+	 * Throws a DOMException if replacing the node would result in a DOM tree that is not
+	 * well-formed, or if `oldChild` is not a child of `this`.
+	 * This can also occur if the pre-replacement validity assertion fails.
+	 * See {@link _insertBefore}, {@link Node.removeChild}, and
+	 * {@link assertPreReplacementValidityInDocument} for more details.
+	 * @see https://dom.spec.whatwg.org/#concept-node-replace
+	 */
+	replaceChild: function (newChild, oldChild) {
+		_insertBefore(this, newChild, oldChild, assertPreReplacementValidityInDocument);
+		if (oldChild) {
 			this.removeChild(oldChild);
 		}
 	},
-	removeChild:function(oldChild){
-		return _removeChild(this,oldChild);
+	/**
+	 * Removes an existing child node from this node.
+	 *
+	 * @param {Node} oldChild
+	 * The child node to be removed.
+	 * @returns {Node}
+	 * Returns the removed child node.
+	 * @throws {DOMException}
+	 * Throws a DOMException if `oldChild` is not a child of `this`.
+	 * See {@link _removeChild} for more details.
+	 */
+	removeChild: function (oldChild) {
+		return _removeChild(this, oldChild);
 	},
-	appendChild:function(newChild){
-		return this.insertBefore(newChild,null);
+	/**
+	 * Appends a child node to this node.
+	 *
+	 * @param {Node} newChild
+	 * The child node to be appended to this node.
+	 * If it already exists in the DOM, it is removed from its original position.
+	 * @returns {Node}
+	 * Returns the appended child node.
+	 * @throws {DOMException}
+	 * Throws a DOMException if appending the node would result in a DOM tree that is not
+	 * well-formed, or if `newChild` is not a valid Node.
+	 * See {@link insertBefore} for more details.
+	 */
+	appendChild: function (newChild) {
+		return this.insertBefore(newChild, null);
 	},
-	hasChildNodes:function(){
+	/**
+	 * Determines whether this node has any child nodes.
+	 *
+	 * @returns {boolean}
+	 * Returns true if this node has any child nodes, and false otherwise.
+	 */
+	hasChildNodes: function () {
 		return this.firstChild != null;
 	},
-	cloneNode:function(deep){
-		return cloneNode(this.ownerDocument||this,this,deep);
+	/**
+	 * Creates a copy of the calling node.
+	 *
+	 * @param {boolean} deep
+	 * If true, the contents of the node are recursively copied.
+	 * If false, only the node itself (and its attributes, if it is an element) are copied.
+	 * @returns {Node}
+	 * Returns the newly created copy of the node.
+	 * @throws {DOMException}
+	 * May throw a DOMException if operations within {@link Element#setAttributeNode} or
+	 * {@link Node#appendChild} (which are potentially invoked in this method) do not meet their
+	 * specific constraints.
+	 * @see {@link cloneNode}
+	 */
+	cloneNode: function (deep) {
+		return cloneNode(this.ownerDocument || this, this, deep);
 	},
-	// Modified in DOM Level 2:
 	/**
 	 * Puts the specified node and all of its subtree into a "normalized" form. In a normalized
 	 * subtree, no text nodes in the subtree are empty and there are no adjacent text nodes.
@@ -22533,12 +23922,13 @@ Node.prototype = {
 	 * is `TEXT_NODE`) into a single node with the combined data. It also removes any empty text
 	 * nodes.
 	 *
-	 * This method iteratively traverses all child nodes to normalize all descendant nodes within
+	 * This method iterativly traverses all child nodes to normalize all descendent nodes within
 	 * the subtree.
 	 *
 	 * @throws {DOMException}
 	 * May throw a DOMException if operations within removeChild or appendData (which are
 	 * potentially invoked in this method) do not meet their specific constraints.
+	 * @since Modified in DOM Level 2
 	 * @see {@link Node.removeChild}
 	 * @see {@link CharacterData.appendData}
 	 * @see ../docs/walk-dom.md.
@@ -22553,9 +23943,38 @@ Node.prototype = {
 				while (child) {
 					var next = child.nextSibling;
 					if (next !== null && next.nodeType === TEXT_NODE && child.nodeType === TEXT_NODE) {
-						node.removeChild(next);
-						child.appendData(next.data);
-						// Do not advance child: re-check new nextSibling for another text run
+						// Merge the whole run of adjacent text nodes at once: gather the
+						// following text siblings' data, unlink them in a single pass, and
+						// re-index the child list a single time. Per-sibling `removeChild`
+						// (each an O(K) re-index) plus per-sibling `appendData` (each an O(K)
+						// string rebuild) is O(K^2) over a long run of single-character text
+						// nodes; this keeps it O(K). The first text node of the run survives
+						// and carries the concatenated data, preserving node identity and
+						// locator semantics.
+						var tail = [];
+						var sibling = next;
+						while (sibling !== null && sibling.nodeType === TEXT_NODE) {
+							tail.push(sibling.data);
+							sibling = sibling.nextSibling;
+						}
+						// `sibling` is now the first non-text node after the run, or null.
+						var removed = child.nextSibling;
+						while (removed !== sibling) {
+							var following = removed.nextSibling;
+							removed.parentNode = null;
+							removed.previousSibling = null;
+							removed.nextSibling = null;
+							removed = following;
+						}
+						child.nextSibling = sibling;
+						if (sibling !== null) {
+							sibling.previousSibling = child;
+						} else {
+							node.lastChild = child;
+						}
+						child.appendData(tail.join('')); // single O(K) string rebuild
+						_onUpdateChild(node.ownerDocument, node); // single O(K) re-index
+						child = sibling;
 					} else {
 						child = next;
 					}
@@ -22564,88 +23983,237 @@ Node.prototype = {
 			},
 		});
 	},
-  	// Introduced in DOM Level 2:
-	isSupported:function(feature, version){
-		return this.ownerDocument.implementation.hasFeature(feature,version);
+	/**
+	 * Checks whether the DOM implementation implements a specific feature and its version.
+	 *
+	 * @deprecated
+	 * Since `DOMImplementation.hasFeature` is deprecated and always returns true.
+	 * @param {string} feature
+	 * The package name of the feature to test. This is the same name that can be passed to the
+	 * method `hasFeature` on `DOMImplementation`.
+	 * @param {string} version
+	 * This is the version number of the package name to test.
+	 * @returns {boolean}
+	 * Returns true in all cases in the current implementation.
+	 * @since Introduced in DOM Level 2
+	 * @see {@link DOMImplementation.hasFeature}
+	 */
+	isSupported: function (feature, version) {
+		return this.ownerDocument.implementation.hasFeature(feature, version);
 	},
-    // Introduced in DOM Level 2:
-    hasAttributes:function(){
-    	return this.attributes.length>0;
-    },
 	/**
 	 * Look up the prefix associated to the given namespace URI, starting from this node.
 	 * **The default namespace declarations are ignored by this method.**
 	 * See Namespace Prefix Lookup for details on the algorithm used by this method.
 	 *
-	 * _Note: The implementation seems to be incomplete when compared to the algorithm described in the specs._
+	 * **This behavior is different from the in the specs**:
+	 * - no node type specific handling
+	 * - uses the internal attribute _nsMap for resolving namespaces that is updated when changing attributes
 	 *
 	 * @param {string | null} namespaceURI
+	 * The namespace URI for which to find the associated prefix.
 	 * @returns {string | null}
+	 * The associated prefix, if found; otherwise, null.
 	 * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#Node3-lookupNamespacePrefix
 	 * @see https://www.w3.org/TR/DOM-Level-3-Core/namespaces-algorithms.html#lookupNamespacePrefixAlgo
 	 * @see https://dom.spec.whatwg.org/#dom-node-lookupprefix
 	 * @see https://github.com/xmldom/xmldom/issues/322
+	 * @prettierignore
 	 */
-    lookupPrefix:function(namespaceURI){
-    	var el = this;
-    	while(el){
-    		var map = el._nsMap;
-    		//console.dir(map)
-    		if(map){
-    			for(var n in map){
-						if (Object.prototype.hasOwnProperty.call(map, n) && map[n] === namespaceURI) {
-							return n;
-						}
-    			}
-    		}
-    		el = el.nodeType == ATTRIBUTE_NODE?el.ownerDocument : el.parentNode;
-    	}
-    	return null;
-    },
-    // Introduced in DOM Level 3:
-    lookupNamespaceURI:function(prefix){
-    	var el = this;
-    	while(el){
-    		var map = el._nsMap;
-    		//console.dir(map)
-    		if(map){
-    			if(Object.prototype.hasOwnProperty.call(map, prefix)){
-    				return map[prefix] ;
-    			}
-    		}
-    		el = el.nodeType == ATTRIBUTE_NODE?el.ownerDocument : el.parentNode;
-    	}
-    	return null;
-    },
-    // Introduced in DOM Level 3:
-    isDefaultNamespace:function(namespaceURI){
-    	var prefix = this.lookupPrefix(namespaceURI);
-    	return prefix == null;
-    }
+	lookupPrefix: function (namespaceURI) {
+		var el = this;
+		while (el) {
+			var map = el._nsMap;
+			//console.dir(map)
+			if (map) {
+				for (var n in map) {
+					if (hasOwn(map, n) && map[n] === namespaceURI) {
+						return n;
+					}
+				}
+			}
+			el = el.nodeType == ATTRIBUTE_NODE ? el.ownerDocument : el.parentNode;
+		}
+		return null;
+	},
+	/**
+	 * This function is used to look up the namespace URI associated with the given prefix,
+	 * starting from this node.
+	 *
+	 * **This behavior is different from the in the specs**:
+	 * - no node type specific handling
+	 * - uses the internal attribute _nsMap for resolving namespaces that is updated when changing attributes
+	 *
+	 * @param {string | null} prefix
+	 * The prefix for which to find the associated namespace URI.
+	 * @returns {string | null}
+	 * The associated namespace URI, if found; otherwise, null.
+	 * @since DOM Level 3
+	 * @see https://dom.spec.whatwg.org/#dom-node-lookupnamespaceuri
+	 * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#Node3-lookupNamespaceURI
+	 * @prettierignore
+	 */
+	lookupNamespaceURI: function (prefix) {
+		var el = this;
+		while (el) {
+			var map = el._nsMap;
+			//console.dir(map)
+			if (map) {
+				if (hasOwn(map, prefix)) {
+					return map[prefix];
+				}
+			}
+			el = el.nodeType == ATTRIBUTE_NODE ? el.ownerDocument : el.parentNode;
+		}
+		return null;
+	},
+	/**
+	 * Determines whether the given namespace URI is the default namespace.
+	 *
+	 * The function works by looking up the prefix associated with the given namespace URI. If no
+	 * prefix is found (i.e., the namespace URI is not registered in the namespace map of this
+	 * node or any of its ancestors), it returns `true`, implying the namespace URI is considered
+	 * the default.
+	 *
+	 * **This behavior is different from the in the specs**:
+	 * - no node type specific handling
+	 * - uses the internal attribute _nsMap for resolving namespaces that is updated when changing attributes
+	 *
+	 * @param {string | null} namespaceURI
+	 * The namespace URI to be checked.
+	 * @returns {boolean}
+	 * Returns true if the given namespace URI is the default namespace, false otherwise.
+	 * @since DOM Level 3
+	 * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#Node3-isDefaultNamespace
+	 * @see https://dom.spec.whatwg.org/#dom-node-isdefaultnamespace
+	 * @prettierignore
+	 */
+	isDefaultNamespace: function (namespaceURI) {
+		var prefix = this.lookupPrefix(namespaceURI);
+		return prefix == null;
+	},
+	/**
+	 * Compares the reference node with a node with regard to their position in the document and
+	 * according to the document order.
+	 *
+	 * @param {Node} other
+	 * The node to compare the reference node to.
+	 * @returns {number}
+	 * Returns how the node is positioned relatively to the reference node according to the
+	 * bitmask. 0 if reference node and given node are the same.
+	 * @since DOM Level 3
+	 * @see https://www.w3.org/TR/2004/REC-DOM-Level-3-Core-20040407/core.html#Node3-compare
+	 * @see https://dom.spec.whatwg.org/#dom-node-comparedocumentposition
+	 */
+	compareDocumentPosition: function (other) {
+		if (this === other) return 0;
+		var node1 = other;
+		var node2 = this;
+		var attr1 = null;
+		var attr2 = null;
+		if (node1 instanceof Attr) {
+			attr1 = node1;
+			node1 = attr1.ownerElement;
+		}
+		if (node2 instanceof Attr) {
+			attr2 = node2;
+			node2 = attr2.ownerElement;
+			if (attr1 && node1 && node2 === node1) {
+				for (var i = 0, attr; (attr = node2.attributes[i]); i++) {
+					if (attr === attr1)
+						return DocumentPosition.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC + DocumentPosition.DOCUMENT_POSITION_PRECEDING;
+					if (attr === attr2)
+						return DocumentPosition.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC + DocumentPosition.DOCUMENT_POSITION_FOLLOWING;
+				}
+			}
+		}
+		if (!node1 || !node2 || node2.ownerDocument !== node1.ownerDocument) {
+			return (
+				DocumentPosition.DOCUMENT_POSITION_DISCONNECTED +
+				DocumentPosition.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC +
+				(docGUID(node2.ownerDocument) > docGUID(node1.ownerDocument)
+					? DocumentPosition.DOCUMENT_POSITION_FOLLOWING
+					: DocumentPosition.DOCUMENT_POSITION_PRECEDING)
+			);
+		}
+		if (attr2 && node1 === node2) {
+			return DocumentPosition.DOCUMENT_POSITION_CONTAINS + DocumentPosition.DOCUMENT_POSITION_PRECEDING;
+		}
+		if (attr1 && node1 === node2) {
+			return DocumentPosition.DOCUMENT_POSITION_CONTAINED_BY + DocumentPosition.DOCUMENT_POSITION_FOLLOWING;
+		}
+
+		var chain1 = [];
+		var ancestor1 = node1.parentNode;
+		while (ancestor1) {
+			if (!attr2 && ancestor1 === node2) {
+				return DocumentPosition.DOCUMENT_POSITION_CONTAINED_BY + DocumentPosition.DOCUMENT_POSITION_FOLLOWING;
+			}
+			chain1.push(ancestor1);
+			ancestor1 = ancestor1.parentNode;
+		}
+		chain1.reverse();
+
+		var chain2 = [];
+		var ancestor2 = node2.parentNode;
+		while (ancestor2) {
+			if (!attr1 && ancestor2 === node1) {
+				return DocumentPosition.DOCUMENT_POSITION_CONTAINS + DocumentPosition.DOCUMENT_POSITION_PRECEDING;
+			}
+			chain2.push(ancestor2);
+			ancestor2 = ancestor2.parentNode;
+		}
+		chain2.reverse();
+
+		var ca = commonAncestor(chain1, chain2);
+		for (var n in ca.childNodes) {
+			var child = ca.childNodes[n];
+			if (child === node2) return DocumentPosition.DOCUMENT_POSITION_FOLLOWING;
+			if (child === node1) return DocumentPosition.DOCUMENT_POSITION_PRECEDING;
+			if (chain2.indexOf(child) >= 0) return DocumentPosition.DOCUMENT_POSITION_FOLLOWING;
+			if (chain1.indexOf(child) >= 0) return DocumentPosition.DOCUMENT_POSITION_PRECEDING;
+		}
+		return 0;
+	},
 };
 
-
-function _xmlEncoder(c){
-	return c == '<' && '&lt;' ||
-         c == '>' && '&gt;' ||
-         c == '&' && '&amp;' ||
-         c == '"' && '&quot;' ||
-         '&#'+c.charCodeAt()+';'
+/**
+ * Encodes special XML characters to their corresponding entities.
+ *
+ * @param {string} c
+ * The character to be encoded.
+ * @returns {string}
+ * The encoded character.
+ * @private
+ */
+function _xmlEncoder(c) {
+	return (
+		(c == '<' && '&lt;') || (c == '>' && '&gt;') || (c == '&' && '&amp;') || (c == '"' && '&quot;') || '&#' + c.charCodeAt() + ';'
+	);
 }
 
-
-copy(NodeType,Node);
-copy(NodeType,Node.prototype);
+copy(NodeType, Node);
+copy(NodeType, Node.prototype);
+copy(DocumentPosition, Node);
+copy(DocumentPosition, Node.prototype);
 
 /**
+ * Visits every node in the subtree rooted at `node` in depth-first pre-order.
+ *
+ * Delegates to {@link walkDOM} for traversal. The `callback` is called on each node;
+ * if it returns a truthy value, traversal stops immediately.
+ *
  * @param {Node} node
  * Root of the subtree to visit.
- * @param {function(Node): boolean} callback
- * Called for each node in depth-first pre-order. Return a truthy value to stop traversal early.
- * @return {boolean} `true` if traversal was aborted by the callback, `false` otherwise.
+ * @param {function(Node): *} callback
+ * Called for each node. A truthy return value stops traversal early.
  */
 function _visitNode(node, callback) {
-	return walkDOM(node, null, { enter: function (n) { return callback(n) ? walkDOM.STOP : true; } }) === walkDOM.STOP;
+	walkDOM(node, null, {
+		enter: function (n) {
+			return callback(n) ? walkDOM.STOP : true;
+		},
+	});
 }
 
 /**
@@ -22736,56 +24304,127 @@ walkDOM.ENTER = 0;
  */
 walkDOM.EXIT = 1;
 
-function Document(){
+/**
+ * @typedef DocumentOptions
+ * @property {string} [contentType=MIME_TYPE.XML_APPLICATION]
+ */
+/**
+ * The Document interface describes the common properties and methods for any kind of document.
+ *
+ * It should usually be created using `new DOMImplementation().createDocument(...)`
+ * or `new DOMImplementation().createHTMLDocument(...)`.
+ *
+ * The constructor is considered a private API and offers to initially set the `contentType`
+ * property via it's options parameter.
+ *
+ * @class
+ * @param {Symbol} symbol
+ * @param {DocumentOptions} [options]
+ * @augments Node
+ * @private
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/Document
+ * @see https://dom.spec.whatwg.org/#interface-document
+ */
+function Document(symbol, options) {
+	checkSymbol(symbol);
+
+	var opt = options || {};
 	this.ownerDocument = this;
+	/**
+	 * The mime type of the document is determined at creation time and can not be modified.
+	 *
+	 * @type {string}
+	 * @see https://dom.spec.whatwg.org/#concept-document-content-type
+	 * @see {@link DOMImplementation}
+	 * @see {@link MIME_TYPE}
+	 * @readonly
+	 */
+	this.contentType = opt.contentType || MIME_TYPE.XML_APPLICATION;
+	/**
+	 * @type {'html' | 'xml'}
+	 * @see https://dom.spec.whatwg.org/#concept-document-type
+	 * @see {@link DOMImplementation}
+	 * @readonly
+	 */
+	this.type = isHTMLMimeType(this.contentType) ? 'html' : 'xml';
 }
 
-function _onAddAttribute(doc,el,newAttr){
+/**
+ * Updates the namespace mapping of an element when a new attribute is added.
+ *
+ * @param {Document} doc
+ * The document that the element belongs to.
+ * @param {Element} el
+ * The element to which the attribute is being added.
+ * @param {Attr} newAttr
+ * The new attribute being added.
+ * @private
+ */
+function _onAddAttribute(doc, el, newAttr) {
 	doc && doc._inc++;
-	var ns = newAttr.namespaceURI ;
-	if(ns === NAMESPACE.XMLNS){
+	var ns = newAttr.namespaceURI;
+	if (ns === NAMESPACE.XMLNS) {
 		//update namespace
-		el._nsMap[newAttr.prefix?newAttr.localName:''] = newAttr.value
-	}
-}
-
-function _onRemoveAttribute(doc,el,newAttr,remove){
-	doc && doc._inc++;
-	var ns = newAttr.namespaceURI ;
-	if(ns === NAMESPACE.XMLNS){
-		//update namespace
-		delete el._nsMap[newAttr.prefix?newAttr.localName:'']
+		el._nsMap[newAttr.prefix ? newAttr.localName : ''] = newAttr.value;
 	}
 }
 
 /**
- * Updates `el.childNodes`, updating the indexed items and it's `length`.
- * Passing `newChild` means it will be appended.
- * Otherwise it's assumed that an item has been removed,
- * and `el.firstNode` and it's `.nextSibling` are used
- * to walk the current list of child nodes.
+ * Updates the namespace mapping of an element when an attribute is removed.
  *
  * @param {Document} doc
- * @param {Node} el
- * @param {Node} [newChild]
+ * The document that the element belongs to.
+ * @param {Element} el
+ * The element from which the attribute is being removed.
+ * @param {Attr} newAttr
+ * The attribute being removed.
+ * @param {boolean} remove
+ * Indicates whether the attribute is to be removed.
  * @private
  */
-function _onUpdateChild (doc, el, newChild) {
-	if(doc && doc._inc){
+function _onRemoveAttribute(doc, el, newAttr, remove) {
+	doc && doc._inc++;
+	var ns = newAttr.namespaceURI;
+	if (ns === NAMESPACE.XMLNS) {
+		//update namespace
+		delete el._nsMap[newAttr.prefix ? newAttr.localName : ''];
+	}
+}
+
+/**
+ * Updates `parent.childNodes`, adjusting the indexed items and its `length`.
+ * If `newChild` is provided and has no nextSibling, it will be appended.
+ * Otherwise, it's assumed that an item has been removed or inserted,
+ * and `parent.firstNode` and its `.nextSibling` to re-indexing all child nodes of `parent`.
+ *
+ * @param {Document} doc
+ * The parent document of `el`.
+ * @param {Node} parent
+ * The parent node whose childNodes list needs to be updated.
+ * @param {Node} [newChild]
+ * The new child node to be appended. If not provided, the function assumes a node has been
+ * removed.
+ * @private
+ */
+function _onUpdateChild(doc, parent, newChild) {
+	if (doc && doc._inc) {
 		doc._inc++;
-		//update childNodes
-		var cs = el.childNodes;
-		if (newChild) {
-			cs[cs.length++] = newChild;
+		var childNodes = parent.childNodes;
+		// assumes nextSibling and previousSibling were already configured upfront
+		if (newChild && !newChild.nextSibling) {
+			// if an item has been appended, we only need to update the last index and the length
+			childNodes[childNodes.length++] = newChild;
 		} else {
-			var child = el.firstChild;
+			// otherwise we need to reindex all items,
+			// which can take a while when processing nodes with a lot of children
+			var child = parent.firstChild;
 			var i = 0;
 			while (child) {
-				cs[i++] = child;
+				childNodes[i++] = child;
 				child = child.nextSibling;
 			}
-			cs.length = i;
-			delete cs[cs.length];
+			childNodes.length = i;
+			delete childNodes[childNodes.length];
 		}
 	}
 }
@@ -22794,36 +24433,45 @@ function _onUpdateChild (doc, el, newChild) {
  * Removes the connections between `parentNode` and `child`
  * and any existing `child.previousSibling` or `child.nextSibling`.
  *
+ * @param {Node} parentNode
+ * The parent node from which the child node is to be removed.
+ * @param {Node} child
+ * The child node to be removed from the parentNode.
+ * @returns {Node}
+ * Returns the child node that was removed.
+ * @throws {DOMException}
+ * With code:
+ * - {@link DOMException.NOT_FOUND_ERR} If the parentNode is not the parent of the child node.
+ * @private
  * @see https://github.com/xmldom/xmldom/issues/135
  * @see https://github.com/xmldom/xmldom/issues/145
- *
- * @param {Node} parentNode
- * @param {Node} child
- * @returns {Node} the child that was removed.
- * @private
  */
-function _removeChild (parentNode, child) {
-	var previous = child.previousSibling;
-	var next = child.nextSibling;
-	if (previous) {
-		previous.nextSibling = next;
-	} else {
-		parentNode.firstChild = next;
+function _removeChild(parentNode, child) {
+	if (parentNode !== child.parentNode) {
+		throw new DOMException(DOMException.NOT_FOUND_ERR, "child's parent is not parent");
 	}
-	if (next) {
-		next.previousSibling = previous;
+	var oldPreviousSibling = child.previousSibling;
+	var oldNextSibling = child.nextSibling;
+	if (oldPreviousSibling) {
+		oldPreviousSibling.nextSibling = oldNextSibling;
 	} else {
-		parentNode.lastChild = previous;
+		parentNode.firstChild = oldNextSibling;
 	}
+	if (oldNextSibling) {
+		oldNextSibling.previousSibling = oldPreviousSibling;
+	} else {
+		parentNode.lastChild = oldPreviousSibling;
+	}
+	_onUpdateChild(parentNode.ownerDocument, parentNode);
 	child.parentNode = null;
 	child.previousSibling = null;
 	child.nextSibling = null;
-	_onUpdateChild(parentNode.ownerDocument, parentNode);
 	return child;
 }
 
 /**
  * Returns `true` if `node` can be a parent for insertion.
+ *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -22836,23 +24484,26 @@ function hasValidParentNodeType(node) {
 
 /**
  * Returns `true` if `node` can be inserted according to it's `nodeType`.
+ *
  * @param {Node} node
  * @returns {boolean}
  */
 function hasInsertableNodeType(node) {
 	return (
 		node &&
-		(isElementNode(node) ||
-			isTextNode(node) ||
-			isDocTypeNode(node) ||
-			node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ||
+		(node.nodeType === Node.CDATA_SECTION_NODE ||
 			node.nodeType === Node.COMMENT_NODE ||
-			node.nodeType === Node.PROCESSING_INSTRUCTION_NODE)
+			node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ||
+			node.nodeType === Node.DOCUMENT_TYPE_NODE ||
+			node.nodeType === Node.ELEMENT_NODE ||
+			node.nodeType === Node.PROCESSING_INSTRUCTION_NODE ||
+			node.nodeType === Node.TEXT_NODE)
 	);
 }
 
 /**
- * Returns true if `node` is a DOCTYPE node
+ * Returns true if `node` is a DOCTYPE node.
+ *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -22861,7 +24512,8 @@ function isDocTypeNode(node) {
 }
 
 /**
- * Returns true if the node is an element
+ * Returns true if the node is an element.
+ *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -22869,7 +24521,8 @@ function isElementNode(node) {
 	return node && node.nodeType === Node.ELEMENT_NODE;
 }
 /**
- * Returns true if `node` is a text node
+ * Returns true if `node` is a text node.
+ *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -22881,11 +24534,13 @@ function isTextNode(node) {
  * Check if en element node can be inserted before `child`, or at the end if child is falsy,
  * according to the presence and position of a doctype node on the same level.
  *
- * @param {Document} doc The document node
- * @param {Node} child the node that would become the nextSibling if the element would be inserted
- * @returns {boolean} `true` if an element can be inserted before child
+ * @param {Document} doc
+ * The document node.
+ * @param {Node} child
+ * The node that would become the nextSibling if the element would be inserted.
+ * @returns {boolean}
+ * `true` if an element can be inserted before child.
  * @private
- * https://dom.spec.whatwg.org/#concept-node-ensure-pre-insertion-validity
  */
 function isElementInsertionPossible(doc, child) {
 	var parentChildNodes = doc.childNodes || [];
@@ -22900,11 +24555,13 @@ function isElementInsertionPossible(doc, child) {
  * Check if en element node can be inserted before `child`, or at the end if child is falsy,
  * according to the presence and position of a doctype node on the same level.
  *
- * @param {Node} doc The document node
- * @param {Node} child the node that would become the nextSibling if the element would be inserted
- * @returns {boolean} `true` if an element can be inserted before child
+ * @param {Node} doc
+ * The document node.
+ * @param {Node} child
+ * The node that would become the nextSibling if the element would be inserted.
+ * @returns {boolean}
+ * `true` if an element can be inserted before child.
  * @private
- * https://dom.spec.whatwg.org/#concept-node-ensure-pre-insertion-validity
  */
 function isElementReplacementPossible(doc, child) {
 	var parentChildNodes = doc.childNodes || [];
@@ -22921,28 +24578,41 @@ function isElementReplacementPossible(doc, child) {
 }
 
 /**
- * @private
- * Steps 1-5 of the checks before inserting and before replacing a child are the same.
+ * Asserts pre-insertion validity of a node into a parent before a child.
+ * Throws errors for invalid node combinations that would result in an ill-formed DOM.
  *
- * @param {Node} parent the parent node to insert `node` into
- * @param {Node} node the node to insert
- * @param {Node=} child the node that should become the `nextSibling` of `node`
- * @returns {Node}
- * @throws DOMException for several node combinations that would create a DOM that is not well-formed.
- * @throws DOMException if `child` is provided but is not a child of `parent`.
+ * @param {Node} parent
+ * The parent node to insert `node` into.
+ * @param {Node} node
+ * The node to insert.
+ * @param {Node | null} child
+ * The node that should become the `nextSibling` of `node`. If null, no sibling is considered.
+ * @throws {DOMException}
+ * With code:
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If `parent` is not a Document,
+ * DocumentFragment, or Element node.
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If `node` is a host-including inclusive
+ * ancestor of `parent`. (Currently not implemented)
+ * - {@link DOMException.NOT_FOUND_ERR} If `child` is non-null and its `parent` is not
+ * `parent`.
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If `node` is not a DocumentFragment,
+ * DocumentType, Element, or CharacterData node.
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If either `node` is a Text node and `parent` is
+ * a document, or if `node` is a doctype and `parent` is not a document.
+ * @private
  * @see https://dom.spec.whatwg.org/#concept-node-ensure-pre-insertion-validity
  * @see https://dom.spec.whatwg.org/#concept-node-replace
  */
 function assertPreInsertionValidity1to5(parent, node, child) {
 	// 1. If `parent` is not a Document, DocumentFragment, or Element node, then throw a "HierarchyRequestError" DOMException.
 	if (!hasValidParentNodeType(parent)) {
-		throw new DOMException(HIERARCHY_REQUEST_ERR, 'Unexpected parent node type ' + parent.nodeType);
+		throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Unexpected parent node type ' + parent.nodeType);
 	}
 	// 2. If `node` is a host-including inclusive ancestor of `parent`, then throw a "HierarchyRequestError" DOMException.
 	// not implemented!
 	// 3. If `child` is non-null and its parent is not `parent`, then throw a "NotFoundError" DOMException.
 	if (child && child.parentNode !== parent) {
-		throw new DOMException(NOT_FOUND_ERR, 'child not in parent');
+		throw new DOMException(DOMException.NOT_FOUND_ERR, 'child not in parent');
 	}
 	if (
 		// 4. If `node` is not a DocumentFragment, DocumentType, Element, or CharacterData node, then throw a "HierarchyRequestError" DOMException.
@@ -22954,22 +24624,38 @@ function assertPreInsertionValidity1to5(parent, node, child) {
 		(isDocTypeNode(node) && parent.nodeType !== Node.DOCUMENT_NODE)
 	) {
 		throw new DOMException(
-			HIERARCHY_REQUEST_ERR,
+			DOMException.HIERARCHY_REQUEST_ERR,
 			'Unexpected node type ' + node.nodeType + ' for parent node type ' + parent.nodeType
 		);
 	}
 }
 
 /**
- * @private
- * Step 6 of the checks before inserting and before replacing a child are different.
+ * Asserts pre-insertion validity of a node into a document before a child.
+ * Throws errors for invalid node combinations that would result in an ill-formed DOM.
  *
- * @param {Document} parent the parent node to insert `node` into
- * @param {Node} node the node to insert
- * @param {Node | undefined} child the node that should become the `nextSibling` of `node`
+ * @param {Document} parent
+ * The parent node to insert `node` into.
+ * @param {Node} node
+ * The node to insert.
+ * @param {Node | undefined} child
+ * The node that should become the `nextSibling` of `node`. If undefined, no sibling is
+ * considered.
  * @returns {Node}
- * @throws DOMException for several node combinations that would create a DOM that is not well-formed.
- * @throws DOMException if `child` is provided but is not a child of `parent`.
+ * @throws {DOMException}
+ * With code:
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If `node` is a DocumentFragment with more than
+ * one element child or has a Text node child.
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If `node` is a DocumentFragment with one
+ * element child and either `parent` has an element child, `child` is a doctype, or `child` is
+ * non-null and a doctype is following `child`.
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If `node` is an Element and `parent` has an
+ * element child, `child` is a doctype, or `child` is non-null and a doctype is following
+ * `child`.
+ * - {@link DOMException.HIERARCHY_REQUEST_ERR} If `node` is a DocumentType and `parent` has a
+ * doctype child, `child` is non-null and an element is preceding `child`, or `child` is null
+ * and `parent` has an element child.
+ * @private
  * @see https://dom.spec.whatwg.org/#concept-node-ensure-pre-insertion-validity
  * @see https://dom.spec.whatwg.org/#concept-node-replace
  */
@@ -22982,12 +24668,12 @@ function assertPreInsertionValidityInDocument(parent, node, child) {
 		var nodeChildElements = nodeChildNodes.filter(isElementNode);
 		// If node has more than one element child or has a Text node child.
 		if (nodeChildElements.length > 1 || find(nodeChildNodes, isTextNode)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'More than one element or text in fragment');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'More than one element or text in fragment');
 		}
 		// Otherwise, if `node` has one element child and either `parent` has an element child,
 		// `child` is a doctype, or `child` is non-null and a doctype is following `child`.
 		if (nodeChildElements.length === 1 && !isElementInsertionPossible(parent, child)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Element in fragment can not be inserted before doctype');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Element in fragment can not be inserted before doctype');
 		}
 	}
 	// Element
@@ -22995,37 +24681,40 @@ function assertPreInsertionValidityInDocument(parent, node, child) {
 		// `parent` has an element child, `child` is a doctype,
 		// or `child` is non-null and a doctype is following `child`.
 		if (!isElementInsertionPossible(parent, child)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Only one element can be added and only after doctype');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Only one element can be added and only after doctype');
 		}
 	}
 	// DocumentType
 	if (isDocTypeNode(node)) {
 		// `parent` has a doctype child,
 		if (find(parentChildNodes, isDocTypeNode)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Only one doctype is allowed');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Only one doctype is allowed');
 		}
 		var parentElementChild = find(parentChildNodes, isElementNode);
 		// `child` is non-null and an element is preceding `child`,
 		if (child && parentChildNodes.indexOf(parentElementChild) < parentChildNodes.indexOf(child)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Doctype can only be inserted before an element');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Doctype can only be inserted before an element');
 		}
 		// or `child` is null and `parent` has an element child.
 		if (!child && parentElementChild) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Doctype can not be appended since element is present');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Doctype can not be appended since element is present');
 		}
 	}
 }
 
 /**
- * @private
- * Step 6 of the checks before inserting and before replacing a child are different.
- *
- * @param {Document} parent the parent node to insert `node` into
- * @param {Node} node the node to insert
- * @param {Node | undefined} child the node that should become the `nextSibling` of `node`
+ * @param {Document} parent
+ * The parent node to insert `node` into.
+ * @param {Node} node
+ * The node to insert.
+ * @param {Node | undefined} child
+ * the node that should become the `nextSibling` of `node`
  * @returns {Node}
- * @throws DOMException for several node combinations that would create a DOM that is not well-formed.
- * @throws DOMException if `child` is provided but is not a child of `parent`.
+ * @throws {DOMException}
+ * For several node combinations that would create a DOM that is not well-formed.
+ * @throws {DOMException}
+ * If `child` is provided but is not a child of `parent`.
+ * @private
  * @see https://dom.spec.whatwg.org/#concept-node-ensure-pre-insertion-validity
  * @see https://dom.spec.whatwg.org/#concept-node-replace
  */
@@ -23038,18 +24727,18 @@ function assertPreReplacementValidityInDocument(parent, node, child) {
 		var nodeChildElements = nodeChildNodes.filter(isElementNode);
 		// If `node` has more than one element child or has a Text node child.
 		if (nodeChildElements.length > 1 || find(nodeChildNodes, isTextNode)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'More than one element or text in fragment');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'More than one element or text in fragment');
 		}
 		// Otherwise, if `node` has one element child and either `parent` has an element child that is not `child` or a doctype is following `child`.
 		if (nodeChildElements.length === 1 && !isElementReplacementPossible(parent, child)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Element in fragment can not be inserted before doctype');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Element in fragment can not be inserted before doctype');
 		}
 	}
 	// Element
 	if (isElementNode(node)) {
 		// `parent` has an element child that is not `child` or a doctype is following `child`.
 		if (!isElementReplacementPossible(parent, child)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Only one element can be added and only after doctype');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Only one element can be added and only after doctype');
 		}
 	}
 	// DocumentType
@@ -23060,24 +24749,39 @@ function assertPreReplacementValidityInDocument(parent, node, child) {
 
 		// `parent` has a doctype child that is not `child`,
 		if (find(parentChildNodes, hasDoctypeChildThatIsNotChild)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Only one doctype is allowed');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Only one doctype is allowed');
 		}
 		var parentElementChild = find(parentChildNodes, isElementNode);
 		// or an element is preceding `child`.
 		if (child && parentChildNodes.indexOf(parentElementChild) < parentChildNodes.indexOf(child)) {
-			throw new DOMException(HIERARCHY_REQUEST_ERR, 'Doctype can only be inserted before an element');
+			throw new DOMException(DOMException.HIERARCHY_REQUEST_ERR, 'Doctype can only be inserted before an element');
 		}
 	}
 }
 
 /**
- * @private
- * @param {Node} parent the parent node to insert `node` into
- * @param {Node} node the node to insert
- * @param {Node=} child the node that should become the `nextSibling` of `node`
+ * Inserts a node into a parent node before a child node.
+ *
+ * @param {Node} parent
+ * The parent node to insert the node into.
+ * @param {Node} node
+ * The node to insert into the parent.
+ * @param {Node | null} child
+ * The node that should become the next sibling of the node.
+ * If null, the function inserts the node at the end of the children of the parent node.
+ * @param {Function} [_inDocumentAssertion]
+ * An optional function to check pre-insertion validity if parent is a document node.
+ * Defaults to {@link assertPreInsertionValidityInDocument}
  * @returns {Node}
- * @throws DOMException for several node combinations that would create a DOM that is not well-formed.
- * @throws DOMException if `child` is provided but is not a child of `parent`.
+ * Returns the inserted node.
+ * @throws {DOMException}
+ * Throws a DOMException if inserting the node would result in a DOM tree that is not
+ * well-formed. See {@link assertPreInsertionValidity1to5},
+ * {@link assertPreInsertionValidityInDocument}.
+ * @throws {DOMException}
+ * Throws a DOMException if child is provided but is not a child of the parent. See
+ * {@link Node.removeChild}
+ * @private
  * @see https://dom.spec.whatwg.org/#concept-node-ensure-pre-insertion-validity
  */
 function _insertBefore(parent, node, child, _inDocumentAssertion) {
@@ -23091,16 +24795,16 @@ function _insertBefore(parent, node, child, _inDocumentAssertion) {
 	}
 
 	var cp = node.parentNode;
-	if(cp){
-		cp.removeChild(node);//remove and update
+	if (cp) {
+		cp.removeChild(node); //remove and update
 	}
-	if(node.nodeType === DOCUMENT_FRAGMENT_NODE){
+	if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
 		var newFirst = node.firstChild;
 		if (newFirst == null) {
 			return node;
 		}
 		var newLast = node.lastChild;
-	}else{
+	} else {
 		newFirst = newLast = node;
 	}
 	var pre = child ? child.previousSibling : parent.lastChild;
@@ -23108,137 +24812,77 @@ function _insertBefore(parent, node, child, _inDocumentAssertion) {
 	newFirst.previousSibling = pre;
 	newLast.nextSibling = child;
 
-
-	if(pre){
+	if (pre) {
 		pre.nextSibling = newFirst;
-	}else{
+	} else {
 		parent.firstChild = newFirst;
 	}
-	if(child == null){
+	if (child == null) {
 		parent.lastChild = newLast;
-	}else{
+	} else {
 		child.previousSibling = newLast;
 	}
-	do{
+	do {
 		newFirst.parentNode = parent;
-		// Update ownerDocument for each node being inserted
-		var targetDoc = parent.ownerDocument || parent;
-		_updateOwnerDocument(newFirst, targetDoc);
-	}while(newFirst !== newLast && (newFirst= newFirst.nextSibling))
-	_onUpdateChild(parent.ownerDocument||parent, parent);
-	//console.log(parent.lastChild.nextSibling == null)
+	} while (newFirst !== newLast && (newFirst = newFirst.nextSibling));
+	_onUpdateChild(parent.ownerDocument || parent, parent, node);
 	if (node.nodeType == DOCUMENT_FRAGMENT_NODE) {
 		node.firstChild = node.lastChild = null;
 	}
+
 	return node;
 }
 
-/**
- * Recursively updates the ownerDocument property for a node and all its descendants
- * @param {Node} node
- * @param {Document} newOwnerDocument
- * @private
- */
-function _updateOwnerDocument(node, newOwnerDocument) {
-	if (node.ownerDocument === newOwnerDocument) {
-		return;
-	}
-	
-	node.ownerDocument = newOwnerDocument;
-	
-	// Update attributes if this is an element
-	if (node.nodeType === ELEMENT_NODE && node.attributes) {
-		for (var i = 0; i < node.attributes.length; i++) {
-			var attr = node.attributes.item(i);
-			if (attr) {
-				attr.ownerDocument = newOwnerDocument;
-			}
-		}
-	}
-	
-	// Recursively update child nodes
-	var child = node.firstChild;
-	while (child) {
-		_updateOwnerDocument(child, newOwnerDocument);
-		child = child.nextSibling;
-	}
-}
-
-/**
- * Appends `newChild` to `parentNode`.
- * If `newChild` is already connected to a `parentNode` it is first removed from it.
- *
- * @see https://github.com/xmldom/xmldom/issues/135
- * @see https://github.com/xmldom/xmldom/issues/145
- * @param {Node} parentNode
- * @param {Node} newChild
- * @returns {Node}
- * @private
- */
-function _appendSingleChild (parentNode, newChild) {
-	if (newChild.parentNode) {
-		newChild.parentNode.removeChild(newChild);
-	}
-	newChild.parentNode = parentNode;
-	newChild.previousSibling = parentNode.lastChild;
-	newChild.nextSibling = null;
-	if (newChild.previousSibling) {
-		newChild.previousSibling.nextSibling = newChild;
-	} else {
-		parentNode.firstChild = newChild;
-	}
-	parentNode.lastChild = newChild;
-	_onUpdateChild(parentNode.ownerDocument, parentNode, newChild);
-	
-	// Update ownerDocument for the new child and all its descendants
-	var targetDoc = parentNode.ownerDocument || parentNode;
-	_updateOwnerDocument(newChild, targetDoc);
-	
-	return newChild;
-}
-
 Document.prototype = {
-	//implementation : null,
-	nodeName :  '#document',
-	nodeType :  DOCUMENT_NODE,
+	/**
+	 * The implementation that created this document.
+	 *
+	 * @type DOMImplementation
+	 * @readonly
+	 */
+	implementation: null,
+	nodeName: '#document',
+	nodeType: DOCUMENT_NODE,
 	/**
 	 * The DocumentType node of the document.
 	 *
-	 * @readonly
 	 * @type DocumentType
+	 * @readonly
 	 */
-	doctype :  null,
-	documentElement :  null,
-	_inc : 1,
+	doctype: null,
+	documentElement: null,
+	_inc: 1,
 
-	insertBefore :  function(newChild, refChild){//raises
-		if(newChild.nodeType == DOCUMENT_FRAGMENT_NODE){
+	insertBefore: function (newChild, refChild) {
+		//raises
+		if (newChild.nodeType === DOCUMENT_FRAGMENT_NODE) {
 			var child = newChild.firstChild;
-			while(child){
+			while (child) {
 				var next = child.nextSibling;
-				this.insertBefore(child,refChild);
+				this.insertBefore(child, refChild);
 				child = next;
 			}
 			return newChild;
 		}
 		_insertBefore(this, newChild, refChild);
-		_updateOwnerDocument(newChild, this);
+		newChild.ownerDocument = this;
 		if (this.documentElement === null && newChild.nodeType === ELEMENT_NODE) {
 			this.documentElement = newChild;
 		}
 
 		return newChild;
 	},
-	removeChild :  function(oldChild){
-		if(this.documentElement == oldChild){
+	removeChild: function (oldChild) {
+		var removed = _removeChild(this, oldChild);
+		if (removed === this.documentElement) {
 			this.documentElement = null;
 		}
-		return _removeChild(this,oldChild);
+		return removed;
 	},
 	replaceChild: function (newChild, oldChild) {
 		//raises
 		_insertBefore(this, newChild, oldChild, assertPreReplacementValidityInDocument);
-		_updateOwnerDocument(newChild, this);
+		newChild.ownerDocument = this;
 		if (oldChild) {
 			this.removeChild(oldChild);
 		}
@@ -23246,58 +24890,442 @@ Document.prototype = {
 			this.documentElement = newChild;
 		}
 	},
-	// Introduced in DOM Level 2:
-	importNode : function(importedNode,deep){
-		return importNode(this,importedNode,deep);
+	/**
+	 * Imports a node from another document into this document, creating a new copy owned by this
+	 * document. The source node and its subtree are not modified.
+	 *
+	 * @param {Node} importedNode
+	 * The node to import.
+	 * @param {boolean} deep
+	 * If true, the contents of the node are recursively imported.
+	 * If false, only the node itself (and its attributes, if it is an element) are imported.
+	 * @returns {Node}
+	 * Returns the newly created import of the node.
+	 * @see {@link importNode}
+	 * @see {@link https://dom.spec.whatwg.org/#dom-document-importnode}
+	 */
+	importNode: function (importedNode, deep) {
+		return importNode(this, importedNode, deep);
 	},
 	// Introduced in DOM Level 2:
-	getElementById :	function(id){
+	getElementById: function (id) {
 		var rtv = null;
-		_visitNode(this.documentElement,function(node){
-			if(node.nodeType == ELEMENT_NODE){
-				if(node.getAttribute('id') == id){
+		_visitNode(this.documentElement, function (node) {
+			if (node.nodeType == ELEMENT_NODE) {
+				if (node.getAttribute('id') == id) {
 					rtv = node;
 					return true;
 				}
 			}
-		})
+		});
 		return rtv;
 	},
 
 	/**
-	 * The `getElementsByClassName` method of `Document` interface returns an array-like object
-	 * of all child elements which have **all** of the given class name(s).
+	 * Creates a new `Element` that is owned by this `Document`.
+	 * In HTML Documents `localName` is the lower cased `tagName`,
+	 * otherwise no transformation is being applied.
+	 * When `contentType` implies the HTML namespace, it will be set as `namespaceURI`.
 	 *
-	 * Returns an empty list if `classeNames` is an empty string or only contains HTML white space characters.
+	 * __This implementation differs from the specification:__ - The provided name is not checked
+	 * against the `Name` production,
+	 * so no related error will be thrown.
+	 * - There is no interface `HTMLElement`, it is always an `Element`.
+	 * - There is no support for a second argument to indicate using custom elements.
 	 *
+	 * @param {string} tagName
+	 * @returns {Element}
+	 * @see https://developer.mozilla.org/en-US/docs/Web/API/Document/createElement
+	 * @see https://dom.spec.whatwg.org/#dom-document-createelement
+	 * @see https://dom.spec.whatwg.org/#concept-create-element
+	 */
+	createElement: function (tagName) {
+		var node = new Element(PDC);
+		node.ownerDocument = this;
+		if (this.type === 'html') {
+			tagName = tagName.toLowerCase();
+		}
+		if (hasDefaultHTMLNamespace(this.contentType)) {
+			node.namespaceURI = NAMESPACE.HTML;
+		}
+		node.nodeName = tagName;
+		node.tagName = tagName;
+		node.localName = tagName;
+		node.childNodes = new NodeList();
+		var attrs = (node.attributes = new NamedNodeMap());
+		attrs._ownerElement = node;
+		return node;
+	},
+	/**
+	 * @returns {DocumentFragment}
+	 */
+	createDocumentFragment: function () {
+		var node = new DocumentFragment(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		return node;
+	},
+	/**
+	 * @param {string} data
+	 * @returns {Text}
+	 */
+	createTextNode: function (data) {
+		var node = new Text(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		node.appendData(data);
+		return node;
+	},
+	/**
+	 * @param {string} data
+	 * @returns {Comment}
+	 * @see https://dom.spec.whatwg.org/#dom-document-createcomment
+	 * @see https://www.w3.org/TR/xml/#NT-Comment XML 1.0 production [15]
+	 * @see https://www.w3.org/TR/DOM-Parsing/#dfn-concept-serialize-xml §3.2.1.3
 	 *
-	 * Warning: This is a live LiveNodeList.
+	 *      Note: no validation is performed at creation time. When the resulting document is
+	 *      serialized with `requireWellFormed: true`, the serializer throws `InvalidStateError`
+	 *      if the comment data contains `--` anywhere, ends with `-`, or contains characters
+	 *      outside the XML Char production (W3C DOM Parsing §3.2.1.3). Without that option the
+	 *      data is emitted verbatim.
+	 */
+	createComment: function (data) {
+		var node = new Comment(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		node.appendData(data);
+		return node;
+	},
+	/**
+	 * Returns a new CDATASection node whose data is `data`.
+	 *
+	 * __This implementation differs from the specification:__ - calling this method on an HTML
+	 * document does not throw `NotSupportedError`.
+	 *
+	 * @param {string} data
+	 * @returns {CDATASection}
+	 * @throws {DOMException}
+	 * With code `INVALID_CHARACTER_ERR` if `data` contains `"]]>"`.
+	 * @see https://developer.mozilla.org/en-US/docs/Web/API/Document/createCDATASection
+	 * @see https://dom.spec.whatwg.org/#dom-document-createcdatasection
+	 */
+	createCDATASection: function (data) {
+		if (data.indexOf(']]>') !== -1) {
+			throw new DOMException(DOMException.INVALID_CHARACTER_ERR, 'data contains "]]>"');
+		}
+		var node = new CDATASection(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		node.appendData(data);
+		return node;
+	},
+	/**
+	 * Returns a ProcessingInstruction node whose target is target and data is data.
+	 *
+	 * __This behavior is slightly different from the in the specs__:
+	 * - it does not do any input validation on the arguments and doesn't throw
+	 * "InvalidCharacterError".
+	 *
+	 * Note: When the resulting document is serialized with `requireWellFormed: true`, the
+	 * serializer throws `InvalidStateError` if `.target` is not a valid XML `NCName` (a `Name`
+	 * with no colon) or is an ASCII case-insensitive match for `"xml"`, or if `.data` contains
+	 * `?>` or characters outside the XML Char production (W3C DOM Parsing §3.2.1.7). Without that
+	 * option the target and data are emitted verbatim.
+	 *
+	 * @param {string} target
+	 * @param {string} data
+	 * @returns {ProcessingInstruction}
+	 * @see https://developer.mozilla.org/docs/Web/API/Document/createProcessingInstruction
+	 * @see https://dom.spec.whatwg.org/#dom-document-createprocessinginstruction
+	 * @see https://www.w3.org/TR/DOM-Parsing/#dfn-concept-serialize-xml §3.2.1.7
+	 */
+	createProcessingInstruction: function (target, data) {
+		var node = new ProcessingInstruction(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		node.nodeName = node.target = target;
+		node.nodeValue = node.data = data;
+		return node;
+	},
+	/**
+	 * Creates an `Attr` node that is owned by this document.
+	 * In HTML Documents `localName` is the lower cased `name`,
+	 * otherwise no transformation is being applied.
+	 *
+	 * __This implementation differs from the specification:__ - The provided name is not checked
+	 * against the `Name` production,
+	 * so no related error will be thrown.
+	 *
+	 * @param {string} name
+	 * @returns {Attr}
+	 * @see https://developer.mozilla.org/en-US/docs/Web/API/Document/createAttribute
+	 * @see https://dom.spec.whatwg.org/#dom-document-createattribute
+	 */
+	createAttribute: function (name) {
+		if (!g.QName_exact.test(name)) {
+			throw new DOMException(DOMException.INVALID_CHARACTER_ERR, 'invalid character in name "' + name + '"');
+		}
+		if (this.type === 'html') {
+			name = name.toLowerCase();
+		}
+		return this._createAttribute(name);
+	},
+	_createAttribute: function (name) {
+		var node = new Attr(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		node.name = name;
+		node.nodeName = name;
+		node.localName = name;
+		node.specified = true;
+		return node;
+	},
+	/**
+	 * Creates an EntityReference object.
+	 * The current implementation does not fill the `childNodes` with those of the corresponding
+	 * `Entity`
+	 *
+	 * The `name` is validated against the XML `Name` production at creation time; an invalid name
+	 * throws `InvalidCharacterError`. When the resulting node is serialized with
+	 * `requireWellFormed: true`, the serializer re-validates `nodeName` against the XML `Name`
+	 * production and throws `InvalidStateError` if a later `nodeName` mutation made it invalid;
+	 * without that option the name is emitted verbatim.
+	 *
+	 * __This implementation differs from the specification:__ xmldom does not expand entities —
+	 * the parser resolves entity references inline and never constructs `EntityReference` nodes,
+	 * so this method is the only producer.
+	 *
+	 * @deprecated
+	 * In DOM Level 4.
+	 * @param {string} name
+	 * The name of the entity to reference. No namespace well-formedness checks are performed.
+	 * @returns {EntityReference}
+	 * @throws {DOMException}
+	 * With code `INVALID_CHARACTER_ERR` when `name` is not a valid XML `Name`.
+	 * @throws {DOMException}
+	 * with code `NOT_SUPPORTED_ERR` when the document is of type `html`
+	 * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-392B75AE
+	 */
+	createEntityReference: function (name) {
+		if (!g.Name_exact.test(name)) {
+			throw new DOMException(DOMException.INVALID_CHARACTER_ERR, 'not a valid xml name "' + name + '"');
+		}
+		if (this.type === 'html') {
+			throw new DOMException('document is an html document', DOMExceptionName.NotSupportedError);
+		}
+
+		var node = new EntityReference(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		node.nodeName = name;
+		return node;
+	},
+	// Introduced in DOM Level 2:
+	/**
+	 * @param {string} namespaceURI
+	 * @param {string} qualifiedName
+	 * @returns {Element}
+	 */
+	createElementNS: function (namespaceURI, qualifiedName) {
+		var validated = validateAndExtract(namespaceURI, qualifiedName);
+		var node = new Element(PDC);
+		var attrs = (node.attributes = new NamedNodeMap());
+		node.childNodes = new NodeList();
+		node.ownerDocument = this;
+		node.nodeName = qualifiedName;
+		node.tagName = qualifiedName;
+		node.namespaceURI = validated[0];
+		node.prefix = validated[1];
+		node.localName = validated[2];
+		attrs._ownerElement = node;
+		return node;
+	},
+	// Introduced in DOM Level 2:
+	/**
+	 * @param {string} namespaceURI
+	 * @param {string} qualifiedName
+	 * @returns {Attr}
+	 */
+	createAttributeNS: function (namespaceURI, qualifiedName) {
+		var validated = validateAndExtract(namespaceURI, qualifiedName);
+		var node = new Attr(PDC);
+		node.ownerDocument = this;
+		node.childNodes = new NodeList();
+		node.nodeName = qualifiedName;
+		node.name = qualifiedName;
+		node.specified = true;
+		node.namespaceURI = validated[0];
+		node.prefix = validated[1];
+		node.localName = validated[2];
+		return node;
+	},
+};
+_extends(Document, Node);
+
+function Element(symbol) {
+	checkSymbol(symbol);
+
+	this._nsMap = Object.create(null);
+}
+Element.prototype = {
+	nodeType: ELEMENT_NODE,
+	/**
+	 * The attributes of this element.
+	 *
+	 * @type {NamedNodeMap | null}
+	 */
+	attributes: null,
+	getQualifiedName: function () {
+		return this.prefix ? this.prefix + ':' + this.localName : this.localName;
+	},
+	_isInHTMLDocumentAndNamespace: function () {
+		return this.ownerDocument.type === 'html' && this.namespaceURI === NAMESPACE.HTML;
+	},
+	/**
+	 * Implementaton of Level2 Core function hasAttributes.
+	 *
+	 * @returns {boolean}
+	 * True if attribute list is not empty.
+	 * @see https://www.w3.org/TR/DOM-Level-2-Core/#core-ID-NodeHasAttrs
+	 */
+	hasAttributes: function () {
+		return !!(this.attributes && this.attributes.length);
+	},
+	hasAttribute: function (name) {
+		return !!this.getAttributeNode(name);
+	},
+	/**
+	 * Returns element’s first attribute whose qualified name is `name`, and `null`
+	 * if there is no such attribute.
+	 *
+	 * @param {string} name
+	 * @returns {string | null}
+	 */
+	getAttribute: function (name) {
+		var attr = this.getAttributeNode(name);
+		return attr ? attr.value : null;
+	},
+	getAttributeNode: function (name) {
+		if (this._isInHTMLDocumentAndNamespace()) {
+			name = name.toLowerCase();
+		}
+		return this.attributes.getNamedItem(name);
+	},
+	/**
+	 * Sets the value of element’s first attribute whose qualified name is qualifiedName to value.
+	 *
+	 * @param {string} name
+	 * @param {string} value
+	 */
+	setAttribute: function (name, value) {
+		if (this._isInHTMLDocumentAndNamespace()) {
+			name = name.toLowerCase();
+		}
+		var attr = this.getAttributeNode(name);
+		if (attr) {
+			attr.value = attr.nodeValue = '' + value;
+		} else {
+			attr = this.ownerDocument._createAttribute(name);
+			attr.value = attr.nodeValue = '' + value;
+			this.setAttributeNode(attr);
+		}
+	},
+	removeAttribute: function (name) {
+		var attr = this.getAttributeNode(name);
+		attr && this.removeAttributeNode(attr);
+	},
+	setAttributeNode: function (newAttr) {
+		return this.attributes.setNamedItem(newAttr);
+	},
+	setAttributeNodeNS: function (newAttr) {
+		return this.attributes.setNamedItemNS(newAttr);
+	},
+	removeAttributeNode: function (oldAttr) {
+		//console.log(this == oldAttr.ownerElement)
+		return this.attributes.removeNamedItem(oldAttr.nodeName);
+	},
+	//get real attribute name,and remove it by removeAttributeNode
+	removeAttributeNS: function (namespaceURI, localName) {
+		var old = this.getAttributeNodeNS(namespaceURI, localName);
+		old && this.removeAttributeNode(old);
+	},
+
+	hasAttributeNS: function (namespaceURI, localName) {
+		return this.getAttributeNodeNS(namespaceURI, localName) != null;
+	},
+	/**
+	 * Returns element’s attribute whose namespace is `namespaceURI` and local name is
+	 * `localName`,
+	 * or `null` if there is no such attribute.
+	 *
+	 * @param {string} namespaceURI
+	 * @param {string} localName
+	 * @returns {string | null}
+	 */
+	getAttributeNS: function (namespaceURI, localName) {
+		var attr = this.getAttributeNodeNS(namespaceURI, localName);
+		return attr ? attr.value : null;
+	},
+	/**
+	 * Sets the value of element’s attribute whose namespace is `namespaceURI` and local name is
+	 * `localName` to value.
+	 *
+	 * @param {string} namespaceURI
+	 * @param {string} qualifiedName
+	 * @param {string} value
+	 * @see https://dom.spec.whatwg.org/#dom-element-setattributens
+	 */
+	setAttributeNS: function (namespaceURI, qualifiedName, value) {
+		var validated = validateAndExtract(namespaceURI, qualifiedName);
+		var localName = validated[2];
+		var attr = this.getAttributeNodeNS(namespaceURI, localName);
+		if (attr) {
+			attr.value = attr.nodeValue = '' + value;
+		} else {
+			attr = this.ownerDocument.createAttributeNS(namespaceURI, qualifiedName);
+			attr.value = attr.nodeValue = '' + value;
+			this.setAttributeNode(attr);
+		}
+	},
+	getAttributeNodeNS: function (namespaceURI, localName) {
+		return this.attributes.getNamedItemNS(namespaceURI, localName);
+	},
+
+	/**
+	 * Returns a LiveNodeList of all child elements which have **all** of the given class name(s).
+	 *
+	 * Returns an empty list if `classNames` is an empty string or only contains HTML white space
+	 * characters.
+	 *
+	 * Warning: This returns a live LiveNodeList.
 	 * Changes in the DOM will reflect in the array as the changes occur.
 	 * If an element selected by this array no longer qualifies for the selector,
 	 * it will automatically be removed. Be aware of this for iteration purposes.
 	 *
-	 * @param {string} classNames is a string representing the class name(s) to match; multiple class names are separated by (ASCII-)whitespace
-	 *
+	 * @param {string} classNames
+	 * Is a string representing the class name(s) to match; multiple class names are separated by
+	 * (ASCII-)whitespace.
+	 * @see https://developer.mozilla.org/en-US/docs/Web/API/Element/getElementsByClassName
 	 * @see https://developer.mozilla.org/en-US/docs/Web/API/Document/getElementsByClassName
 	 * @see https://dom.spec.whatwg.org/#concept-getelementsbyclassname
 	 */
-	getElementsByClassName: function(classNames) {
-		var classNamesSet = toOrderedSet(classNames)
-		return new LiveNodeList(this, function(base) {
+	getElementsByClassName: function (classNames) {
+		var classNamesSet = toOrderedSet(classNames);
+		return new LiveNodeList(this, function (base) {
 			var ls = [];
 			if (classNamesSet.length > 0) {
-				_visitNode(base.documentElement, function(node) {
-					if(node !== base && node.nodeType === ELEMENT_NODE) {
-						var nodeClassNames = node.getAttribute('class')
+				_visitNode(base, function (node) {
+					if (node !== base && node.nodeType === ELEMENT_NODE) {
+						var nodeClassNames = node.getAttribute('class');
 						// can be null if the attribute does not exist
 						if (nodeClassNames) {
 							// before splitting and iterating just compare them for the most common case
 							var matches = classNames === nodeClassNames;
 							if (!matches) {
-								var nodeClassNamesSet = toOrderedSet(nodeClassNames)
-								matches = classNamesSet.every(arrayIncludes(nodeClassNamesSet))
+								var nodeClassNamesSet = toOrderedSet(nodeClassNames);
+								matches = classNamesSet.every(arrayIncludes(nodeClassNamesSet));
 							}
-							if(matches) {
+							if (matches) {
 								ls.push(node);
 							}
 						}
@@ -23308,410 +25336,333 @@ Document.prototype = {
 		});
 	},
 
-	//document factory method:
-	createElement :	function(tagName){
-		var node = new Element();
-		node.ownerDocument = this;
-		node.nodeName = tagName;
-		node.tagName = tagName;
-		node.localName = tagName;
-		node.childNodes = new NodeList();
-		var attrs	= node.attributes = new NamedNodeMap();
-		attrs._ownerElement = node;
-		return node;
-	},
-	createDocumentFragment :	function(){
-		var node = new DocumentFragment();
-		node.ownerDocument = this;
-		node.childNodes = new NodeList();
-		return node;
-	},
-	createTextNode :	function(data){
-		var node = new Text();
-		node.ownerDocument = this;
-		node.appendData(data)
-		return node;
-	},
-	createComment :	function(data){
-		var node = new Comment();
-		node.ownerDocument = this;
-		node.appendData(data)
-		return node;
-	},
 	/**
-	 * Returns a new CDATASection node whose data is `data`.
+	 * Returns a LiveNodeList of elements with the given qualifiedName.
+	 * Searching for all descendants can be done by passing `*` as `qualifiedName`.
 	 *
-	 * __This implementation differs from the specification:__
-	 * - calling this method on an HTML document does not throw `NotSupportedError`.
+	 * All descendants of the specified element are searched, but not the element itself.
+	 * The returned list is live, which means it updates itself with the DOM tree automatically.
+	 * Therefore, there is no need to call `Element.getElementsByTagName()`
+	 * with the same element and arguments repeatedly if the DOM changes in between calls.
 	 *
-	 * @param {string} data
-	 * @returns {CDATASection}
-	 * @throws DOMException with code `INVALID_CHARACTER_ERR` if `data` contains `"]]>"`.
-	 * @see https://developer.mozilla.org/en-US/docs/Web/API/Document/createCDATASection
-	 * @see https://dom.spec.whatwg.org/#dom-document-createcdatasection
+	 * When called on an HTML element in an HTML document,
+	 * `getElementsByTagName` lower-cases the argument before searching for it.
+	 * This is undesirable when trying to match camel-cased SVG elements (such as
+	 * `<linearGradient>`) in an HTML document.
+	 * Instead, use `Element.getElementsByTagNameNS()`,
+	 * which preserves the capitalization of the tag name.
+	 *
+	 * `Element.getElementsByTagName` is similar to `Document.getElementsByTagName()`,
+	 * except that it only searches for elements that are descendants of the specified element.
+	 *
+	 * @param {string} qualifiedName
+	 * @returns {LiveNodeList}
+	 * @see https://developer.mozilla.org/en-US/docs/Web/API/Element/getElementsByTagName
+	 * @see https://dom.spec.whatwg.org/#concept-getelementsbytagname
 	 */
-	createCDATASection :	function(data){
-		if (data.indexOf(']]>') !== -1) {
-			throw new DOMException(INVALID_CHARACTER_ERR, 'data contains "]]>"');
-		}
-		var node = new CDATASection();
-		node.ownerDocument = this;
-		node.appendData(data)
-		return node;
-	},
-	/**
-	 * Returns a ProcessingInstruction node whose target is target and data is data.
-	 *
-	 * __This implementation differs from the specification:__
-	 * - it does not do any input validation on the arguments and doesn't throw "InvalidCharacterError".
-	 *
-	 * Note: When the resulting document is serialized with `requireWellFormed: true`, the
-	 * serializer throws with code `INVALID_STATE_ERR` if `.data` contains `?>` (W3C DOM Parsing
-	 * §3.2.1.7). Without that option the data is emitted verbatim.
-	 *
-	 * @param {string} target
-	 * @param {string} data
-	 * @returns {ProcessingInstruction}
-	 * @see https://developer.mozilla.org/docs/Web/API/Document/createProcessingInstruction
-	 * @see https://dom.spec.whatwg.org/#dom-document-createprocessinginstruction
-	 * @see https://www.w3.org/TR/DOM-Parsing/#dfn-concept-serialize-xml §3.2.1.7
-	 */
-	createProcessingInstruction :	function(target,data){
-		var node = new ProcessingInstruction();
-		node.ownerDocument = this;
-		node.tagName = node.nodeName = node.target = target;
-		node.nodeValue = node.data = data;
-		return node;
-	},
-	createAttribute :	function(name){
-		var node = new Attr();
-		node.ownerDocument	= this;
-		node.name = name;
-		node.nodeName	= name;
-		node.localName = name;
-		node.specified = true;
-		return node;
-	},
-	createEntityReference :	function(name){
-		var node = new EntityReference();
-		node.ownerDocument	= this;
-		node.nodeName	= name;
-		return node;
-	},
-	// Introduced in DOM Level 2:
-	createElementNS :	function(namespaceURI,qualifiedName){
-		var node = new Element();
-		var pl = qualifiedName.split(':');
-		var attrs	= node.attributes = new NamedNodeMap();
-		node.childNodes = new NodeList();
-		node.ownerDocument = this;
-		node.nodeName = qualifiedName;
-		node.tagName = qualifiedName;
-		node.namespaceURI = namespaceURI;
-		if(pl.length == 2){
-			node.prefix = pl[0];
-			node.localName = pl[1];
-		}else{
-			//el.prefix = null;
-			node.localName = qualifiedName;
-		}
-		attrs._ownerElement = node;
-		return node;
-	},
-	// Introduced in DOM Level 2:
-	createAttributeNS :	function(namespaceURI,qualifiedName){
-		var node = new Attr();
-		var pl = qualifiedName.split(':');
-		node.ownerDocument = this;
-		node.nodeName = qualifiedName;
-		node.name = qualifiedName;
-		node.namespaceURI = namespaceURI;
-		node.specified = true;
-		if(pl.length == 2){
-			node.prefix = pl[0];
-			node.localName = pl[1];
-		}else{
-			//el.prefix = null;
-			node.localName = qualifiedName;
-		}
-		return node;
-	}
-};
-_extends(Document,Node);
-
-
-function Element() {
-	this._nsMap = {};
-};
-Element.prototype = {
-	nodeType : ELEMENT_NODE,
-	hasAttribute : function(name){
-		return this.getAttributeNode(name)!=null;
-	},
-	getAttribute : function(name){
-		var attr = this.getAttributeNode(name);
-		return attr && attr.value || '';
-	},
-	getAttributeNode : function(name){
-		return this.attributes.getNamedItem(name);
-	},
-	setAttribute : function(name, value){
-		var attr = this.ownerDocument.createAttribute(name);
-		attr.value = attr.nodeValue = "" + value;
-		this.setAttributeNode(attr)
-	},
-	removeAttribute : function(name){
-		var attr = this.getAttributeNode(name)
-		attr && this.removeAttributeNode(attr);
-	},
-
-	//four real opeartion method
-	appendChild:function(newChild){
-		if(newChild.nodeType === DOCUMENT_FRAGMENT_NODE){
-			return this.insertBefore(newChild,null);
-		}else{
-			return _appendSingleChild(this,newChild);
-		}
-	},
-	setAttributeNode : function(newAttr){
-		return this.attributes.setNamedItem(newAttr);
-	},
-	setAttributeNodeNS : function(newAttr){
-		return this.attributes.setNamedItemNS(newAttr);
-	},
-	removeAttributeNode : function(oldAttr){
-		//console.log(this == oldAttr.ownerElement)
-		return this.attributes.removeNamedItem(oldAttr.nodeName);
-	},
-	//get real attribute name,and remove it by removeAttributeNode
-	removeAttributeNS : function(namespaceURI, localName){
-		var old = this.getAttributeNodeNS(namespaceURI, localName);
-		old && this.removeAttributeNode(old);
-	},
-
-	hasAttributeNS : function(namespaceURI, localName){
-		return this.getAttributeNodeNS(namespaceURI, localName)!=null;
-	},
-	getAttributeNS : function(namespaceURI, localName){
-		var attr = this.getAttributeNodeNS(namespaceURI, localName);
-		return attr && attr.value || '';
-	},
-	setAttributeNS : function(namespaceURI, qualifiedName, value){
-		var attr = this.ownerDocument.createAttributeNS(namespaceURI, qualifiedName);
-		attr.value = attr.nodeValue = "" + value;
-		this.setAttributeNode(attr)
-	},
-	getAttributeNodeNS : function(namespaceURI, localName){
-		return this.attributes.getNamedItemNS(namespaceURI, localName);
-	},
-
-	getElementsByTagName : function(tagName){
-		return new LiveNodeList(this,function(base){
+	getElementsByTagName: function (qualifiedName) {
+		var isHTMLDocument = (this.nodeType === DOCUMENT_NODE ? this : this.ownerDocument).type === 'html';
+		var lowerQualifiedName = qualifiedName.toLowerCase();
+		return new LiveNodeList(this, function (base) {
 			var ls = [];
-			_visitNode(base,function(node){
-				if(node !== base && node.nodeType == ELEMENT_NODE && (tagName === '*' || node.tagName == tagName)){
+			_visitNode(base, function (node) {
+				if (node === base || node.nodeType !== ELEMENT_NODE) {
+					return;
+				}
+				if (qualifiedName === '*') {
+					ls.push(node);
+				} else {
+					var nodeQualifiedName = node.getQualifiedName();
+					var matchingQName = isHTMLDocument && node.namespaceURI === NAMESPACE.HTML ? lowerQualifiedName : qualifiedName;
+					if (nodeQualifiedName === matchingQName) {
+						ls.push(node);
+					}
+				}
+			});
+			return ls;
+		});
+	},
+	getElementsByTagNameNS: function (namespaceURI, localName) {
+		return new LiveNodeList(this, function (base) {
+			var ls = [];
+			_visitNode(base, function (node) {
+				if (
+					node !== base &&
+					node.nodeType === ELEMENT_NODE &&
+					(namespaceURI === '*' || node.namespaceURI === namespaceURI) &&
+					(localName === '*' || node.localName == localName)
+				) {
 					ls.push(node);
 				}
 			});
 			return ls;
 		});
 	},
-	getElementsByTagNameNS : function(namespaceURI, localName){
-		return new LiveNodeList(this,function(base){
-			var ls = [];
-			_visitNode(base,function(node){
-				if(node !== base && node.nodeType === ELEMENT_NODE && (namespaceURI === '*' || node.namespaceURI === namespaceURI) && (localName === '*' || node.localName == localName)){
-					ls.push(node);
-				}
-			});
-			return ls;
-
-		});
-	}
 };
+Document.prototype.getElementsByClassName = Element.prototype.getElementsByClassName;
 Document.prototype.getElementsByTagName = Element.prototype.getElementsByTagName;
 Document.prototype.getElementsByTagNameNS = Element.prototype.getElementsByTagNameNS;
 
+_extends(Element, Node);
+function Attr(symbol) {
+	checkSymbol(symbol);
 
-_extends(Element,Node);
-function Attr() {
-};
+	this.namespaceURI = null;
+	this.prefix = null;
+	this.ownerElement = null;
+}
 Attr.prototype.nodeType = ATTRIBUTE_NODE;
-_extends(Attr,Node);
+_extends(Attr, Node);
 
-
-function CharacterData() {
-};
+function CharacterData(symbol) {
+	checkSymbol(symbol);
+}
 CharacterData.prototype = {
-	data : '',
-	substringData : function(offset, count) {
-		return this.data.substring(offset, offset+count);
+	data: '',
+	substringData: function (offset, count) {
+		return this.data.substring(offset, offset + count);
 	},
-	appendData: function(text) {
-		text = this.data+text;
+	appendData: function (text) {
+		text = this.data + text;
 		this.nodeValue = this.data = text;
 		this.length = text.length;
 	},
-	insertData: function(offset,text) {
-		this.replaceData(offset,0,text);
-
+	insertData: function (offset, text) {
+		this.replaceData(offset, 0, text);
 	},
-	appendChild:function(newChild){
-		throw new Error(ExceptionMessage[HIERARCHY_REQUEST_ERR])
+	deleteData: function (offset, count) {
+		this.replaceData(offset, count, '');
 	},
-	deleteData: function(offset, count) {
-		this.replaceData(offset,count,"");
-	},
-	replaceData: function(offset, count, text) {
-		var start = this.data.substring(0,offset);
-		var end = this.data.substring(offset+count);
+	replaceData: function (offset, count, text) {
+		var start = this.data.substring(0, offset);
+		var end = this.data.substring(offset + count);
 		text = start + text + end;
 		this.nodeValue = this.data = text;
 		this.length = text.length;
-	}
-}
-_extends(CharacterData,Node);
-function Text() {
+	},
 };
+_extends(CharacterData, Node);
+function Text(symbol) {
+	checkSymbol(symbol);
+}
 Text.prototype = {
-	nodeName : "#text",
-	nodeType : TEXT_NODE,
-	splitText : function(offset) {
+	nodeName: '#text',
+	nodeType: TEXT_NODE,
+	splitText: function (offset) {
 		var text = this.data;
 		var newText = text.substring(offset);
 		text = text.substring(0, offset);
 		this.data = this.nodeValue = text;
 		this.length = text.length;
 		var newNode = this.ownerDocument.createTextNode(newText);
-		if(this.parentNode){
+		if (this.parentNode) {
 			this.parentNode.insertBefore(newNode, this.nextSibling);
 		}
 		return newNode;
-	}
-}
-_extends(Text,CharacterData);
-function Comment() {
+	},
 };
+_extends(Text, CharacterData);
+function Comment(symbol) {
+	checkSymbol(symbol);
+}
 Comment.prototype = {
-	nodeName : "#comment",
-	nodeType : COMMENT_NODE
-}
-_extends(Comment,CharacterData);
-
-function CDATASection() {
+	nodeName: '#comment',
+	nodeType: COMMENT_NODE,
 };
-CDATASection.prototype = {
-	nodeName : "#cdata-section",
-	nodeType : CDATA_SECTION_NODE
-}
-_extends(CDATASection,CharacterData);
+_extends(Comment, CharacterData);
 
+function CDATASection(symbol) {
+	checkSymbol(symbol);
+}
+CDATASection.prototype = {
+	nodeName: '#cdata-section',
+	nodeType: CDATA_SECTION_NODE,
+};
+_extends(CDATASection, Text);
 
 /**
- * Represents a DocumentType node (the `<!DOCTYPE ...>` declaration).
+ * @class DocumentType
+ * @augments Node
+ * @property {string} name
+ * The doctype name, stored verbatim. Declared `readonly` by the WHATWG DOM spec; xmldom does
+ * not enforce this constraint — direct property writes succeed and the written value is
+ * serialized verbatim. When serialized with `requireWellFormed: true`, the serializer
+ * validates the value against the XML `Name` production and throws `InvalidStateError` if it
+ * does not match.
+ * @property {string} publicId
+ * The external subset public identifier, stored verbatim (including surrounding quotes).
+ * Declared `readonly` by the WHATWG DOM spec; xmldom does not enforce this constraint —
+ * direct property writes succeed and the written value is serialized verbatim.
+ * When serialized with `requireWellFormed: true`, the serializer validates the value against
+ * the XML `PubidLiteral` production and throws `InvalidStateError` if it does not match.
+ * @property {string} systemId
+ * The external subset system identifier, stored verbatim (including surrounding quotes).
+ * Declared `readonly` by the WHATWG DOM spec; xmldom does not enforce this constraint —
+ * direct property writes succeed and the written value is serialized verbatim.
+ * When serialized with `requireWellFormed: true`, the serializer validates the value against
+ * the XML `SystemLiteral` production and throws `InvalidStateError` if it does not match.
+ * @property {string} internalSubset
+ * The internal subset string (the raw content between `[` and `]`), or an empty string.
+ * Declared `readonly` by the WHATWG DOM spec; xmldom does not enforce this constraint —
+ * direct property writes succeed and the written value is serialized verbatim.
+ * When serialized with `requireWellFormed: true`, the serializer throws `InvalidStateError`
+ * if the value contains `"]>"`.
+ * @see https://developer.mozilla.org/docs/Web/API/DocumentType MDN
+ * @see https://dom.spec.whatwg.org/#interface-documenttype WHATWG DOM
+ * @prettierignore
+ */
+function DocumentType(symbol) {
+	checkSymbol(symbol);
+}
+DocumentType.prototype.nodeType = DOCUMENT_TYPE_NODE;
+_extends(DocumentType, Node);
+
+function Notation(symbol) {
+	checkSymbol(symbol);
+}
+Notation.prototype.nodeType = NOTATION_NODE;
+_extends(Notation, Node);
+
+function Entity(symbol) {
+	checkSymbol(symbol);
+}
+Entity.prototype.nodeType = ENTITY_NODE;
+_extends(Entity, Node);
+
+/**
+ * Represents an EntityReference node, serialized as `&nodeName;`.
  *
- * `publicId`, `systemId`, and `internalSubset` are plain own-property assignments.
- * xmldom does not enforce the `readonly` constraint declared by the WHATWG DOM spec —
- * direct property writes succeed silently. Values are serialized verbatim when
- * `requireWellFormed` is false (the default). When the serializer is invoked with
- * `requireWellFormed: true` (via the 4th-parameter options object), it validates each
- * field and throws `DOMException` with code `INVALID_STATE_ERR` on invalid values.
+ * `nodeName` is the referenced entity's name, stored verbatim. When serialized with
+ * `requireWellFormed: true`, the serializer validates `nodeName` against the XML `Name`
+ * production and throws `InvalidStateError` if it does not match; without that option the name
+ * is emitted verbatim between `&` and `;`.
+ *
+ * __This implementation differs from the specification:__ xmldom does not expand entities —
+ * the parser resolves entity references inline and never constructs `EntityReference` nodes,
+ * so the only producer is {@link Document#createEntityReference}.
  *
  * @class
- * @see https://developer.mozilla.org/en-US/docs/Web/API/DocumentType MDN
+ * @see https://www.w3.org/TR/xml/#NT-Name
  */
-function DocumentType() {
-};
-DocumentType.prototype.nodeType = DOCUMENT_TYPE_NODE;
-_extends(DocumentType,Node);
-
-function Notation() {
-};
-Notation.prototype.nodeType = NOTATION_NODE;
-_extends(Notation,Node);
-
-function Entity() {
-};
-Entity.prototype.nodeType = ENTITY_NODE;
-_extends(Entity,Node);
-
-function EntityReference() {
-};
+function EntityReference(symbol) {
+	checkSymbol(symbol);
+}
 EntityReference.prototype.nodeType = ENTITY_REFERENCE_NODE;
-_extends(EntityReference,Node);
+_extends(EntityReference, Node);
 
-function DocumentFragment() {
-};
-DocumentFragment.prototype.nodeName =	"#document-fragment";
-DocumentFragment.prototype.nodeType =	DOCUMENT_FRAGMENT_NODE;
-_extends(DocumentFragment,Node);
+function DocumentFragment(symbol) {
+	checkSymbol(symbol);
+}
+DocumentFragment.prototype.nodeName = '#document-fragment';
+DocumentFragment.prototype.nodeType = DOCUMENT_FRAGMENT_NODE;
+_extends(DocumentFragment, Node);
 
-
-function ProcessingInstruction() {
+function ProcessingInstruction(symbol) {
+	checkSymbol(symbol);
 }
 ProcessingInstruction.prototype.nodeType = PROCESSING_INSTRUCTION_NODE;
-_extends(ProcessingInstruction,Node);
-function XMLSerializer(){}
+_extends(ProcessingInstruction, CharacterData);
+function XMLSerializer() {}
 /**
  * Returns the result of serializing `node` to XML.
  *
- * When `options.requireWellFormed` is `true`, the serializer throws for content that would
- * produce ill-formed XML.
+ * When `options.requireWellFormed` is `true`, the serializer throws `InvalidStateError` for
+ * content that would produce ill-formed XML (e.g. CDATASection data containing `"]]>"`, Text
+ * data containing characters outside the XML Char production, or a Document with no
+ * `documentElement`).
  *
- * __This implementation differs from the specification:__
- * - CDATASection nodes whose data contains `]]>` are serialized by splitting the section
- *   at each `]]>` occurrence (following W3C DOM Level 3 Core `split-cdata-sections`
- *   default behaviour) unless `requireWellFormed` is `true`.
- * - when `requireWellFormed` is `true`, `DOMException` with code `INVALID_STATE_ERR`
- *   is only thrown to prevent injection vectors, not for all the spec mandated checks.
+ * When `options.splitCDATASections` is `false`, CDATASection data is emitted verbatim even
+ * when it contains `"]]>"`. When `true` (the default), `"]]>"` sequences are split across
+ * concatenated CDATA sections — this behavior is **deprecated** and will be removed in the
+ * next breaking release. Callers should migrate to `{ requireWellFormed: true }`, which throws
+ * `InvalidStateError` instead of transforming.
+ *
+ * __This implementation differs from the specification:__ - CDATASection serialization is not
+ * specified by W3C DOM Parsing or WHATWG DOM Parsing (see
+ * {@link https://github.com/w3c/DOM-Parsing/issues/38 w3c/DOM-Parsing#38}).
+ * When `splitCDATASections` is `true` (the default), `"]]>"` sequences in CDATASection data
+ * are split across concatenated CDATA sections — this mechanism is derived from DOM Level 3
+ * Core and is **deprecated**. The split mechanics will be removed in the next breaking
+ * release. Callers that rely on this behavior should migrate to `{ requireWellFormed: true }`.
+ * - W3C DOM Parsing §3.2.1.1 requires well-formedness checks on Element `localName`s,
+ * prefixes,
+ * and attribute serialization (duplicate attributes, namespace declarations, attribute value
+ * characters) when `requireWellFormed` is `true`. Element and attribute qualified names (which
+ * cover the namespace prefix) are validated against the XML `QName` production; the remaining
+ * §3.2.1.1 checks (duplicate attributes, namespace-declaration consistency) and creation-time
+ * name validation are **not implemented** in this release — see the tracking issue filed
+ * against the next breaking milestone.
  *
  * @param {Node} node
- * @param {boolean} [isHtml]
- * @param {function} [nodeFilter]
- * @param {Object} [options]
+ * @param {Object | function} [options]
+ * Options object, or a legacy nodeFilter function (backward compatible).
  * @param {boolean} [options.requireWellFormed=false]
- * When `true`, throws for content that would produce ill-formed XML.
+ * When `true`, throws `InvalidStateError` for content that would produce ill-formed XML.
+ * @param {boolean} [options.splitCDATASections=true]
+ * When `true` (default), splits `"]]>"` sequences in CDATASection data across concatenated
+ * CDATA sections. **Deprecated** — will be removed in the next breaking release.
+ * @param {function} [options.nodeFilter]
+ * A filter function applied to each node before serialization.
  * @returns {string}
  * @throws {DOMException}
- * With code `INVALID_STATE_ERR` when `requireWellFormed` is `true` and:
- * - a CDATASection node's data contains `"]]>"`,
- * - a Comment node's data contains `"-->"` (bare `"--"` does not throw on this branch),
- * - a ProcessingInstruction's data contains `"?>"`,
+ * With name `InvalidStateError` when `requireWellFormed` is `true` and any of the following
+ * conditions hold:
+ * - an Element's qualified name (including any namespace prefix) is not a valid XML QName
+ * - an attribute's qualified name (including a synthesized `xmlns:` namespace declaration) is
+ * not a valid XML QName
+ * - CDATASection data contains `"]]>"`
+ * - Text data contains characters outside the XML Char production
+ * - a Comment node's data contains `--` anywhere or ends with `-`
+ * - a ProcessingInstruction's target is not a valid XML `NCName` (a `Name` with no colon) or is
+ * an ASCII case-insensitive match for `"xml"`, or its data contains `?>` or characters outside
+ * the XML Char production
+ * - a DocumentType's `name` is not a valid XML `Name` (XML 1.0 production [5])
  * - a DocumentType's `publicId` is non-empty and does not match the XML `PubidLiteral`
- *   production,
+ * production (W3C DOM Parsing §3.2.1.3; XML 1.0 production [12])
  * - a DocumentType's `systemId` is non-empty and does not match the XML `SystemLiteral`
- *   production, or
- * - a DocumentType's `internalSubset` contains `"]>"`.
- * Note: xmldom does not enforce `readonly` on DocumentType fields — direct property
- * writes succeed and are covered by the serializer-level checks above.
+ * production (W3C DOM Parsing §3.2.1.3; XML 1.0 production [11])
+ * - a DocumentType's `internalSubset` contains `"]>"`
+ * - an EntityReference's `nodeName` is not a valid XML `Name` (XML 1.0 production [5])
+ * - the Document has no `documentElement`
+ * @see https://developer.mozilla.org/docs/Web/API/XMLSerializer/serializeToString
  * @see https://html.spec.whatwg.org/#dom-xmlserializer-serializetostring
- * @see https://w3c.github.io/DOM-Parsing/#xml-serialization
  * @see https://github.com/w3c/DOM-Parsing/issues/84
+ * @prettierignore
  */
-XMLSerializer.prototype.serializeToString = function(node,isHtml,nodeFilter,options){
-	return nodeSerializeToString.call(node,isHtml,nodeFilter,options);
-}
+XMLSerializer.prototype.serializeToString = function (node, options) {
+	return nodeSerializeToString.call(node, options);
+};
 Node.prototype.toString = nodeSerializeToString;
-function nodeSerializeToString(isHtml,nodeFilter,options){
-	var requireWellFormed = !!options && !!options.requireWellFormed;
+function nodeSerializeToString(options) {
+	// Normalize the user-supplied options into a single internal opts object so that the
+	// internal serializer always works with a consistent shape rather than positional flags.
+	var opts;
+	if (typeof options === 'function') {
+		opts = { requireWellFormed: false, splitCDATASections: true, nodeFilter: options };
+	} else if (options != null) {
+		opts = {
+			requireWellFormed: !!options.requireWellFormed,
+			splitCDATASections: options.splitCDATASections !== false,
+			nodeFilter: options.nodeFilter || null,
+		};
+	} else {
+		opts = { requireWellFormed: false, splitCDATASections: true, nodeFilter: null };
+	}
 	var buf = [];
-	var refNode = this.nodeType == 9 && this.documentElement || this;
+	var refNode = (this.nodeType === DOCUMENT_NODE && this.documentElement) || this;
 	var prefix = refNode.prefix;
 	var uri = refNode.namespaceURI;
 
-	if(uri && prefix == null){
-		//console.log(prefix)
+	if (uri && prefix == null) {
 		var prefix = refNode.lookupPrefix(uri);
-		if(prefix == null){
-			//isHTML = true;
-			var visibleNamespaces=[
-			{namespace:uri,prefix:null}
-			//{namespace:uri,prefix:''}
-			]
+		if (prefix == null) {
+			var visibleNamespaces = [
+				{ namespace: uri, prefix: null },
+				//{namespace:uri,prefix:''}
+			];
 		}
 	}
-	serializeToString(this,buf,isHtml,nodeFilter,visibleNamespaces,requireWellFormed);
-	//console.log('###',this.nodeType,uri,prefix,buf.join(''))
+	serializeToString(this, buf, visibleNamespaces, opts);
 	return buf.join('');
 }
 
@@ -23728,11 +25679,11 @@ function needNamespaceDefine(node, isHTML, visibleNamespaces) {
 	if (!uri) {
 		return false;
 	}
-	if (prefix === "xml" && uri === NAMESPACE.XML || uri === NAMESPACE.XMLNS) {
+	if ((prefix === 'xml' && uri === NAMESPACE.XML) || uri === NAMESPACE.XMLNS) {
 		return false;
 	}
 
-	var i = visibleNamespaces.length
+	var i = visibleNamespaces.length;
 	while (i--) {
 		var ns = visibleNamespaces[i];
 		// get namespace prefix
@@ -23743,247 +25694,325 @@ function needNamespaceDefine(node, isHTML, visibleNamespaces) {
 	return true;
 }
 /**
- * Well-formed constraint: No < in Attribute Values
+ * Literal whitespace other than space that appear in attribute values are serialized as
+ * their entity references, so they will be preserved.
+ * (In contrast to whitespace literals in the input which are normalized to spaces).
+ *
+ * Well-formed constraint: No < in Attribute Values:
  * > The replacement text of any entity referred to directly or indirectly
  * > in an attribute value must not contain a <.
+ *
  * @see https://www.w3.org/TR/xml11/#CleanAttrVals
  * @see https://www.w3.org/TR/xml11/#NT-AttValue
- *
- * Literal whitespace other than space that appear in attribute values
- * are serialized as their entity references, so they will be preserved.
- * (In contrast to whitespace literals in the input which are normalized to spaces)
  * @see https://www.w3.org/TR/xml11/#AVNormalize
  * @see https://w3c.github.io/DOM-Parsing/#serializing-an-element-s-attributes
+ * @prettierignore
  */
-function addSerializedAttribute(buf, qualifiedName, value) {
-	buf.push(' ', qualifiedName, '="', value.replace(/[<>&"\t\n\r]/g, _xmlEncoder), '"')
+function addSerializedAttribute(buf, qualifiedName, value, requireWellFormed) {
+	if (requireWellFormed && !g.QName_exact.test(qualifiedName)) {
+		throw new DOMException(
+			'The attribute name "' + qualifiedName + '" is not a valid XML QName',
+			DOMExceptionName.InvalidStateError
+		);
+	}
+	buf.push(' ', qualifiedName, '="', value.replace(/[<>&"\t\n\r]/g, _xmlEncoder), '"');
 }
 
-function serializeToString(node, buf, isHTML, nodeFilter, visibleNamespaces, requireWellFormed) {
+function serializeToString(node, buf, visibleNamespaces, opts) {
 	if (!visibleNamespaces) {
 		visibleNamespaces = [];
 	}
-	walkDOM(node, { ns: visibleNamespaces, isHTML: isHTML }, {
-		enter: function (n, ctx) {
-			var ns = ctx.ns;
-			var html = ctx.isHTML;
+	var nodeFilter = opts.nodeFilter;
+	var requireWellFormed = opts.requireWellFormed;
+	var splitCDATASections = opts.splitCDATASections;
+	var doc = node.nodeType === DOCUMENT_NODE ? node : node.ownerDocument;
+	var isHTML = doc.type === 'html';
 
-			if (nodeFilter) {
-				n = nodeFilter(n);
-				if (n) {
-					if (typeof n == 'string') {
-						buf.push(n);
+	walkDOM(
+		node,
+		{ ns: visibleNamespaces },
+		{
+			enter: function (n, ctx) {
+				var namespaces = ctx.ns;
+
+				if (nodeFilter) {
+					n = nodeFilter(n);
+					if (n) {
+						if (typeof n == 'string') {
+							buf.push(n);
+							return null;
+						}
+					} else {
 						return null;
 					}
-				} else {
-					return null;
 				}
-			}
 
-			switch (n.nodeType) {
-				case ELEMENT_NODE:
-					var attrs = n.attributes;
-					var len = attrs.length;
-					var nodeName = n.tagName;
+				switch (n.nodeType) {
+					case ELEMENT_NODE:
+						var attrs = n.attributes;
+						var len = attrs.length;
+						var nodeName = n.tagName;
 
-					html = NAMESPACE.isHTML(n.namespaceURI) || html;
-
-					var prefixedNodeName = nodeName;
-					if (!html && !n.prefix && n.namespaceURI) {
-						var defaultNS;
-						// lookup current default ns from `xmlns` attribute
-						for (var ai = 0; ai < attrs.length; ai++) {
-							if (attrs.item(ai).name === 'xmlns') {
-								defaultNS = attrs.item(ai).value;
-								break;
-							}
-						}
-						if (!defaultNS) {
-							// lookup current default ns in visibleNamespaces
-							for (var nsi = ns.length - 1; nsi >= 0; nsi--) {
-								var nsEntry = ns[nsi];
-								if (nsEntry.prefix === '' && nsEntry.namespace === n.namespaceURI) {
-									defaultNS = nsEntry.namespace;
+						var prefixedNodeName = nodeName;
+						if (!isHTML && !n.prefix && n.namespaceURI) {
+							var defaultNS;
+							// lookup current default ns from `xmlns` attribute
+							for (var ai = 0; ai < attrs.length; ai++) {
+								if (attrs.item(ai).name === 'xmlns') {
+									defaultNS = attrs.item(ai).value;
 									break;
 								}
 							}
-						}
-						if (defaultNS !== n.namespaceURI) {
-							for (var nsi = ns.length - 1; nsi >= 0; nsi--) {
-								var nsEntry = ns[nsi];
-								if (nsEntry.namespace === n.namespaceURI) {
-									if (nsEntry.prefix) {
-										prefixedNodeName = nsEntry.prefix + ':' + nodeName;
+							if (!defaultNS) {
+								// lookup current default ns in visibleNamespaces
+								for (var nsi = namespaces.length - 1; nsi >= 0; nsi--) {
+									var nsEntry = namespaces[nsi];
+									if (nsEntry.prefix === '' && nsEntry.namespace === n.namespaceURI) {
+										defaultNS = nsEntry.namespace;
+										break;
 									}
-									break;
+								}
+							}
+							if (defaultNS !== n.namespaceURI) {
+								for (var nsi = namespaces.length - 1; nsi >= 0; nsi--) {
+									var nsEntry = namespaces[nsi];
+									if (nsEntry.namespace === n.namespaceURI) {
+										if (nsEntry.prefix) {
+											prefixedNodeName = nsEntry.prefix + ':' + nodeName;
+										}
+										break;
+									}
 								}
 							}
 						}
-					}
 
-					buf.push('<', prefixedNodeName);
-
-					// Build a fresh namespace snapshot for this element's children.
-					// The slice prevents sibling elements from inheriting each other's declarations.
-					var childNs = ns.slice();
-					for (var i = 0; i < len; i++) {
-						var attr = attrs.item(i);
-						if (attr.prefix == 'xmlns') {
-							childNs.push({ prefix: attr.localName, namespace: attr.value });
-						} else if (attr.nodeName == 'xmlns') {
-							childNs.push({ prefix: '', namespace: attr.value });
+						if (requireWellFormed && !g.QName_exact.test(prefixedNodeName)) {
+							throw new DOMException(
+								'The element name "' + prefixedNodeName + '" is not a valid XML QName',
+								DOMExceptionName.InvalidStateError
+							);
 						}
-					}
 
-					for (var i = 0; i < len; i++) {
-						var attr = attrs.item(i);
-						if (needNamespaceDefine(attr, html, childNs)) {
-							var attrPrefix = attr.prefix || '';
-							var uri = attr.namespaceURI;
-							addSerializedAttribute(buf, attrPrefix ? 'xmlns:' + attrPrefix : 'xmlns', uri);
-							childNs.push({ prefix: attrPrefix, namespace: uri });
-						}
-						// Apply nodeFilter and serialize the attribute.
-						var filteredAttr = nodeFilter ? nodeFilter(attr) : attr;
-						if (filteredAttr) {
-							if (typeof filteredAttr === 'string') {
-								buf.push(filteredAttr);
-							} else {
-								addSerializedAttribute(buf, filteredAttr.name, filteredAttr.value);
+						buf.push('<', prefixedNodeName);
+
+						// Build a fresh namespace snapshot for this element's children.
+						// The slice prevents sibling elements from inheriting each other's declarations.
+						var childNamespaces = namespaces.slice();
+
+						for (var i = 0; i < len; i++) {
+							// add namespaces for attributes
+							var attr = attrs.item(i);
+							if (attr.prefix == 'xmlns') {
+								childNamespaces.push({
+									prefix: attr.localName,
+									namespace: attr.value,
+								});
+							} else if (attr.nodeName == 'xmlns') {
+								childNamespaces.push({ prefix: '', namespace: attr.value });
 							}
 						}
-					}
 
-					// add namespace for current node
-					if (nodeName === prefixedNodeName && needNamespaceDefine(n, html, childNs)) {
-						var nodePrefix = n.prefix || '';
-						var uri = n.namespaceURI;
-						addSerializedAttribute(buf, nodePrefix ? 'xmlns:' + nodePrefix : 'xmlns', uri);
-						childNs.push({ prefix: nodePrefix, namespace: uri });
-					}
+						for (var i = 0; i < len; i++) {
+							var attr = attrs.item(i);
+							if (needNamespaceDefine(attr, isHTML, childNamespaces)) {
+								var attrPrefix = attr.prefix || '';
+								var uri = attr.namespaceURI;
+								addSerializedAttribute(buf, attrPrefix ? 'xmlns:' + attrPrefix : 'xmlns', uri, requireWellFormed);
+								childNamespaces.push({ prefix: attrPrefix, namespace: uri });
+							}
+							// Apply nodeFilter and serialize the attribute.
+							var filteredAttr = nodeFilter ? nodeFilter(attr) : attr;
+							if (filteredAttr) {
+								if (typeof filteredAttr === 'string') {
+									buf.push(filteredAttr);
+								} else {
+									addSerializedAttribute(buf, filteredAttr.name, filteredAttr.value, requireWellFormed);
+								}
+							}
+						}
 
-					var child = n.firstChild;
-					if (child || html && !/^(?:meta|link|img|br|hr|input)$/i.test(nodeName)) {
+						// add namespace for current node
+						if (nodeName === prefixedNodeName && needNamespaceDefine(n, isHTML, childNamespaces)) {
+							var nodePrefix = n.prefix || '';
+							var uri = n.namespaceURI;
+							addSerializedAttribute(buf, nodePrefix ? 'xmlns:' + nodePrefix : 'xmlns', uri, requireWellFormed);
+							childNamespaces.push({ prefix: nodePrefix, namespace: uri });
+						}
+
+						// in XML elements can be closed when they have no children
+						var canCloseTag = !n.firstChild;
+						if (canCloseTag && (isHTML || n.namespaceURI === NAMESPACE.HTML)) {
+							// in HTML (doc or ns) only void elements can be closed right away
+							canCloseTag = isHTMLVoidElement(nodeName);
+						}
+						if (canCloseTag) {
+							buf.push('/>');
+							// Self-closing: no children and no closing tag needed from exit.
+							return null;
+						}
+
 						buf.push('>');
-						if (html && /^script$/i.test(nodeName)) {
-							// Inline serialization for <script> children; return null to skip walkDOM descent.
+
+						// HTML raw text elements: serialize children as raw data without further descent.
+						if (isHTML && isHTMLRawTextElement(nodeName)) {
+							var child = n.firstChild;
 							while (child) {
 								if (child.data) {
 									buf.push(child.data);
 								} else {
-									serializeToString(child, buf, html, nodeFilter, childNs.slice(), requireWellFormed);
+									serializeToString(child, buf, childNamespaces.slice(), opts);
 								}
 								child = child.nextSibling;
 							}
-							buf.push('</', nodeName, '>');
+							buf.push('</', prefixedNodeName, '>');
+							// Children handled manually above; prevent walkDOM from also traversing them.
 							return null;
 						}
-						// Return child context; walkDOM descends and exit emits the closing tag.
-						return { ns: childNs, isHTML: html, tag: prefixedNodeName };
-					} else {
-						buf.push('/>');
+
+						// Return child context so walkDOM descends; exit will emit the closing tag.
+						return { ns: childNamespaces, tag: prefixedNodeName };
+					case DOCUMENT_NODE:
+					case DOCUMENT_FRAGMENT_NODE:
+						if (requireWellFormed && n.nodeType === DOCUMENT_NODE && n.documentElement == null) {
+							throw new DOMException('The Document has no documentElement', DOMExceptionName.InvalidStateError);
+						}
+						// Pass namespaces through; each child element will slice independently.
+						return { ns: namespaces };
+					case ATTRIBUTE_NODE:
+						addSerializedAttribute(buf, n.name, n.value, requireWellFormed);
 						return null;
-					}
-
-				case DOCUMENT_NODE:
-				case DOCUMENT_FRAGMENT_NODE:
-					// Descend into children; exit is a no-op (tag is null).
-					return { ns: ns.slice(), isHTML: html, tag: null };
-
-				case ATTRIBUTE_NODE:
-					addSerializedAttribute(buf, n.name, n.value);
-					return null;
-
-				case TEXT_NODE:
-					/**
-					 * The ampersand character (&) and the left angle bracket (<) must not appear in their literal form,
-					 * except when used as markup delimiters, or within a comment, a processing instruction, or a CDATA section.
-					 * If they are needed elsewhere, they must be escaped using either numeric character references or the strings
-					 * `&amp;` and `&lt;` respectively.
-					 * The right angle bracket (>) may be represented using the string " &gt; ", and must, for compatibility,
-					 * be escaped using either `&gt;` or a character reference when it appears in the string `]]>` in content,
-					 * when that string is not marking the end of a CDATA section.
-					 *
-					 * In the content of elements, character data is any string of characters
-					 * which does not contain the start-delimiter of any markup
-					 * and does not include the CDATA-section-close delimiter, `]]>`.
-					 *
-					 * @see https://www.w3.org/TR/xml/#NT-CharData
-					 * @see https://w3c.github.io/DOM-Parsing/#xml-serializing-a-text-node
-					 */
-					buf.push(n.data.replace(/[<&>]/g, _xmlEncoder));
-					return null;
-
-				case CDATA_SECTION_NODE:
-					if (requireWellFormed && n.data.indexOf(']]>') !== -1) {
-						throw new DOMException(INVALID_STATE_ERR, 'The CDATASection data contains "]]>"');
-					}
-					buf.push('<![CDATA[', n.data.replace(/]]>/g, ']]]]><![CDATA[>'), ']]>');
-					return null;
-
-				case COMMENT_NODE:
-					if (requireWellFormed && n.data.indexOf('-->') !== -1) {
-						throw new DOMException(INVALID_STATE_ERR, 'The comment node data contains "-->"');
-					}
-					buf.push('<!--', n.data, '-->');
-					return null;
-
-				case DOCUMENT_TYPE_NODE:
-					if (requireWellFormed) {
-						if (n.publicId && !/^("[\x20\r\na-zA-Z0-9\-()+,.\/:=?;!*#@$_%']*"|'[\x20\r\na-zA-Z0-9\-()+,.\/:=?;!*#@$_%'"]*')$/.test(n.publicId)) {
-							throw new DOMException(INVALID_STATE_ERR, 'DocumentType publicId is not a valid PubidLiteral');
+					case TEXT_NODE:
+						/*
+						 * The ampersand character (&) and the left angle bracket (<) must not appear in their literal form,
+						 * except when used as markup delimiters, or within a comment, a processing instruction,
+						 * or a CDATA section.
+						 * If they are needed elsewhere, they must be escaped using either numeric character
+						 * references or the strings `&amp;` and `&lt;` respectively.
+						 * The right angle bracket (>) may be represented using the string " &gt; ",
+						 * and must, for compatibility, be escaped using either `&gt;`,
+						 * or a character reference when it appears in the string `]]>` in content,
+						 * when that string is not marking the end of a CDATA section.
+						 *
+						 * In the content of elements, character data is any string of characters which does not
+						 * contain the start-delimiter of any markup and does not include the CDATA-section-close
+						 * delimiter, `]]>`.
+						 *
+						 * @see https://www.w3.org/TR/xml/#NT-CharData
+						 * @see https://w3c.github.io/DOM-Parsing/#xml-serializing-a-text-node
+						 */
+						if (requireWellFormed && g.InvalidChar.test(n.data)) {
+							throw new DOMException(
+								'The Text node data contains characters outside the XML Char production',
+								DOMExceptionName.InvalidStateError
+							);
 						}
-						if (n.systemId && !/^("[^"]*"|'[^']*')$/.test(n.systemId)) {
-							throw new DOMException(INVALID_STATE_ERR, 'DocumentType systemId is not a valid SystemLiteral');
+						buf.push(n.data.replace(/[<&>]/g, _xmlEncoder));
+						return null;
+					case CDATA_SECTION_NODE:
+						if (requireWellFormed && n.data.indexOf(']]>') !== -1) {
+							throw new DOMException('The CDATASection data contains "]]>"', DOMExceptionName.InvalidStateError);
 						}
-						if (n.internalSubset && n.internalSubset.indexOf(']>') !== -1) {
-							throw new DOMException(INVALID_STATE_ERR, 'DocumentType internalSubset contains "]>"');
+						if (splitCDATASections) {
+							buf.push(g.CDATA_START, n.data.replace(/]]>/g, ']]]]><![CDATA[>'), g.CDATA_END);
+						} else {
+							buf.push(g.CDATA_START, n.data, g.CDATA_END);
 						}
-					}
-					var pubid = n.publicId;
-					var sysid = n.systemId;
-					buf.push('<!DOCTYPE ', n.name);
-					if (pubid) {
-						buf.push(' PUBLIC ', pubid);
-						if (sysid && sysid != '.') {
-							buf.push(' ', sysid);
+						return null;
+					case COMMENT_NODE:
+						if (requireWellFormed) {
+							if (g.InvalidChar.test(n.data)) {
+								throw new DOMException(
+									'The comment node data contains characters outside the XML Char production',
+									DOMExceptionName.InvalidStateError
+								);
+							}
+							if (n.data.indexOf('--') !== -1 || n.data[n.data.length - 1] === '-') {
+								throw new DOMException(
+									'The comment node data contains "--" or ends with "-"',
+									DOMExceptionName.InvalidStateError
+								);
+							}
+						}
+						buf.push(g.COMMENT_START, n.data, g.COMMENT_END);
+						return null;
+					case DOCUMENT_TYPE_NODE:
+						var pubid = n.publicId;
+						var sysid = n.systemId;
+						if (requireWellFormed) {
+							if (!g.Name_exact.test(n.name)) {
+								throw new DOMException(
+									'The doctype name "' + n.name + '" is not a valid XML Name',
+									DOMExceptionName.InvalidStateError
+								);
+							}
+							if (pubid && !g.PubidLiteral_match.test(pubid)) {
+								throw new DOMException('DocumentType publicId is not a valid PubidLiteral', DOMExceptionName.InvalidStateError);
+							}
+							if (sysid && sysid !== '.' && !g.SystemLiteral_match.test(sysid)) {
+								throw new DOMException('DocumentType systemId is not a valid SystemLiteral', DOMExceptionName.InvalidStateError);
+							}
+							if (n.internalSubset && n.internalSubset.indexOf(']>') !== -1) {
+								throw new DOMException('DocumentType internalSubset contains "]>"', DOMExceptionName.InvalidStateError);
+							}
+						}
+						buf.push(g.DOCTYPE_DECL_START, ' ', n.name);
+						if (pubid) {
+							buf.push(' ', g.PUBLIC, ' ', pubid);
+							if (sysid && sysid !== '.') {
+								buf.push(' ', sysid);
+							}
+						} else if (sysid && sysid !== '.') {
+							buf.push(' ', g.SYSTEM, ' ', sysid);
+						}
+						if (n.internalSubset) {
+							buf.push(' [', n.internalSubset, ']');
 						}
 						buf.push('>');
-					} else if (sysid && sysid != '.') {
-						buf.push(' SYSTEM ', sysid, '>');
-					} else {
-						var sub = n.internalSubset;
-						if (sub) {
-							buf.push(' [', sub, ']');
+						return null;
+					case PROCESSING_INSTRUCTION_NODE:
+						if (requireWellFormed) {
+							if (!g.NCName_exact.test(n.target) || n.target.toLowerCase() === 'xml') {
+								throw new DOMException(
+									'The processing instruction target "' + n.target + '" is not a valid XML NCName or is reserved',
+									DOMExceptionName.InvalidStateError
+								);
+							}
+							if (g.InvalidChar.test(n.data)) {
+								throw new DOMException(
+									'The ProcessingInstruction data contains characters outside the XML Char production',
+									DOMExceptionName.InvalidStateError
+								);
+							}
+							if (n.data.indexOf('?>') !== -1) {
+								throw new DOMException('The ProcessingInstruction data contains "?>"', DOMExceptionName.InvalidStateError);
+							}
 						}
-						buf.push('>');
-					}
-					return null;
-
-				case PROCESSING_INSTRUCTION_NODE:
-					if (requireWellFormed && n.data.indexOf('?>') !== -1) {
-						throw new DOMException(INVALID_STATE_ERR, 'The ProcessingInstruction data contains "?>"');
-					}
-					buf.push('<?', n.target, ' ', n.data, '?>');
-					return null;
-
-				case ENTITY_REFERENCE_NODE:
-					buf.push('&', n.nodeName, ';');
-					return null;
-
-				//case ENTITY_NODE:
-				//case NOTATION_NODE:
-				default:
-					buf.push('??', n.nodeName);
-					return null;
-			}
-		},
-		exit: function (n, childCtx) {
-			if (childCtx && childCtx.tag) {
-				buf.push('</', childCtx.tag, '>');
-			}
-		},
-	});
+						buf.push('<?', n.target, ' ', n.data, '?>');
+						return null;
+					case ENTITY_REFERENCE_NODE:
+						if (requireWellFormed && !g.Name_exact.test(n.nodeName)) {
+							throw new DOMException(
+								'The entity reference name "' + n.nodeName + '" is not a valid XML Name',
+								DOMExceptionName.InvalidStateError
+							);
+						}
+						buf.push('&', n.nodeName, ';');
+						return null;
+					//case ENTITY_NODE:
+					//case NOTATION_NODE:
+					default:
+						buf.push('??', n.nodeName);
+						return null;
+				}
+			},
+			exit: function (n, childCtx) {
+				// Emit the closing tag for elements that were opened (not self-closed, not raw text).
+				if (childCtx && childCtx.tag) {
+					buf.push('</', childCtx.tag, '>');
+				}
+			},
+		}
+	);
 }
 /**
  * Imports a node from a different document into `doc`, creating a new copy.
@@ -24023,17 +26052,31 @@ function importNode(doc, node, deep) {
 	});
 	return destRoot;
 }
-//
-//var _relationMap = {firstChild:1,lastChild:1,previousSibling:1,nextSibling:1,
-//					attributes:1,childNodes:1,parentNode:1,documentElement:1,doctype,};
+
+/**
+ * Creates a copy of a node from an existing one.
+ *
+ * @param {Document} doc
+ * The Document object representing the document that the new node will belong to.
+ * @param {Node} node
+ * The node to clone.
+ * @param {boolean} deep
+ * If true, the contents of the node are recursively copied.
+ * If false, only the node itself (and its attributes, if it is an element) are copied.
+ * @returns {Node}
+ * Returns the newly created copy of the node.
+ * @throws {DOMException}
+ * May throw a DOMException if operations within setAttributeNode or appendChild (which are
+ * potentially invoked in this function) do not meet their specific constraints.
+ */
 function cloneNode(doc, node, deep) {
 	var destRoot;
 	walkDOM(node, null, {
 		enter: function (srcNode, destParent) {
 			// 1. Create a blank node of the same type and copy all scalar own properties.
-			var destNode = new srcNode.constructor();
+			var destNode = new srcNode.constructor(PDC);
 			for (var n in srcNode) {
-				if (Object.prototype.hasOwnProperty.call(srcNode, n)) {
+				if (hasOwn(srcNode, n)) {
 					var v = srcNode[n];
 					if (typeof v != 'object') {
 						if (v != destNode[n]) {
@@ -24078,21 +26121,41 @@ function cloneNode(doc, node, deep) {
 	return destRoot;
 }
 
-function __set__(object,key,value){
-	object[key] = value
+function __set__(object, key, value) {
+	object[key] = value;
 }
+
+// Returns a new array of direct Element children.
+// Passed to LiveNodeList to implement ParentNode.children.
+// https://dom.spec.whatwg.org/#dom-parentnode-children
+function childrenRefresh(node) {
+	var ls = [];
+	var child = node.firstChild;
+	while (child) {
+		if (child.nodeType === ELEMENT_NODE) {
+			ls.push(child);
+		}
+		child = child.nextSibling;
+	}
+	return ls;
+}
+
 //do dynamic
-try{
-	if(Object.defineProperty){
-		Object.defineProperty(LiveNodeList.prototype,'length',{
-			get:function(){
+try {
+	if (Object.defineProperty) {
+		Object.defineProperty(LiveNodeList.prototype, 'length', {
+			get: function () {
 				_updateLiveList(this);
 				return this.$$length;
-			}
+			},
 		});
 
 		/**
 		 * The text content of this node and its descendants.
+		 *
+		 * For {@link Element} and {@link DocumentFragment} nodes, returns the concatenation of the
+		 * `nodeValue` of every descendant text node, excluding processing instruction and comment
+		 * nodes. For all other node types, returns `nodeValue`.
 		 *
 		 * Setting `textContent` on an element or document fragment replaces all child nodes with a
 		 * single text node; on other nodes it sets `data`, `value`, and `nodeValue` directly.
@@ -24138,26 +26201,75 @@ try{
 						this.nodeValue = data;
 				}
 			},
-		})
+		});
 
-		__set__ = function(object,key,value){
+		Object.defineProperty(CharacterData.prototype, 'data', {
+			get: function () {
+				return this._data != null ? this._data : '';
+			},
+			set: function (v) {
+				this._data = v;
+				this.length = typeof v === 'string' ? v.length : 0;
+			},
+		});
+
+		Object.defineProperty(CharacterData.prototype, 'nodeValue', {
+			get: function () {
+				return this.data;
+			},
+			set: function (v) {
+				this.data = v;
+			},
+			enumerable: true,
+			configurable: true,
+		});
+
+		Object.defineProperty(Element.prototype, 'children', {
+			get: function () {
+				return new LiveNodeList(this, childrenRefresh);
+			},
+		});
+		Object.defineProperty(Document.prototype, 'children', {
+			get: function () {
+				return new LiveNodeList(this, childrenRefresh);
+			},
+		});
+		Object.defineProperty(DocumentFragment.prototype, 'children', {
+			get: function () {
+				return new LiveNodeList(this, childrenRefresh);
+			},
+		});
+
+		__set__ = function (object, key, value) {
 			//console.log(value)
-			object['$$'+key] = value
-		}
+			object['$$' + key] = value;
+		};
 	}
-}catch(e){//ie8
+} catch (e) {
+	//ie8
 }
 
-//if(typeof require == 'function'){
-	exports.DocumentType = DocumentType;
-	exports.DOMException = DOMException;
-	exports.DOMImplementation = DOMImplementation;
-	exports.Element = Element;
-	exports.Node = Node;
-	exports.NodeList = NodeList;
-	exports.walkDOM = walkDOM;
-	exports.XMLSerializer = XMLSerializer;
-//}
+exports._updateLiveList = _updateLiveList;
+exports.Attr = Attr;
+exports.CDATASection = CDATASection;
+exports.CharacterData = CharacterData;
+exports.Comment = Comment;
+exports.Document = Document;
+exports.DocumentFragment = DocumentFragment;
+exports.DocumentType = DocumentType;
+exports.DOMImplementation = DOMImplementation;
+exports.Element = Element;
+exports.Entity = Entity;
+exports.EntityReference = EntityReference;
+exports.LiveNodeList = LiveNodeList;
+exports.NamedNodeMap = NamedNodeMap;
+exports.Node = Node;
+exports.NodeList = NodeList;
+exports.Notation = Notation;
+exports.Text = Text;
+exports.ProcessingInstruction = ProcessingInstruction;
+exports.walkDOM = walkDOM;
+exports.XMLSerializer = XMLSerializer;
 
 
 /***/ }),
@@ -24175,7 +26287,8 @@ var freeze = (__nccwpck_require__(37855).freeze);
  *
  * @see https://www.w3.org/TR/2006/REC-xml11-20060816/#sec-predefined-ent W3C XML 1.1
  * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-predefined-ent W3C XML 1.0
- * @see https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Predefined_entities_in_XML Wikipedia
+ * @see https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Predefined_entities_in_XML
+ *      Wikipedia
  */
 exports.XML_ENTITIES = freeze({
 	amp: '&',
@@ -24189,15 +26302,18 @@ exports.XML_ENTITIES = freeze({
  * A map of all entities that are detected in an HTML document.
  * They contain all entries from `XML_ENTITIES`.
  *
- * @see XML_ENTITIES
- * @see DOMParser.parseFromString
- * @see DOMImplementation.prototype.createHTMLDocument
- * @see https://html.spec.whatwg.org/#named-character-references WHATWG HTML(5) Spec
+ * @see {@link XML_ENTITIES}
+ * @see {@link DOMParser.parseFromString}
+ * @see {@link DOMImplementation.prototype.createHTMLDocument}
+ * @see https://html.spec.whatwg.org/#named-character-references WHATWG HTML(5)
+ *      Spec
  * @see https://html.spec.whatwg.org/entities.json JSON
  * @see https://www.w3.org/TR/xml-entity-names/ W3C XML Entity Names
  * @see https://www.w3.org/TR/html4/sgml/entities.html W3C HTML4/SGML
- * @see https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Character_entity_references_in_HTML Wikipedia (HTML)
- * @see https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Entities_representing_special_characters_in_XHTML Wikpedia (XHTML)
+ * @see https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Character_entity_references_in_HTML
+ *      Wikipedia (HTML)
+ * @see https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Entities_representing_special_characters_in_XHTML
+ *      Wikpedia (XHTML)
  */
 exports.HTML_ENTITIES = freeze({
 	Aacute: '\u00C1',
@@ -26328,10 +28444,791 @@ exports.HTML_ENTITIES = freeze({
 });
 
 /**
- * @deprecated use `HTML_ENTITIES` instead
- * @see HTML_ENTITIES
+ * @deprecated
+ * Use `HTML_ENTITIES` instead.
+ * @see {@link HTML_ENTITIES}
  */
 exports.entityMap = exports.HTML_ENTITIES;
+
+
+/***/ }),
+
+/***/ 57368:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var conventions = __nccwpck_require__(37855);
+
+function extendError(constructor, writableName) {
+	constructor.prototype = Object.create(Error.prototype, {
+		constructor: { value: constructor },
+		name: { value: constructor.name, enumerable: true, writable: writableName },
+	});
+}
+
+var DOMExceptionName = conventions.freeze({
+	/**
+	 * the default value as defined by the spec
+	 */
+	Error: 'Error',
+	/**
+	 * @deprecated
+	 * Use RangeError instead.
+	 */
+	IndexSizeError: 'IndexSizeError',
+	/**
+	 * @deprecated
+	 * Just to match the related static code, not part of the spec.
+	 */
+	DomstringSizeError: 'DomstringSizeError',
+	HierarchyRequestError: 'HierarchyRequestError',
+	WrongDocumentError: 'WrongDocumentError',
+	InvalidCharacterError: 'InvalidCharacterError',
+	/**
+	 * @deprecated
+	 * Just to match the related static code, not part of the spec.
+	 */
+	NoDataAllowedError: 'NoDataAllowedError',
+	NoModificationAllowedError: 'NoModificationAllowedError',
+	NotFoundError: 'NotFoundError',
+	NotSupportedError: 'NotSupportedError',
+	InUseAttributeError: 'InUseAttributeError',
+	InvalidStateError: 'InvalidStateError',
+	SyntaxError: 'SyntaxError',
+	InvalidModificationError: 'InvalidModificationError',
+	NamespaceError: 'NamespaceError',
+	/**
+	 * @deprecated
+	 * Use TypeError for invalid arguments,
+	 * "NotSupportedError" DOMException for unsupported operations,
+	 * and "NotAllowedError" DOMException for denied requests instead.
+	 */
+	InvalidAccessError: 'InvalidAccessError',
+	/**
+	 * @deprecated
+	 * Just to match the related static code, not part of the spec.
+	 */
+	ValidationError: 'ValidationError',
+	/**
+	 * @deprecated
+	 * Use TypeError instead.
+	 */
+	TypeMismatchError: 'TypeMismatchError',
+	SecurityError: 'SecurityError',
+	NetworkError: 'NetworkError',
+	AbortError: 'AbortError',
+	/**
+	 * @deprecated
+	 * Just to match the related static code, not part of the spec.
+	 */
+	URLMismatchError: 'URLMismatchError',
+	QuotaExceededError: 'QuotaExceededError',
+	TimeoutError: 'TimeoutError',
+	InvalidNodeTypeError: 'InvalidNodeTypeError',
+	DataCloneError: 'DataCloneError',
+	EncodingError: 'EncodingError',
+	NotReadableError: 'NotReadableError',
+	UnknownError: 'UnknownError',
+	ConstraintError: 'ConstraintError',
+	DataError: 'DataError',
+	TransactionInactiveError: 'TransactionInactiveError',
+	ReadOnlyError: 'ReadOnlyError',
+	VersionError: 'VersionError',
+	OperationError: 'OperationError',
+	NotAllowedError: 'NotAllowedError',
+	OptOutError: 'OptOutError',
+});
+var DOMExceptionNames = Object.keys(DOMExceptionName);
+
+function isValidDomExceptionCode(value) {
+	return typeof value === 'number' && value >= 1 && value <= 25;
+}
+function endsWithError(value) {
+	return typeof value === 'string' && value.substring(value.length - DOMExceptionName.Error.length) === DOMExceptionName.Error;
+}
+/**
+ * DOM operations only raise exceptions in "exceptional" circumstances, i.e., when an operation
+ * is impossible to perform (either for logical reasons, because data is lost, or because the
+ * implementation has become unstable). In general, DOM methods return specific error values in
+ * ordinary processing situations, such as out-of-bound errors when using NodeList.
+ *
+ * Implementations should raise other exceptions under other circumstances. For example,
+ * implementations should raise an implementation-dependent exception if a null argument is
+ * passed when null was not expected.
+ *
+ * This implementation supports the following usages:
+ * 1. according to the living standard (both arguments are optional):
+ * ```
+ * new DOMException("message (can be empty)", DOMExceptionNames.HierarchyRequestError)
+ * ```
+ * 2. according to previous xmldom implementation (only the first argument is required):
+ * ```
+ * new DOMException(DOMException.HIERARCHY_REQUEST_ERR, "optional message")
+ * ```
+ * both result in the proper name being set.
+ *
+ * @class DOMException
+ * @param {number | string} messageOrCode
+ * The reason why an operation is not acceptable.
+ * If it is a number, it is used to determine the `name`, see
+ * {@link https://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-258A00AF ExceptionCode}
+ * @param {string | keyof typeof DOMExceptionName | Error} [nameOrMessage]
+ * The `name` to use for the error.
+ * If `messageOrCode` is a number, this arguments is used as the `message` instead.
+ * @augments Error
+ * @see https://webidl.spec.whatwg.org/#idl-DOMException
+ * @see https://webidl.spec.whatwg.org/#dfn-error-names-table
+ * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-17189187
+ * @see http://www.w3.org/TR/2000/REC-DOM-Level-2-Core-20001113/ecma-script-binding.html
+ * @see http://www.w3.org/TR/REC-DOM-Level-1/ecma-script-language-binding.html
+ */
+function DOMException(messageOrCode, nameOrMessage) {
+	// support old way of passing arguments: first argument is a valid number
+	if (isValidDomExceptionCode(messageOrCode)) {
+		this.name = DOMExceptionNames[messageOrCode];
+		this.message = nameOrMessage || '';
+	} else {
+		this.message = messageOrCode;
+		this.name = endsWithError(nameOrMessage) ? nameOrMessage : DOMExceptionName.Error;
+	}
+	if (Error.captureStackTrace) Error.captureStackTrace(this, DOMException);
+}
+extendError(DOMException, true);
+Object.defineProperties(DOMException.prototype, {
+	code: {
+		enumerable: true,
+		get: function () {
+			var code = DOMExceptionNames.indexOf(this.name);
+			if (isValidDomExceptionCode(code)) return code;
+			return 0;
+		},
+	},
+});
+
+var ExceptionCode = {
+	INDEX_SIZE_ERR: 1,
+	DOMSTRING_SIZE_ERR: 2,
+	HIERARCHY_REQUEST_ERR: 3,
+	WRONG_DOCUMENT_ERR: 4,
+	INVALID_CHARACTER_ERR: 5,
+	NO_DATA_ALLOWED_ERR: 6,
+	NO_MODIFICATION_ALLOWED_ERR: 7,
+	NOT_FOUND_ERR: 8,
+	NOT_SUPPORTED_ERR: 9,
+	INUSE_ATTRIBUTE_ERR: 10,
+	INVALID_STATE_ERR: 11,
+	SYNTAX_ERR: 12,
+	INVALID_MODIFICATION_ERR: 13,
+	NAMESPACE_ERR: 14,
+	INVALID_ACCESS_ERR: 15,
+	VALIDATION_ERR: 16,
+	TYPE_MISMATCH_ERR: 17,
+	SECURITY_ERR: 18,
+	NETWORK_ERR: 19,
+	ABORT_ERR: 20,
+	URL_MISMATCH_ERR: 21,
+	QUOTA_EXCEEDED_ERR: 22,
+	TIMEOUT_ERR: 23,
+	INVALID_NODE_TYPE_ERR: 24,
+	DATA_CLONE_ERR: 25,
+};
+
+var entries = Object.entries(ExceptionCode);
+for (var i = 0; i < entries.length; i++) {
+	var key = entries[i][0];
+	DOMException[key] = entries[i][1];
+}
+
+/**
+ * Creates an error that will not be caught by XMLReader aka the SAX parser.
+ *
+ * @class
+ * @param {string} message
+ * @param {any} [locator]
+ * @param {Error} [cause]
+ * The error that caused this one, e.g. a `DOMException` thrown while building the DOM.
+ */
+function ParseError(message, locator, cause) {
+	this.message = message;
+	this.locator = locator;
+	this.cause = cause;
+	if (Error.captureStackTrace) Error.captureStackTrace(this, ParseError);
+}
+extendError(ParseError);
+
+exports.DOMException = DOMException;
+exports.DOMExceptionName = DOMExceptionName;
+exports.ExceptionCode = ExceptionCode;
+exports.ParseError = ParseError;
+
+
+/***/ }),
+
+/***/ 12062:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+
+/**
+ * Detects relevant unicode support for regular expressions in the runtime.
+ * Should the runtime not accepts the flag `u` or unicode ranges,
+ * character classes without unicode handling will be used.
+ *
+ * @param {typeof RegExp} [RegExpImpl=RegExp]
+ * For testing: the RegExp class.
+ * @returns {boolean}
+ * @see https://node.green/#ES2015-syntax-RegExp--y--and--u--flags
+ */
+function detectUnicodeSupport(RegExpImpl) {
+	try {
+		if (typeof RegExpImpl !== 'function') {
+			RegExpImpl = RegExp;
+		}
+		// eslint-disable-next-line es5/no-unicode-regex,es5/no-unicode-code-point-escape
+		var match = new RegExpImpl('\u{1d306}', 'u').exec('𝌆');
+		return !!match && match[0].length === 2;
+	} catch (error) {}
+	return false;
+}
+var UNICODE_SUPPORT = detectUnicodeSupport();
+
+/**
+ * Removes `[`, `]` and any trailing quantifiers from the source of a RegExp.
+ *
+ * @param {RegExp} regexp
+ */
+function chars(regexp) {
+	if (regexp.source[0] !== '[') {
+		throw new Error(regexp + ' can not be used with chars');
+	}
+	return regexp.source.slice(1, regexp.source.lastIndexOf(']'));
+}
+
+/**
+ * Creates a new character list regular expression,
+ * by removing `search` from the source of `regexp`.
+ *
+ * @param {RegExp} regexp
+ * @param {string} search
+ * The character(s) to remove.
+ * @returns {RegExp}
+ */
+function chars_without(regexp, search) {
+	if (regexp.source[0] !== '[') {
+		throw new Error('/' + regexp.source + '/ can not be used with chars_without');
+	}
+	if (!search || typeof search !== 'string') {
+		throw new Error(JSON.stringify(search) + ' is not a valid search');
+	}
+	if (regexp.source.indexOf(search) === -1) {
+		throw new Error('"' + search + '" is not is /' + regexp.source + '/');
+	}
+	if (search === '-' && regexp.source.indexOf(search) !== 1) {
+		throw new Error('"' + search + '" is not at the first postion of /' + regexp.source + '/');
+	}
+	return new RegExp(regexp.source.replace(search, ''), UNICODE_SUPPORT ? 'u' : '');
+}
+
+/**
+ * Combines and Regular expressions correctly by using `RegExp.source`.
+ *
+ * @param {...(RegExp | string)[]} args
+ * @returns {RegExp}
+ */
+function reg(args) {
+	var self = this;
+	return new RegExp(
+		Array.prototype.slice
+			.call(arguments)
+			.map(function (part) {
+				var isStr = typeof part === 'string';
+				if (isStr && self === undefined && part === '|') {
+					throw new Error('use regg instead of reg to wrap expressions with `|`!');
+				}
+				return isStr ? part : part.source;
+			})
+			.join(''),
+		UNICODE_SUPPORT ? 'u' : ''
+	);
+}
+
+/**
+ * Like `reg` but wraps the expression in `(?:`,`)` to create a non tracking group.
+ *
+ * @param {...(RegExp | string)[]} args
+ * @returns {RegExp}
+ */
+function regg(args) {
+	if (arguments.length === 0) {
+		throw new Error('no parameters provided');
+	}
+	return reg.apply(regg, ['(?:'].concat(Array.prototype.slice.call(arguments), [')']));
+}
+
+// /**
+//  * Append ^ to the beginning of the expression.
+//  * @param {...(RegExp | string)[]} args
+//  * @returns {RegExp}
+//  */
+// function reg_start(args) {
+// 	if (arguments.length === 0) {
+// 		throw new Error('no parameters provided');
+// 	}
+// 	return reg.apply(reg_start, ['^'].concat(Array.prototype.slice.call(arguments)));
+// }
+
+// https://www.w3.org/TR/xml/#document
+// `[1] document ::= prolog element Misc*`
+// https://www.w3.org/TR/xml11/#NT-document
+// `[1] document ::= ( prolog element Misc* ) - ( Char* RestrictedChar Char* )`
+
+/**
+ * A character usually appearing in wrongly converted strings.
+ *
+ * @type {string}
+ * @see https://en.wikipedia.org/wiki/Specials_(Unicode_block)#Replacement_character
+ * @see https://nodejs.dev/en/api/v18/buffer/#buffers-and-character-encodings
+ * @see https://www.unicode.org/faq/utf_bom.html#BOM
+ * @readonly
+ */
+var UNICODE_REPLACEMENT_CHARACTER = '\uFFFD';
+// https://www.w3.org/TR/xml/#NT-Char
+// any Unicode character, excluding the surrogate blocks, FFFE, and FFFF.
+// `[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]`
+// https://www.w3.org/TR/xml11/#NT-Char
+// `[2] Char ::= [#x1-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]`
+// https://www.w3.org/TR/xml11/#NT-RestrictedChar
+// `[2a] RestrictedChar ::= [#x1-#x8] | [#xB-#xC] | [#xE-#x1F] | [#x7F-#x84] | [#x86-#x9F]`
+// https://www.w3.org/TR/xml11/#charsets
+var Char = /[-\x09\x0A\x0D\x20-\x2C\x2E-\uD7FF\uE000-\uFFFD]/; // without \u10000-\uEFFFF
+if (UNICODE_SUPPORT) {
+	// eslint-disable-next-line es5/no-unicode-code-point-escape
+	Char = reg('[', chars(Char), '\\u{10000}-\\u{10FFFF}', ']');
+}
+// Negation of Char: matches any character that is NOT a valid XML 1.0 Char.
+// Derived directly from the Char character class above (after the unicode-support extension).
+// XML 1.0 Char production [2]: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+// @see https://www.w3.org/TR/xml/#NT-Char
+var InvalidChar = new RegExp('[^' + chars(Char) + ']', UNICODE_SUPPORT ? 'u' : '');
+
+var _SChar = /[\x20\x09\x0D\x0A]/;
+var SChar_s = chars(_SChar);
+// https://www.w3.org/TR/xml11/#NT-S
+// `[3] S ::= (#x20 | #x9 | #xD | #xA)+`
+var S = reg(_SChar, '+');
+// optional whitespace described as `S?` in the grammar,
+// simplified to 0-n occurrences of the character class
+// instead of 0-1 occurrences of a non-capturing group around S
+var S_OPT = reg(_SChar, '*');
+
+// https://www.w3.org/TR/xml11/#NT-NameStartChar
+// `[4] NameStartChar ::= ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]`
+var NameStartChar =
+	/[:_a-zA-Z\xC0-\xD6\xD8-\xF6\xF8-\u02FF\u0370-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]/; // without \u10000-\uEFFFF
+if (UNICODE_SUPPORT) {
+	// eslint-disable-next-line es5/no-unicode-code-point-escape
+	NameStartChar = reg('[', chars(NameStartChar), '\\u{10000}-\\u{10FFFF}', ']');
+}
+var NameStartChar_s = chars(NameStartChar);
+
+// https://www.w3.org/TR/xml11/#NT-NameChar
+// `[4a] NameChar ::= NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]`
+var NameChar = reg('[', NameStartChar_s, chars(/[-.0-9\xB7]/), chars(/[\u0300-\u036F\u203F-\u2040]/), ']');
+// https://www.w3.org/TR/xml11/#NT-Name
+// `[5] Name ::= NameStartChar (NameChar)*`
+var Name = reg(NameStartChar, NameChar, '*');
+// Full-string anchored matcher for requireWellFormed serializer checks
+// https://w3c.github.io/DOM-Parsing/#xml-serializing-a-document-node
+var Name_exact = reg('^', Name, '$');
+/*
+https://www.w3.org/TR/xml11/#NT-Names
+`[6] Names ::= Name (#x20 Name)*`
+*/
+
+// https://www.w3.org/TR/xml11/#NT-Nmtoken
+// `[7] Nmtoken ::= (NameChar)+`
+var Nmtoken = reg(NameChar, '+');
+/*
+https://www.w3.org/TR/xml11/#NT-Nmtokens
+`[8] Nmtokens ::= Nmtoken (#x20 Nmtoken)*`
+var Nmtokens = reg(Nmtoken, regg(/\x20/, Nmtoken), '*');
+*/
+
+// https://www.w3.org/TR/xml11/#NT-EntityRef
+// `[68] EntityRef ::= '&' Name ';'` [WFC: Entity Declared] [VC: Entity Declared] [WFC: Parsed Entity] [WFC: No Recursion]
+var EntityRef = reg('&', Name, ';');
+// https://www.w3.org/TR/xml11/#NT-CharRef
+// `[66] CharRef ::= '&#' [0-9]+ ';' | '&#x' [0-9a-fA-F]+ ';'` [WFC: Legal Character]
+var CharRef = regg(/&#[0-9]+;|&#x[0-9a-fA-F]+;/);
+
+/*
+https://www.w3.org/TR/xml11/#NT-Reference
+- `[67] Reference ::= EntityRef | CharRef`
+- `[66] CharRef ::= '&#' [0-9]+ ';' | '&#x' [0-9a-fA-F]+ ';'` [WFC: Legal Character]
+- `[68] EntityRef ::= '&' Name ';'` [WFC: Entity Declared] [VC: Entity Declared] [WFC: Parsed Entity] [WFC: No Recursion]
+*/
+var Reference = regg(EntityRef, '|', CharRef);
+
+// https://www.w3.org/TR/xml11/#NT-PEReference
+// `[69] PEReference ::= '%' Name ';'`
+// [VC: Entity Declared] [WFC: No Recursion] [WFC: In DTD]
+var PEReference = reg('%', Name, ';');
+
+// https://www.w3.org/TR/xml11/#NT-EntityValue
+// `[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"`
+var EntityValue = regg(
+	reg('"', regg(/[^%&"]/, '|', PEReference, '|', Reference), '*', '"'),
+	'|',
+	reg("'", regg(/[^%&']/, '|', PEReference, '|', Reference), '*', "'")
+);
+
+// https://www.w3.org/TR/xml11/#NT-AttValue
+// `[10] AttValue ::= '"' ([^<&"] | Reference)* '"' | "'" ([^<&'] | Reference)* "'"`
+var AttValue = regg('"', regg(/[^<&"]/, '|', Reference), '*', '"', '|', "'", regg(/[^<&']/, '|', Reference), '*', "'");
+
+// https://www.w3.org/TR/xml-names/#ns-decl
+// https://www.w3.org/TR/xml-names/#ns-qualnames
+// NameStartChar without ":"
+var NCNameStartChar = chars_without(NameStartChar, ':');
+// https://www.w3.org/TR/xml-names/#orphans
+// `[5] NCNameChar ::= NameChar - ':'`
+// An XML NameChar, minus the ":"
+var NCNameChar = chars_without(NameChar, ':');
+// https://www.w3.org/TR/xml-names/#NT-NCName
+// `[4] NCName ::= Name - (Char* ':' Char*)`
+// An XML Name, minus the ":"
+var NCName = reg(NCNameStartChar, NCNameChar, '*');
+// Full-string anchored matcher for requireWellFormed serializer checks
+// https://w3c.github.io/DOM-Parsing/#xml-serializing-a-document-node
+var NCName_exact = reg('^', NCName, '$');
+
+/**
+https://www.w3.org/TR/xml-names/#ns-qualnames
+
+```
+[7] QName ::= PrefixedName | UnprefixedName
+				  === (NCName ':' NCName) | NCName
+				  === NCName (':' NCName)?
+[8] PrefixedName ::= Prefix ':' LocalPart
+								 === NCName ':' NCName
+[9] UnprefixedName ::= LocalPart
+									 === NCName
+[10] Prefix ::= NCName
+[11] LocalPart ::= NCName
+```
+*/
+var QName = reg(NCName, regg(':', NCName), '?');
+var QName_exact = reg('^', QName, '$');
+var QName_group = reg('(', QName, ')');
+
+// https://www.w3.org/TR/xml11/#NT-SystemLiteral
+// `[11] SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'")`
+var SystemLiteral = regg(/"[^"]*"|'[^']*'/);
+
+/*
+ https://www.w3.org/TR/xml11/#NT-PI
+ ```
+ [17] PITarget    ::= Name - (('X' | 'x') ('M' | 'm') ('L' | 'l'))
+ [16] PI    ::= '<?' PITarget (S (Char* - (Char* '?>' Char*)))? '?>'
+ ```
+ target /xml/i is not excluded!
+*/
+// The `(?!S)` after the leading `S+` asserts the data starts with a non-whitespace
+// character (greedy `S+` already consumes all separating whitespace), pruning the
+// `S+`/`Char*?` whitespace overlap that otherwise makes an unterminated PI (no `?>`)
+// backtrack quadratically. The lookahead is non-capturing, so the data stays group 2.
+var PI = reg(/^<\?/, '(', Name, ')', regg(S, '(?!', _SChar, ')(', Char, '*?)'), '?', /\?>/);
+
+// https://www.w3.org/TR/xml11/#NT-PubidChar
+// `[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]`
+var PubidChar = /[\x20\x0D\x0Aa-zA-Z0-9-'()+,./:=?;!*#@$_%]/;
+
+// https://www.w3.org/TR/xml11/#NT-PubidLiteral
+// `[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"`
+var PubidLiteral = regg('"', PubidChar, '*"', '|', "'", chars_without(PubidChar, "'"), "*'");
+
+// https://www.w3.org/TR/xml11/#NT-CharData
+// `[14] CharData    ::= [^<&]* - ([^<&]* ']]>' [^<&]*)`
+
+var COMMENT_START = '<!--';
+var COMMENT_END = '-->';
+// https://www.w3.org/TR/xml11/#NT-Comment
+// `[15] Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->'`
+var Comment = reg(COMMENT_START, regg(chars_without(Char, '-'), '|', reg('-', chars_without(Char, '-'))), '*', COMMENT_END);
+
+var PCDATA = '#PCDATA';
+// https://www.w3.org/TR/xml11/#NT-Mixed
+// `[51] Mixed ::= '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')'`
+// https://www.w3.org/TR/xml-names/#NT-Mixed
+// `[51] Mixed ::= '(' S? '#PCDATA' (S? '|' S? QName)* S? ')*' | '(' S? '#PCDATA' S? ')'`
+// [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
+var Mixed = regg(
+	reg(/\(/, S_OPT, PCDATA, regg(S_OPT, /\|/, S_OPT, QName), '*', S_OPT, /\)\*/),
+	'|',
+	reg(/\(/, S_OPT, PCDATA, S_OPT, /\)/)
+);
+
+var _children_quantity = /[?*+]?/;
+/*
+ `[49] choice ::= '(' S? cp ( S? '|' S? cp )+ S? ')'` [VC: Proper Group/PE Nesting]
+ `[50] seq ::= '(' S? cp ( S? ',' S? cp )* S? ')'` [VC: Proper Group/PE Nesting]
+ simplification to solve circular referencing, but doesn't check validity constraint "Proper Group/PE Nesting"
+ var _choice_or_seq = reg('[', NameChar_s, SChar_s, chars(_children_quantity), '()|,]*');
+ ```
+ [48] cp ::= (Name | choice | seq) ('?' | '*' | '+')?
+         === (Name | '(' S? cp ( S? '|' S? cp )+ S? ')' | '(' S? cp ( S? ',' S? cp )* S? ')') ('?' | '*' | '+')?
+         !== (Name | [_choice_or_seq]*) ('?' | '*' | '+')?
+ ```
+ simplification to solve circular referencing, but doesn't check validity constraint "Proper Group/PE Nesting"
+ var cp = reg(regg(Name, '|', _choice_or_seq), _children_quantity);
+*/
+/*
+Inefficient regular expression (High)
+This part of the regular expression may cause exponential backtracking on strings starting with '(|' and containing many repetitions of '|'.
+https://github.com/xmldom/xmldom/security/code-scanning/91
+var choice = regg(/\(/, S_OPT, cp, regg(S_OPT, /\|/, S_OPT, cp), '+', S_OPT, /\)/);
+*/
+/*
+Inefficient regular expression (High)
+This part of the regular expression may cause exponential backtracking on strings starting with '(,' and containing many repetitions of ','.
+https://github.com/xmldom/xmldom/security/code-scanning/92
+var seq = regg(/\(/, S_OPT, cp, regg(S_OPT, /,/, S_OPT, cp), '*', S_OPT, /\)/);
+*/
+
+// `[47] children ::= (choice | seq) ('?' | '*' | '+')?`
+// simplification to solve circular referencing, but doesn't check validity constraint "Proper Group/PE Nesting"
+var children = reg(/\([^>]+\)/, _children_quantity /*regg(choice, '|', seq), _children_quantity*/);
+
+// https://www.w3.org/TR/xml11/#NT-contentspec
+// `[46] contentspec ::= 'EMPTY' | 'ANY' | Mixed | children`
+var contentspec = regg('EMPTY', '|', 'ANY', '|', Mixed, '|', children);
+
+var ELEMENTDECL_START = '<!ELEMENT';
+// https://www.w3.org/TR/xml11/#NT-elementdecl
+// `[45] elementdecl ::= '<!ELEMENT' S Name S contentspec S? '>'`
+// https://www.w3.org/TR/xml-names/#NT-elementdecl
+// `[17] elementdecl ::= '<!ELEMENT' S QName S contentspec S? '>'`
+// because of https://www.w3.org/TR/xml11/#NT-PEReference
+// since xmldom is not supporting replacements of PEReferences in the DTD
+// this also supports PEReference in the possible places
+var elementdecl = reg(ELEMENTDECL_START, S, regg(QName, '|', PEReference), S, regg(contentspec, '|', PEReference), S_OPT, '>');
+
+// https://www.w3.org/TR/xml11/#NT-NotationType
+// `[58] NotationType ::= 'NOTATION' S '(' S? Name (S? '|' S? Name)* S? ')'`
+// [VC: Notation Attributes] [VC: One Notation Per Element Type] [VC: No Notation on Empty Element] [VC: No Duplicate Tokens]
+var NotationType = reg('NOTATION', S, /\(/, S_OPT, Name, regg(S_OPT, /\|/, S_OPT, Name), '*', S_OPT, /\)/);
+// https://www.w3.org/TR/xml11/#NT-Enumeration
+// `[59] Enumeration ::= '(' S? Nmtoken (S? '|' S? Nmtoken)* S? ')'`
+// [VC: Enumeration] [VC: No Duplicate Tokens]
+var Enumeration = reg(/\(/, S_OPT, Nmtoken, regg(S_OPT, /\|/, S_OPT, Nmtoken), '*', S_OPT, /\)/);
+
+// https://www.w3.org/TR/xml11/#NT-EnumeratedType
+// `[57] EnumeratedType ::= NotationType | Enumeration`
+var EnumeratedType = regg(NotationType, '|', Enumeration);
+
+/*
+```
+[55] StringType ::= 'CDATA'
+[56] TokenizedType ::= 'ID' [VC: ID] [VC: One ID per Element Type] [VC: ID Attribute Default]
+   | 'IDREF' [VC: IDREF]
+   | 'IDREFS' [VC: IDREF]
+	 | 'ENTITY' [VC: Entity Name]
+	 | 'ENTITIES' [VC: Entity Name]
+	 | 'NMTOKEN' [VC: Name Token]
+	 | 'NMTOKENS' [VC: Name Token]
+ [54] AttType ::= StringType | TokenizedType | EnumeratedType
+```*/
+var AttType = regg(/CDATA|ID|IDREF|IDREFS|ENTITY|ENTITIES|NMTOKEN|NMTOKENS/, '|', EnumeratedType);
+
+// `[60] DefaultDecl ::= '#REQUIRED' | '#IMPLIED' | (('#FIXED' S)? AttValue)`
+// [WFC: No < in Attribute Values] [WFC: No External Entity References]
+// [VC: Fixed Attribute Default] [VC: Required Attribute] [VC: Attribute Default Value Syntactically Correct]
+var DefaultDecl = regg(/#REQUIRED|#IMPLIED/, '|', regg(regg('#FIXED', S), '?', AttValue));
+
+// https://www.w3.org/TR/xml11/#NT-AttDef
+// [53] AttDef ::= S Name S AttType S DefaultDecl
+// https://www.w3.org/TR/xml-names/#NT-AttDef
+// [1] NSAttName ::= PrefixedAttName | DefaultAttName
+// [2] PrefixedAttName ::= 'xmlns:' NCName [NSC: Reserved Prefixes and Namespace Names]
+// [3] DefaultAttName ::= 'xmlns'
+// [21] AttDef ::= S (QName | NSAttName) S AttType S DefaultDecl
+// 						 === S Name S AttType S DefaultDecl
+// xmldom is not distinguishing between QName and NSAttName on this level
+// to support XML without namespaces in DTD we can not restrict it to QName
+var AttDef = regg(S, Name, S, AttType, S, DefaultDecl);
+
+var ATTLIST_DECL_START = '<!ATTLIST';
+// https://www.w3.org/TR/xml11/#NT-AttlistDecl
+// `[52] AttlistDecl ::= '<!ATTLIST' S Name AttDef* S? '>'`
+// https://www.w3.org/TR/xml-names/#NT-AttlistDecl
+// `[20] AttlistDecl ::= '<!ATTLIST' S QName AttDef* S? '>'`
+// to support XML without namespaces in DTD we can not restrict it to QName
+var AttlistDecl = reg(ATTLIST_DECL_START, S, Name, AttDef, '*', S_OPT, '>');
+
+// https://html.spec.whatwg.org/multipage/urls-and-fetching.html#about:legacy-compat
+var ABOUT_LEGACY_COMPAT = 'about:legacy-compat';
+var ABOUT_LEGACY_COMPAT_SystemLiteral = regg('"' + ABOUT_LEGACY_COMPAT + '"', '|', "'" + ABOUT_LEGACY_COMPAT + "'");
+var SYSTEM = 'SYSTEM';
+var PUBLIC = 'PUBLIC';
+// https://www.w3.org/TR/xml11/#NT-ExternalID
+// `[75] ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral`
+var ExternalID = regg(regg(SYSTEM, S, SystemLiteral), '|', regg(PUBLIC, S, PubidLiteral, S, SystemLiteral));
+var ExternalID_match = reg(
+	'^',
+	regg(
+		regg(SYSTEM, S, '(?<SystemLiteralOnly>', SystemLiteral, ')'),
+		'|',
+		regg(PUBLIC, S, '(?<PubidLiteral>', PubidLiteral, ')', S, '(?<SystemLiteral>', SystemLiteral, ')')
+	)
+);
+// Full-string anchored matcher for requireWellFormed serializer checks
+// https://w3c.github.io/DOM-Parsing/#xml-serializing-a-document-node
+var PubidLiteral_match = reg('^', PubidLiteral, '$');
+// Full-string anchored matcher for requireWellFormed serializer checks
+// https://w3c.github.io/DOM-Parsing/#xml-serializing-a-document-node
+var SystemLiteral_match = reg('^', SystemLiteral, '$');
+
+// https://www.w3.org/TR/xml11/#NT-NDataDecl
+// `[76] NDataDecl ::= S 'NDATA' S Name` [VC: Notation Declared]
+var NDataDecl = regg(S, 'NDATA', S, Name);
+
+// https://www.w3.org/TR/xml11/#NT-EntityDef
+// `[73] EntityDef ::= EntityValue | (ExternalID NDataDecl?)`
+var EntityDef = regg(EntityValue, '|', regg(ExternalID, NDataDecl, '?'));
+
+var ENTITY_DECL_START = '<!ENTITY';
+// https://www.w3.org/TR/xml11/#NT-GEDecl
+// `[71] GEDecl ::= '<!ENTITY' S Name S EntityDef S? '>'`
+var GEDecl = reg(ENTITY_DECL_START, S, Name, S, EntityDef, S_OPT, '>');
+// https://www.w3.org/TR/xml11/#NT-PEDef
+// `[74] PEDef ::= EntityValue | ExternalID`
+var PEDef = regg(EntityValue, '|', ExternalID);
+// https://www.w3.org/TR/xml11/#NT-PEDecl
+// `[72] PEDecl ::= '<!ENTITY' S '%' S Name S PEDef S? '>'`
+var PEDecl = reg(ENTITY_DECL_START, S, '%', S, Name, S, PEDef, S_OPT, '>');
+// https://www.w3.org/TR/xml11/#NT-EntityDecl
+// `[70] EntityDecl ::= GEDecl | PEDecl`
+var EntityDecl = regg(GEDecl, '|', PEDecl);
+
+// https://www.w3.org/TR/xml11/#NT-PublicID
+// `[83] PublicID    ::= 'PUBLIC' S PubidLiteral`
+var PublicID = reg(PUBLIC, S, PubidLiteral);
+// https://www.w3.org/TR/xml11/#NT-NotationDecl
+// `[82] NotationDecl    ::= '<!NOTATION' S Name S (ExternalID | PublicID) S? '>'` [VC: Unique Notation Name]
+var NotationDecl = reg('<!NOTATION', S, Name, S, regg(ExternalID, '|', PublicID), S_OPT, '>');
+
+// https://www.w3.org/TR/xml11/#NT-Eq
+// `[25] Eq ::= S? '=' S?`
+var Eq = reg(S_OPT, '=', S_OPT);
+// https://www.w3.org/TR/xml/#NT-VersionNum
+// `[26] VersionNum ::= '1.' [0-9]+`
+// https://www.w3.org/TR/xml11/#NT-VersionNum
+// `[26] VersionNum ::= '1.1'`
+var VersionNum = /1[.]\d+/;
+// https://www.w3.org/TR/xml11/#NT-VersionInfo
+// `[24] VersionInfo ::= S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')`
+var VersionInfo = reg(S, 'version', Eq, regg("'", VersionNum, "'", '|', '"', VersionNum, '"'));
+// https://www.w3.org/TR/xml11/#NT-EncName
+// `[81] EncName ::= [A-Za-z] ([A-Za-z0-9._] | '-')*`
+var EncName = /[A-Za-z][-A-Za-z0-9._]*/;
+// https://www.w3.org/TR/xml11/#NT-EncDecl
+// `[80] EncodingDecl ::= S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" )`
+var EncodingDecl = regg(S, 'encoding', Eq, regg('"', EncName, '"', '|', "'", EncName, "'"));
+// https://www.w3.org/TR/xml11/#NT-SDDecl
+// `[32] SDDecl ::= S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"'))`
+var SDDecl = regg(S, 'standalone', Eq, regg("'", regg('yes', '|', 'no'), "'", '|', '"', regg('yes', '|', 'no'), '"'));
+// https://www.w3.org/TR/xml11/#NT-XMLDecl
+// [23] XMLDecl ::= '<?xml' VersionInfo EncodingDecl? SDDecl? S? '?>'
+var XMLDecl = reg(/^<\?xml/, VersionInfo, EncodingDecl, '?', SDDecl, '?', S_OPT, /\?>/);
+
+/*
+ https://www.w3.org/TR/xml/#NT-markupdecl
+ https://www.w3.org/TR/xml11/#NT-markupdecl
+ `[29] markupdecl ::= elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment`
+ var markupdecl = regg(elementdecl, '|', AttlistDecl, '|', EntityDecl, '|', NotationDecl, '|', PI_unsafe, '|', Comment);
+*/
+/*
+ https://www.w3.org/TR/xml-names/#NT-doctypedecl
+`[28a] DeclSep   ::= PEReference | S`
+ https://www.w3.org/TR/xml11/#NT-intSubset
+```
+ [28b] intSubset ::= (markupdecl | DeclSep)*
+                 === (markupdecl | PEReference | S)*
+```
+ [WFC: PE Between Declarations]
+ var intSubset = reg(regg(markupdecl, '|', PEReference, '|', S), '*');
+*/
+var DOCTYPE_DECL_START = '<!DOCTYPE';
+/*
+ https://www.w3.org/TR/xml11/#NT-doctypedecl
+ `[28] doctypedecl ::= '<!DOCTYPE' S Name (S ExternalID)? S? ('[' intSubset ']' S?)? '>'`
+ https://www.afterwardsw3.org/TR/xml-names/#NT-doctypedecl
+ `[16] doctypedecl ::= '<!DOCTYPE' S QName (S ExternalID)? S? ('[' (markupdecl | PEReference | S)* ']' S?)? '>'`
+ var doctypedecl = reg('<!DOCTYPE', S, Name, regg(S, ExternalID), '?', S_OPT, regg(/\[/, intSubset, /]/, S_OPT), '?', '>');
+*/
+
+var CDATA_START = '<![CDATA[';
+var CDATA_END = ']]>';
+var CDStart = /<!\[CDATA\[/;
+var CDEnd = /\]\]>/;
+var CData = reg(Char, '*?', CDEnd);
+/*
+ https://www.w3.org/TR/xml/#dt-cdsection
+ `[18]   	CDSect	   ::=   	CDStart CData CDEnd`
+ `[19]   	CDStart	   ::=   	'<![CDATA['`
+ `[20]   	CData	   ::=   	(Char* - (Char* ']]>' Char*))`
+ `[21]   	CDEnd	   ::=   	']]>'`
+*/
+var CDSect = reg(CDStart, CData);
+
+// unit tested
+exports.chars = chars;
+exports.chars_without = chars_without;
+exports.detectUnicodeSupport = detectUnicodeSupport;
+exports.reg = reg;
+exports.regg = regg;
+exports.ABOUT_LEGACY_COMPAT = ABOUT_LEGACY_COMPAT;
+exports.ABOUT_LEGACY_COMPAT_SystemLiteral = ABOUT_LEGACY_COMPAT_SystemLiteral;
+exports.AttlistDecl = AttlistDecl;
+exports.CDATA_START = CDATA_START;
+exports.CDATA_END = CDATA_END;
+exports.CDSect = CDSect;
+exports.Char = Char;
+exports.Comment = Comment;
+exports.COMMENT_START = COMMENT_START;
+exports.COMMENT_END = COMMENT_END;
+exports.DOCTYPE_DECL_START = DOCTYPE_DECL_START;
+exports.elementdecl = elementdecl;
+exports.EntityDecl = EntityDecl;
+exports.EntityValue = EntityValue;
+exports.ExternalID = ExternalID;
+exports.ExternalID_match = ExternalID_match;
+exports.Name = Name;
+exports.Name_exact = Name_exact;
+exports.NCName_exact = NCName_exact;
+exports.NotationDecl = NotationDecl;
+exports.Reference = Reference;
+exports.PEReference = PEReference;
+exports.PI = PI;
+exports.PUBLIC = PUBLIC;
+exports.PubidLiteral = PubidLiteral;
+exports.PubidLiteral_match = PubidLiteral_match;
+exports.QName = QName;
+exports.QName_exact = QName_exact;
+exports.QName_group = QName_group;
+exports.S = S;
+exports.SChar_s = SChar_s;
+exports.S_OPT = S_OPT;
+exports.SYSTEM = SYSTEM;
+exports.SystemLiteral = SystemLiteral;
+exports.SystemLiteral_match = SystemLiteral_match;
+exports.InvalidChar = InvalidChar;
+exports.UNICODE_REPLACEMENT_CHARACTER = UNICODE_REPLACEMENT_CHARACTER;
+exports.UNICODE_SUPPORT = UNICODE_SUPPORT;
+exports.XMLDecl = XMLDecl;
 
 
 /***/ }),
@@ -26339,10 +29236,48 @@ exports.entityMap = exports.HTML_ENTITIES;
 /***/ 98351:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-var dom = __nccwpck_require__(67311)
-exports.DOMImplementation = dom.DOMImplementation
-exports.XMLSerializer = dom.XMLSerializer
-exports.DOMParser = __nccwpck_require__(74847).DOMParser
+"use strict";
+
+var conventions = __nccwpck_require__(37855);
+exports.assign = conventions.assign;
+exports.hasDefaultHTMLNamespace = conventions.hasDefaultHTMLNamespace;
+exports.isHTMLMimeType = conventions.isHTMLMimeType;
+exports.isValidMimeType = conventions.isValidMimeType;
+exports.MIME_TYPE = conventions.MIME_TYPE;
+exports.NAMESPACE = conventions.NAMESPACE;
+
+var errors = __nccwpck_require__(57368);
+exports.DOMException = errors.DOMException;
+exports.DOMExceptionName = errors.DOMExceptionName;
+exports.ExceptionCode = errors.ExceptionCode;
+exports.ParseError = errors.ParseError;
+
+var dom = __nccwpck_require__(67311);
+exports.Attr = dom.Attr;
+exports.CDATASection = dom.CDATASection;
+exports.CharacterData = dom.CharacterData;
+exports.Comment = dom.Comment;
+exports.Document = dom.Document;
+exports.DocumentFragment = dom.DocumentFragment;
+exports.DocumentType = dom.DocumentType;
+exports.DOMImplementation = dom.DOMImplementation;
+exports.Element = dom.Element;
+exports.Entity = dom.Entity;
+exports.EntityReference = dom.EntityReference;
+exports.LiveNodeList = dom.LiveNodeList;
+exports.NamedNodeMap = dom.NamedNodeMap;
+exports.Node = dom.Node;
+exports.NodeList = dom.NodeList;
+exports.Notation = dom.Notation;
+exports.ProcessingInstruction = dom.ProcessingInstruction;
+exports.Text = dom.Text;
+exports.XMLSerializer = dom.XMLSerializer;
+
+var domParser = __nccwpck_require__(74847);
+exports.DOMParser = domParser.DOMParser;
+exports.normalizeLineEndings = domParser.normalizeLineEndings;
+exports.onErrorStopParsing = domParser.onErrorStopParsing;
+exports.onWarningStopParsing = domParser.onWarningStopParsing;
 
 
 /***/ }),
@@ -26350,242 +29285,305 @@ exports.DOMParser = __nccwpck_require__(74847).DOMParser
 /***/ 11995:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-var NAMESPACE = (__nccwpck_require__(37855).NAMESPACE);
+"use strict";
 
-//[4]   	NameStartChar	   ::=   	":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
-//[4a]   	NameChar	   ::=   	NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
-//[5]   	Name	   ::=   	NameStartChar (NameChar)*
-var nameStartChar = /[A-Z_a-z\xC0-\xD6\xD8-\xF6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]///\u10000-\uEFFFF
-var nameChar = new RegExp("[\\-\\.0-9"+nameStartChar.source.slice(1,-1)+"\\u00B7\\u0300-\\u036F\\u203F-\\u2040]");
-var tagNamePattern = new RegExp('^'+nameStartChar.source+nameChar.source+'*(?:\:'+nameStartChar.source+nameChar.source+'*)?$');
-//var tagNamePattern = /^[a-zA-Z_][\w\-\.]*(?:\:[a-zA-Z_][\w\-\.]*)?$/
+
+var conventions = __nccwpck_require__(37855);
+var g = __nccwpck_require__(12062);
+var errors = __nccwpck_require__(57368);
+
+var isHTMLEscapableRawTextElement = conventions.isHTMLEscapableRawTextElement;
+var isHTMLMimeType = conventions.isHTMLMimeType;
+var isHTMLRawTextElement = conventions.isHTMLRawTextElement;
+var hasOwn = conventions.hasOwn;
+var NAMESPACE = conventions.NAMESPACE;
+var ParseError = errors.ParseError;
+var DOMException = errors.DOMException;
+
 //var handlers = 'resolveEntity,getExternalSubset,characters,endDocument,endElement,endPrefixMapping,ignorableWhitespace,processingInstruction,setDocumentLocator,skippedEntity,startDocument,startElement,startPrefixMapping,notationDecl,unparsedEntityDecl,error,fatalError,warning,attributeDecl,elementDecl,externalEntityDecl,internalEntityDecl,comment,endCDATA,endDTD,endEntity,startCDATA,startDTD,startEntity'.split(',')
 
 //S_TAG,	S_ATTR,	S_EQ,	S_ATTR_NOQUOT_VALUE
 //S_ATTR_SPACE,	S_ATTR_END,	S_TAG_SPACE, S_TAG_CLOSE
-var S_TAG = 0;//tag name offerring
-var S_ATTR = 1;//attr name offerring
-var S_ATTR_SPACE=2;//attr name end and space offer
-var S_EQ = 3;//=space?
-var S_ATTR_NOQUOT_VALUE = 4;//attr value(no quot value only)
-var S_ATTR_END = 5;//attr value end and no space(quot end)
-var S_TAG_SPACE = 6;//(attr value end || tag end ) && (space offer)
-var S_TAG_CLOSE = 7;//closed el<el />
+var S_TAG = 0; //tag name offerring
+var S_ATTR = 1; //attr name offerring
+var S_ATTR_SPACE = 2; //attr name end and space offer
+var S_EQ = 3; //=space?
+var S_ATTR_NOQUOT_VALUE = 4; //attr value(no quot value only)
+var S_ATTR_END = 5; //attr value end and no space(quot end)
+var S_TAG_SPACE = 6; //(attr value end || tag end ) && (space offer)
+var S_TAG_CLOSE = 7; //closed el<el />
 
-/**
- * Creates an error that will not be caught by XMLReader aka the SAX parser.
- *
- * @param {string} message
- * @param {any?} locator Optional, can provide details about the location in the source
- * @constructor
- */
-function ParseError(message, locator) {
-	this.message = message
-	this.locator = locator
-	if(Error.captureStackTrace) Error.captureStackTrace(this, ParseError);
-}
-ParseError.prototype = new Error();
-ParseError.prototype.name = ParseError.name
-
-function XMLReader(){
-
-}
+function XMLReader() {}
 
 XMLReader.prototype = {
-	parse:function(source,defaultNSMap,entityMap){
+	parse: function (source, defaultNSMap, entityMap) {
 		var domBuilder = this.domBuilder;
 		domBuilder.startDocument();
-		_copy(defaultNSMap ,defaultNSMap = {})
-		parse(source,defaultNSMap,entityMap,
-				domBuilder,this.errorHandler);
+		_copy(defaultNSMap, (defaultNSMap = Object.create(null)));
+		parse(source, defaultNSMap, entityMap, domBuilder, this.errorHandler);
 		domBuilder.endDocument();
+	},
+};
+
+/**
+ * Detecting everything that might be a reference,
+ * including those without ending `;`, since those are allowed in HTML.
+ * The entityReplacer takes care of verifying and transforming each occurrence,
+ * and reports to the errorHandler on those that are not OK,
+ * depending on the context.
+ */
+var ENTITY_REG = /&#?\w+;?/g;
+
+function parse(source, defaultNSMapCopy, entityMap, domBuilder, errorHandler) {
+	var isHTML = isHTMLMimeType(domBuilder.mimeType);
+	if (source.indexOf(g.UNICODE_REPLACEMENT_CHARACTER) >= 0) {
+		errorHandler.warning('Unicode replacement character detected, source encoding issues?');
 	}
-}
-function parse(source,defaultNSMapCopy,entityMap,domBuilder,errorHandler){
+
 	function fixedFromCharCode(code) {
 		// String.prototype.fromCharCode does not supports
 		// > 2 bytes unicode chars directly
 		if (code > 0xffff) {
 			code -= 0x10000;
-			var surrogate1 = 0xd800 + (code >> 10)
-				, surrogate2 = 0xdc00 + (code & 0x3ff);
+			var surrogate1 = 0xd800 + (code >> 10),
+				surrogate2 = 0xdc00 + (code & 0x3ff);
 
 			return String.fromCharCode(surrogate1, surrogate2);
 		} else {
 			return String.fromCharCode(code);
 		}
 	}
-	function entityReplacer(a){
-		var k = a.slice(1,-1);
-		if (Object.hasOwnProperty.call(entityMap, k)) {
+
+	function entityReplacer(a) {
+		var complete = a[a.length - 1] === ';' ? a : a + ';';
+		if (!isHTML && complete !== a) {
+			errorHandler.error('EntityRef: expecting ;');
+			return a;
+		}
+		var match = g.Reference.exec(complete);
+		if (!match || match[0].length !== complete.length) {
+			errorHandler.error('entity not matching Reference production: ' + a);
+			return a;
+		}
+		var k = complete.slice(1, -1);
+		if (hasOwn(entityMap, k)) {
 			return entityMap[k];
-		}else if(k.charAt(0) === '#'){
-			return fixedFromCharCode(parseInt(k.substr(1).replace('x','0x')))
-		}else{
-			errorHandler.error('entity not found:'+a);
+		} else if (k.charAt(0) === '#') {
+			return fixedFromCharCode(parseInt(k.substring(1).replace('x', '0x')));
+		} else {
+			errorHandler.error('entity not found:' + a);
 			return a;
 		}
 	}
-	function appendText(end){//has some bugs
-		if(end>start){
-			var xt = source.substring(start,end).replace(/&#?\w+;/g,entityReplacer);
-			locator&&position(start);
-			domBuilder.characters(xt,0,end-start);
-			start = end
+
+	function appendText(end) {
+		//has some bugs
+		if (end > start) {
+			var xt = source.substring(start, end).replace(ENTITY_REG, entityReplacer);
+			locator && position(start);
+			domBuilder.characters(xt, 0, end - start);
+			start = end;
 		}
 	}
-	function position(p,m){
-		while(p>=lineEnd && (m = linePattern.exec(source))){
-			lineStart = m.index;
-			lineEnd = lineStart + m[0].length;
-			locator.lineNumber++;
-			//console.log('line++:',locator,startPos,endPos)
-		}
-		locator.columnNumber = p-lineStart+1;
-	}
+
 	var lineStart = 0;
 	var lineEnd = 0;
-	var linePattern = /.*(?:\r\n?|\n)|.*$/g
+	var linePattern = /\r\n?|\n|$/g;
 	var locator = domBuilder.locator;
 
-	var parseStack = [{currentNSMap:defaultNSMapCopy}]
-	var closeMap = {};
+	function position(p, m) {
+		while (p >= lineEnd && (m = linePattern.exec(source))) {
+			lineStart = lineEnd;
+			lineEnd = m.index + m[0].length;
+			locator.lineNumber++;
+		}
+		locator.columnNumber = p - lineStart + 1;
+	}
+
+	var parseStack = [{ currentNSMap: defaultNSMapCopy }];
+	var unclosedTags = [];
 	var start = 0;
-	while(true){
-		try{
-			var tagStart = source.indexOf('<',start);
-			if(tagStart<0){
-				if(!source.substr(start).match(/^\s*$/)){
+	while (true) {
+		try {
+			var tagStart = source.indexOf('<', start);
+			if (tagStart < 0) {
+				if (!isHTML && unclosedTags.length > 0) {
+					return errorHandler.fatalError('unclosed xml tag(s): ' + unclosedTags.join(', '));
+				}
+				if (!source.substring(start).match(/^\s*$/)) {
 					var doc = domBuilder.doc;
-	    			var text = doc.createTextNode(source.substr(start));
-	    			doc.appendChild(text);
-	    			domBuilder.currentElement = text;
+					var text = doc.createTextNode(source.substring(start));
+					if (doc.documentElement) {
+						// `return errorHandler.error` is not a common pattern,
+						// it is usually only used with `.fatalError`s.
+						// In this case it is intentional, because it allows to stop parsing
+						// and returning doc after reporting the extra content that will not be part of the document.
+						return errorHandler.error('Extra content at the end of the document');
+					}
+					doc.appendChild(text);
+					domBuilder.currentElement = text;
 				}
 				return;
 			}
-			if(tagStart>start){
+			if (tagStart > start) {
+				var fromSource = source.substring(start, tagStart);
+				if (!isHTML && unclosedTags.length === 0) {
+					fromSource = fromSource.replace(new RegExp(g.S_OPT.source, 'g'), '');
+					fromSource && errorHandler.error("Unexpected content outside root element: '" + fromSource + "'");
+				}
 				appendText(tagStart);
 			}
-			switch(source.charAt(tagStart+1)){
-			case '/':
-				var end = source.indexOf('>',tagStart+3);
-				var tagName = source.substring(tagStart + 2, end).replace(/[ \t\n\r]+$/g, '');
-				var config = parseStack.pop();
-				if(end<0){
-
-	        		tagName = source.substring(tagStart+2).replace(/[\s<].*/,'');
-	        		errorHandler.error("end tag name: "+tagName+' is not complete:'+config.tagName);
-	        		end = tagStart+1+tagName.length;
-	        	}else if(tagName.match(/\s</)){
-	        		tagName = tagName.replace(/[\s<].*/,'');
-	        		errorHandler.error("end tag name: "+tagName+' maybe not complete');
-	        		end = tagStart+1+tagName.length;
-				}
-				var localNSMap = config.localNSMap;
-				var endMatch = config.tagName == tagName;
-				var endIgnoreCaseMach = endMatch || config.tagName&&config.tagName.toLowerCase() == tagName.toLowerCase()
-		        if(endIgnoreCaseMach){
-		        	domBuilder.endElement(config.uri,config.localName,tagName);
-					if(localNSMap){
+			switch (source.charAt(tagStart + 1)) {
+				case '/':
+					var end = source.indexOf('>', tagStart + 2);
+					var tagNameRaw = source.substring(tagStart + 2, end > 0 ? end : undefined);
+					if (!tagNameRaw) {
+						return errorHandler.fatalError('end tag name missing');
+					}
+					var endTagNameStrict = g.reg('^', g.QName_group, g.S_OPT, '$');
+					var tagNameMatch = end > 0 && endTagNameStrict.exec(tagNameRaw);
+					if (!tagNameMatch) {
+						var leadingTagNameMatch = end > 0 && g.reg('^', g.QName_group).exec(tagNameRaw);
+						if (isHTML && leadingTagNameMatch) {
+							errorHandler.warning('end tag name contains invalid trailing characters: "' + tagNameRaw + '"');
+							tagNameMatch = leadingTagNameMatch;
+						} else if (
+							// Backward compatibility, remove this whole `else if` arm in the next breaking release
+							// (XML then falls through to the `fatalError` below, for a clean mode split: XML fatal,
+							// HTML warning). A valid end-tag name followed by a line break and trailing content was
+							// silently accepted while `reg` still used the `m` flag; re-adding `m` here matches exactly
+							// those inputs, kept recoverable and reported.
+							leadingTagNameMatch &&
+							new RegExp(endTagNameStrict.source, endTagNameStrict.flags + 'm').test(tagNameRaw)
+						) {
+							errorHandler.error('end tag name is followed by a line break and trailing content: "' + tagNameRaw + '"');
+							tagNameMatch = leadingTagNameMatch;
+						} else {
+							return errorHandler.fatalError('end tag name contains invalid characters: "' + tagNameRaw + '"');
+						}
+					}
+					if (!domBuilder.currentElement && !domBuilder.doc.documentElement) {
+						// not enough information to provide a helpful error message,
+						// but parsing will throw since there is no root element
+						return;
+					}
+					var currentTagName =
+						unclosedTags[unclosedTags.length - 1] ||
+						domBuilder.currentElement.tagName ||
+						domBuilder.doc.documentElement.tagName ||
+						'';
+					if (currentTagName !== tagNameMatch[1]) {
+						var tagNameLower = tagNameMatch[1].toLowerCase();
+						if (!isHTML || currentTagName.toLowerCase() !== tagNameLower) {
+							return errorHandler.fatalError('Opening and ending tag mismatch: "' + currentTagName + '" != "' + tagNameRaw + '"');
+						}
+					}
+					var config = parseStack.pop();
+					unclosedTags.pop();
+					var localNSMap = config.localNSMap;
+					domBuilder.endElement(config.uri, config.localName, currentTagName);
+					if (localNSMap) {
 						for (var prefix in localNSMap) {
-							if (Object.prototype.hasOwnProperty.call(localNSMap, prefix)) {
+							if (hasOwn(localNSMap, prefix)) {
 								domBuilder.endPrefixMapping(prefix);
 							}
 						}
 					}
-					if(!endMatch){
-		            	errorHandler.fatalError("end tag name: "+tagName+' is not match the current start tagName:'+config.tagName ); // No known test case
-					}
-		        }else{
-		        	parseStack.push(config)
-		        }
 
-				end++;
-				break;
-				// end elment
-			case '?':// <?...?>
-				locator&&position(tagStart);
-				end = parseInstruction(source,tagStart,domBuilder);
-				break;
-			case '!':// <!doctype,<![CDATA,<!--
-				locator&&position(tagStart);
-				end = parseDCC(source,tagStart,domBuilder,errorHandler);
-				break;
-			default:
-				locator&&position(tagStart);
-				var el = new ElementAttributes();
-				var currentNSMap = parseStack[parseStack.length-1].currentNSMap;
-				//elStartEnd
-				var end = parseElementStartPart(source,tagStart,el,currentNSMap,entityReplacer,errorHandler);
-				var len = el.length;
-
-
-				if(!el.closed && fixSelfClosed(source,end,el.tagName,closeMap)){
-					el.closed = true;
-					if(!entityMap.nbsp){
-						errorHandler.warning('unclosed xml attribute');
-					}
-				}
-				if(locator && len){
-					var locator2 = copyLocator(locator,{});
-					//try{//attribute position fixed
-					for(var i = 0;i<len;i++){
-						var a = el[i];
-						position(a.offset);
-						a.locator = copyLocator(locator,{});
-					}
-					domBuilder.locator = locator2
-					if(appendElement(el,domBuilder,currentNSMap)){
-						parseStack.push(el)
-					}
-					domBuilder.locator = locator;
-				}else{
-					if(appendElement(el,domBuilder,currentNSMap)){
-						parseStack.push(el)
-					}
-				}
-
-				if (NAMESPACE.isHTML(el.uri) && !el.closed) {
-					end = parseHtmlSpecialContent(source,end,el.tagName,entityReplacer,domBuilder)
-				} else {
 					end++;
-				}
+					break;
+				// end element
+				case '?': // <?...?>
+					locator && position(tagStart);
+					end = parseProcessingInstruction(source, tagStart, domBuilder, errorHandler);
+					break;
+				case '!': // <!doctype,<![CDATA,<!--
+					locator && position(tagStart);
+					end = parseDoctypeCommentOrCData(source, tagStart, domBuilder, errorHandler, isHTML);
+					break;
+				default:
+					locator && position(tagStart);
+					var el = new ElementAttributes();
+					var currentNSMap = parseStack[parseStack.length - 1].currentNSMap;
+					//elStartEnd
+					var end = parseElementStartPart(source, tagStart, el, currentNSMap, entityReplacer, errorHandler, isHTML);
+					var len = el.length;
+
+					if (!el.closed) {
+						if (isHTML && conventions.isHTMLVoidElement(el.tagName)) {
+							el.closed = true;
+						} else {
+							unclosedTags.push(el.tagName);
+						}
+					}
+					if (locator && len) {
+						var locator2 = copyLocator(locator, {});
+						//try{//attribute position fixed
+						for (var i = 0; i < len; i++) {
+							var a = el[i];
+							position(a.offset);
+							a.locator = copyLocator(locator, {});
+						}
+						domBuilder.locator = locator2;
+						if (appendElement(el, domBuilder, currentNSMap)) {
+							parseStack.push(el);
+						}
+						domBuilder.locator = locator;
+					} else {
+						if (appendElement(el, domBuilder, currentNSMap)) {
+							parseStack.push(el);
+						}
+					}
+
+					if (isHTML && !el.closed) {
+						end = parseHtmlSpecialContent(source, end, el.tagName, entityReplacer, domBuilder);
+					} else {
+						end++;
+					}
 			}
-		}catch(e){
+		} catch (e) {
 			if (e instanceof ParseError) {
 				throw e;
+			} else if (e instanceof DOMException) {
+				// A DOMException raised while building the DOM is not-well-formed input,
+				// so it is wrapped into a ParseError and reported before being thrown.
+				return errorHandler.fatalError('Error constructing the DOM: ' + e.name + ': ' + e.message, e);
 			}
-			errorHandler.error('element parse error: '+e)
+			errorHandler.error('element parse error: ' + e);
 			end = -1;
 		}
-		if(end>start){
+		if (end > start) {
 			start = end;
-		}else{
-			//TODO: 这里有可能sax回退，有位置错误风险
-			appendText(Math.max(tagStart,start)+1);
+		} else {
+			//Possible sax fallback here, risk of positional error
+			appendText(Math.max(tagStart, start) + 1);
 		}
 	}
 }
-function copyLocator(f,t){
+
+function copyLocator(f, t) {
 	t.lineNumber = f.lineNumber;
 	t.columnNumber = f.columnNumber;
 	return t;
 }
 
 /**
- * @see #appendElement(source,elStartEnd,el,selfClosed,entityReplacer,domBuilder,parseStack);
- * @return end of the elementStartPart(end of elementEndPart for selfClosed el)
+ * @returns
+ * end of the elementStartPart(end of elementEndPart for selfClosed el)
+ * @see {@link #appendElement}
  */
-function parseElementStartPart(source,start,el,currentNSMap,entityReplacer,errorHandler){
-
+function parseElementStartPart(source, start, el, currentNSMap, entityReplacer, errorHandler, isHTML) {
 	/**
 	 * @param {string} qname
 	 * @param {string} value
 	 * @param {number} startIndex
 	 */
 	function addAttribute(qname, value, startIndex) {
-		if (el.attributeNames.hasOwnProperty(qname)) {
-			errorHandler.fatalError('Attribute ' + qname + ' redefined')
+		if (hasOwn(el.attributeNames, qname)) {
+			return errorHandler.fatalError('Attribute ' + qname + ' redefined');
+		}
+		if (!isHTML && value.indexOf('<') >= 0) {
+			return errorHandler.fatalError("Unescaped '<' not allowed in attributes values");
 		}
 		el.addValue(
 			qname,
@@ -26593,425 +29591,684 @@ function parseElementStartPart(source,start,el,currentNSMap,entityReplacer,error
 			// since the xmldom sax parser does not "interpret" DTD the following is not implemented:
 			// - recursive replacement of (DTD) entity references
 			// - trimming and collapsing multiple spaces into a single one for attributes that are not of type CDATA
-			value.replace(/[\t\n\r]/g, ' ').replace(/&#?\w+;/g, entityReplacer),
+			value.replace(/[\t\n\r]/g, ' ').replace(ENTITY_REG, entityReplacer),
 			startIndex
-		)
+		);
 	}
+
 	var attrName;
 	var value;
 	var p = ++start;
-	var s = S_TAG;//status
-	while(true){
+	var s = S_TAG; //status
+	while (true) {
 		var c = source.charAt(p);
-		switch(c){
-		case '=':
-			if(s === S_ATTR){//attrName
-				attrName = source.slice(start,p);
-				s = S_EQ;
-			}else if(s === S_ATTR_SPACE){
-				s = S_EQ;
-			}else{
-				//fatalError: equal must after attrName or space after attrName
-				throw new Error('attribute equal must after attrName'); // No known test case
-			}
-			break;
-		case '\'':
-		case '"':
-			if(s === S_EQ || s === S_ATTR //|| s == S_ATTR_SPACE
-				){//equal
-				if(s === S_ATTR){
-					errorHandler.warning('attribute value must after "="')
-					attrName = source.slice(start,p)
+		if (s === S_TAG && c === '<') {
+			// A `<` can never occur inside a tag name. Without this guard the scan runs
+			// on to the next `>` (or EOF) before `setTagName` rejects the whole slice, so
+			// a document with many `<` inside a malformed tag makes each one-character
+			// recovery step re-scan to the distant `>` — O(n^2). Stopping at the `<` keeps
+			// each recovery step bounded. The candidate scanned so far is reported raw,
+			// consistent with the sibling invalid-tag-name throw below.
+			throw new Error('unexpected < in tag name: ' + source.slice(start, p));
+		}
+		switch (c) {
+			case '=':
+				if (s === S_ATTR) {
+					//attrName
+					attrName = source.slice(start, p);
+					s = S_EQ;
+				} else if (s === S_ATTR_SPACE) {
+					s = S_EQ;
+				} else {
+					//fatalError: equal must after attrName or space after attrName
+					throw new Error('attribute equal must after attrName');
 				}
-				start = p+1;
-				p = source.indexOf(c,start)
-				if(p>0){
+				break;
+			case "'":
+			case '"':
+				if (
+					s === S_EQ ||
+					s === S_ATTR //|| s == S_ATTR_SPACE
+				) {
+					//equal
+					if (s === S_ATTR) {
+						errorHandler.warning('attribute value must after "="');
+						attrName = source.slice(start, p);
+					}
+					start = p + 1;
+					p = source.indexOf(c, start);
+					if (p > 0) {
+						value = source.slice(start, p);
+						addAttribute(attrName, value, start - 1);
+						s = S_ATTR_END;
+					} else {
+						//fatalError: no end quot match
+						throw new Error("attribute value no end '" + c + "' match");
+					}
+				} else if (s == S_ATTR_NOQUOT_VALUE) {
 					value = source.slice(start, p);
-					addAttribute(attrName, value, start-1);
+					addAttribute(attrName, value, start);
+					errorHandler.warning('attribute "' + attrName + '" missed start quot(' + c + ')!!');
+					start = p + 1;
 					s = S_ATTR_END;
-				}else{
-					//fatalError: no end quot match
-					throw new Error('attribute value no end \''+c+'\' match');
+				} else {
+					//fatalError: no equal before
+					throw new Error('attribute value must after "="');
 				}
-			}else if(s == S_ATTR_NOQUOT_VALUE){
-				value = source.slice(start, p);
-				addAttribute(attrName, value, start);
-				errorHandler.warning('attribute "'+attrName+'" missed start quot('+c+')!!');
-				start = p+1;
-				s = S_ATTR_END
-			}else{
-				//fatalError: no equal before
-				throw new Error('attribute value must after "="'); // No known test case
-			}
-			break;
-		case '/':
-			switch(s){
-			case S_TAG:
-				el.setTagName(source.slice(start,p));
-			case S_ATTR_END:
-			case S_TAG_SPACE:
-			case S_TAG_CLOSE:
-				s =S_TAG_CLOSE;
-				el.closed = true;
-			case S_ATTR_NOQUOT_VALUE:
-			case S_ATTR:
 				break;
-				case S_ATTR_SPACE:
-					el.closed = true;
+			case '/':
+				switch (s) {
+					case S_TAG:
+						el.setTagName(source.slice(start, p));
+					case S_ATTR_END:
+					case S_TAG_SPACE:
+					case S_TAG_CLOSE:
+						s = S_TAG_CLOSE;
+						el.closed = true;
+					case S_ATTR_NOQUOT_VALUE:
+					case S_ATTR:
+						break;
+					case S_ATTR_SPACE:
+						el.closed = true;
+						break;
+					//case S_EQ:
+					default:
+						throw new Error("attribute invalid close char('/')");
+				}
 				break;
-			//case S_EQ:
+			case '': //end document
+				errorHandler.error('unexpected end of input');
+				if (s == S_TAG) {
+					el.setTagName(source.slice(start, p));
+				}
+				return p;
+			case '>':
+				switch (s) {
+					case S_TAG:
+						el.setTagName(source.slice(start, p));
+					case S_ATTR_END:
+					case S_TAG_SPACE:
+					case S_TAG_CLOSE:
+						break; //normal
+					case S_ATTR_NOQUOT_VALUE: //Compatible state
+					case S_ATTR:
+						value = source.slice(start, p);
+						if (value.slice(-1) === '/') {
+							el.closed = true;
+							value = value.slice(0, -1);
+						}
+					case S_ATTR_SPACE:
+						if (s === S_ATTR_SPACE) {
+							value = attrName;
+						}
+						if (s == S_ATTR_NOQUOT_VALUE) {
+							errorHandler.warning('attribute "' + value + '" missed quot(")!');
+							addAttribute(attrName, value, start);
+						} else {
+							if (!isHTML) {
+								errorHandler.warning('attribute "' + value + '" missed value!! "' + value + '" instead!!');
+							}
+							addAttribute(value, value, start);
+						}
+						break;
+					case S_EQ:
+						if (!isHTML) {
+							return errorHandler.fatalError('AttValue: \' or " expected');
+						}
+				}
+				return p;
+			/*xml space '\x20' | #x9 | #xD | #xA; */
+			case '\u0080':
+				c = ' ';
 			default:
-				throw new Error("attribute invalid close char('/')") // No known test case
-			}
-			break;
-		case ''://end document
-			errorHandler.error('unexpected end of input');
-			if(s == S_TAG){
-				el.setTagName(source.slice(start,p));
-			}
-			return p;
-		case '>':
-			switch(s){
-			case S_TAG:
-				el.setTagName(source.slice(start,p));
-			case S_ATTR_END:
-			case S_TAG_SPACE:
-			case S_TAG_CLOSE:
-				break;//normal
-			case S_ATTR_NOQUOT_VALUE://Compatible state
-			case S_ATTR:
-				value = source.slice(start,p);
-				if(value.slice(-1) === '/'){
-					el.closed  = true;
-					value = value.slice(0,-1)
-				}
-			case S_ATTR_SPACE:
-				if(s === S_ATTR_SPACE){
-					value = attrName;
-				}
-				if(s == S_ATTR_NOQUOT_VALUE){
-					errorHandler.warning('attribute "'+value+'" missed quot(")!');
-					addAttribute(attrName, value, start)
-				}else{
-					if(!NAMESPACE.isHTML(currentNSMap['']) || !value.match(/^(?:disabled|checked|selected)$/i)){
-						errorHandler.warning('attribute "'+value+'" missed value!! "'+value+'" instead!!')
+				if (c <= ' ') {
+					//space
+					switch (s) {
+						case S_TAG:
+							el.setTagName(source.slice(start, p)); //tagName
+							s = S_TAG_SPACE;
+							break;
+						case S_ATTR:
+							attrName = source.slice(start, p);
+							s = S_ATTR_SPACE;
+							break;
+						case S_ATTR_NOQUOT_VALUE:
+							var value = source.slice(start, p);
+							errorHandler.warning('attribute "' + value + '" missed quot(")!!');
+							addAttribute(attrName, value, start);
+						case S_ATTR_END:
+							s = S_TAG_SPACE;
+							break;
+						//case S_TAG_SPACE:
+						//case S_EQ:
+						//case S_ATTR_SPACE:
+						//	void();break;
+						//case S_TAG_CLOSE:
+						//ignore warning
 					}
-					addAttribute(value, value, start)
-				}
-				break;
-			case S_EQ:
-				throw new Error('attribute value missed!!');
-			}
-//			console.log(tagName,tagNamePattern,tagNamePattern.test(tagName))
-			return p;
-		/*xml space '\x20' | #x9 | #xD | #xA; */
-		case '\u0080':
-			c = ' ';
-		default:
-			if(c<= ' '){//space
-				switch(s){
-				case S_TAG:
-					el.setTagName(source.slice(start,p));//tagName
-					s = S_TAG_SPACE;
-					break;
-				case S_ATTR:
-					attrName = source.slice(start,p)
-					s = S_ATTR_SPACE;
-					break;
-				case S_ATTR_NOQUOT_VALUE:
-					var value = source.slice(start, p);
-					errorHandler.warning('attribute "'+value+'" missed quot(")!!');
-					addAttribute(attrName, value, start)
-				case S_ATTR_END:
-					s = S_TAG_SPACE;
-					break;
-				//case S_TAG_SPACE:
-				//case S_EQ:
-				//case S_ATTR_SPACE:
-				//	void();break;
-				//case S_TAG_CLOSE:
-					//ignore warning
-				}
-			}else{//not space
-//S_TAG,	S_ATTR,	S_EQ,	S_ATTR_NOQUOT_VALUE
-//S_ATTR_SPACE,	S_ATTR_END,	S_TAG_SPACE, S_TAG_CLOSE
-				switch(s){
-				//case S_TAG:void();break;
-				//case S_ATTR:void();break;
-				//case S_ATTR_NOQUOT_VALUE:void();break;
-				case S_ATTR_SPACE:
-					var tagName =  el.tagName;
-					if (!NAMESPACE.isHTML(currentNSMap['']) || !attrName.match(/^(?:disabled|checked|selected)$/i)) {
-						errorHandler.warning('attribute "'+attrName+'" missed value!! "'+attrName+'" instead2!!')
+				} else {
+					//not space
+					//S_TAG,	S_ATTR,	S_EQ,	S_ATTR_NOQUOT_VALUE
+					//S_ATTR_SPACE,	S_ATTR_END,	S_TAG_SPACE, S_TAG_CLOSE
+					switch (s) {
+						//case S_TAG:void();break;
+						//case S_ATTR:void();break;
+						//case S_ATTR_NOQUOT_VALUE:void();break;
+						case S_ATTR_SPACE:
+							if (!isHTML) {
+								errorHandler.warning('attribute "' + attrName + '" missed value!! "' + attrName + '" instead2!!');
+							}
+							addAttribute(attrName, attrName, start);
+							start = p;
+							s = S_ATTR;
+							break;
+						case S_ATTR_END:
+							errorHandler.warning('attribute space is required"' + attrName + '"!!');
+						case S_TAG_SPACE:
+							s = S_ATTR;
+							start = p;
+							break;
+						case S_EQ:
+							s = S_ATTR_NOQUOT_VALUE;
+							start = p;
+							break;
+						case S_TAG_CLOSE:
+							throw new Error("elements closed character '/' and '>' must be connected to");
 					}
-					addAttribute(attrName, attrName, start);
-					start = p;
-					s = S_ATTR;
-					break;
-				case S_ATTR_END:
-					errorHandler.warning('attribute space is required"'+attrName+'"!!')
-				case S_TAG_SPACE:
-					s = S_ATTR;
-					start = p;
-					break;
-				case S_EQ:
-					s = S_ATTR_NOQUOT_VALUE;
-					start = p;
-					break;
-				case S_TAG_CLOSE:
-					throw new Error("elements closed character '/' and '>' must be connected to");
 				}
-			}
-		}//end outer switch
-		//console.log('p++',p)
+		} //end outer switch
 		p++;
 	}
 }
+
 /**
- * @return true if has new namespace define
+ * @returns
+ * `true` if a new namespace has been defined.
  */
-function appendElement(el,domBuilder,currentNSMap){
+function appendElement(el, domBuilder, currentNSMap) {
 	var tagName = el.tagName;
 	var localNSMap = null;
-	//var currentNSMap = parseStack[parseStack.length-1].currentNSMap;
 	var i = el.length;
-	while(i--){
+	while (i--) {
 		var a = el[i];
 		var qName = a.qName;
 		var value = a.value;
 		var nsp = qName.indexOf(':');
-		if(nsp>0){
-			var prefix = a.prefix = qName.slice(0,nsp);
-			var localName = qName.slice(nsp+1);
-			var nsPrefix = prefix === 'xmlns' && localName
-		}else{
+		if (nsp > 0) {
+			var prefix = (a.prefix = qName.slice(0, nsp));
+			var localName = qName.slice(nsp + 1);
+			var nsPrefix = prefix === 'xmlns' && localName;
+		} else {
 			localName = qName;
-			prefix = null
-			nsPrefix = qName === 'xmlns' && ''
+			prefix = null;
+			nsPrefix = qName === 'xmlns' && '';
 		}
 		//can not set prefix,because prefix !== ''
-		a.localName = localName ;
+		a.localName = localName;
 		//prefix == null for no ns prefix attribute
-		if(nsPrefix !== false){//hack!!
-			if(localNSMap == null){
-				localNSMap = {}
-				//console.log(currentNSMap,0)
-				_copy(currentNSMap,currentNSMap={})
-				//console.log(currentNSMap,1)
+		if (nsPrefix !== false) {
+			//hack!!
+			if (localNSMap == null) {
+				localNSMap = Object.create(null);
+				// Derive the child scope's namespace map by prototype-chain inheritance
+				// instead of a flat copy: lookups inherit ancestor prefixes transparently,
+				// so a document nesting N scopes retains O(N) map entries rather than
+				// sum(1..N) = O(N^2). `localNSMap` stays a flat own-only record of the
+				// prefixes declared at THIS element, so own-property enumeration
+				// (endPrefixMapping below) still reports only local declarations.
+				currentNSMap = Object.create(currentNSMap);
 			}
 			currentNSMap[nsPrefix] = localNSMap[nsPrefix] = value;
-			a.uri = NAMESPACE.XMLNS
-			domBuilder.startPrefixMapping(nsPrefix, value)
+			a.uri = NAMESPACE.XMLNS;
+			domBuilder.startPrefixMapping(nsPrefix, value);
 		}
 	}
 	var i = el.length;
-	while(i--){
+	while (i--) {
 		a = el[i];
-		var prefix = a.prefix;
-		if(prefix){//no prefix attribute has no namespace
-			if(prefix === 'xml'){
+		if (a.prefix) {
+			//no prefix attribute has no namespace
+			if (a.prefix === 'xml') {
 				a.uri = NAMESPACE.XML;
-			}if(prefix !== 'xmlns'){
-				a.uri = currentNSMap[prefix || '']
-
-				//{console.log('###'+a.qName,domBuilder.locator.systemId+'',currentNSMap,a.uri)}
+			}
+			if (a.prefix !== 'xmlns') {
+				a.uri = currentNSMap[a.prefix];
 			}
 		}
 	}
 	var nsp = tagName.indexOf(':');
-	if(nsp>0){
-		prefix = el.prefix = tagName.slice(0,nsp);
-		localName = el.localName = tagName.slice(nsp+1);
-	}else{
-		prefix = null;//important!!
+	if (nsp > 0) {
+		prefix = el.prefix = tagName.slice(0, nsp);
+		localName = el.localName = tagName.slice(nsp + 1);
+	} else {
+		prefix = null; //important!!
 		localName = el.localName = tagName;
 	}
 	//no prefix element has default namespace
-	var ns = el.uri = currentNSMap[prefix || ''];
-	domBuilder.startElement(ns,localName,tagName,el);
+	var ns = (el.uri = currentNSMap[prefix || '']);
+	domBuilder.startElement(ns, localName, tagName, el);
 	//endPrefixMapping and startPrefixMapping have not any help for dom builder
 	//localNSMap = null
-	if(el.closed){
-		domBuilder.endElement(ns,localName,tagName);
-		if(localNSMap){
+	if (el.closed) {
+		domBuilder.endElement(ns, localName, tagName);
+		if (localNSMap) {
 			for (prefix in localNSMap) {
-				if (Object.prototype.hasOwnProperty.call(localNSMap, prefix)) {
+				if (hasOwn(localNSMap, prefix)) {
 					domBuilder.endPrefixMapping(prefix);
 				}
 			}
 		}
-	}else{
+	} else {
 		el.currentNSMap = currentNSMap;
 		el.localNSMap = localNSMap;
 		//parseStack.push(el);
 		return true;
 	}
 }
-function parseHtmlSpecialContent(source,elStartEnd,tagName,entityReplacer,domBuilder){
-	if(/^(?:script|textarea)$/i.test(tagName)){
-		var elEndStart =  source.indexOf('</'+tagName+'>',elStartEnd);
-		var text = source.substring(elStartEnd+1,elEndStart);
-		if(/[&<]/.test(text)){
-			if(/^script$/i.test(tagName)){
-				//if(!/\]\]>/.test(text)){
-					//lexHandler.startCDATA();
-					domBuilder.characters(text,0,text.length);
-					//lexHandler.endCDATA();
-					return elEndStart;
-				//}
-			}//}else{//text area
-				text = text.replace(/&#?\w+;/g,entityReplacer);
-				domBuilder.characters(text,0,text.length);
-				return elEndStart;
-			//}
 
+function parseHtmlSpecialContent(source, elStartEnd, tagName, entityReplacer, domBuilder) {
+	// https://html.spec.whatwg.org/#raw-text-elements
+	// https://html.spec.whatwg.org/#escapable-raw-text-elements
+	// https://html.spec.whatwg.org/#cdata-rcdata-restrictions:raw-text-elements
+	// TODO: https://html.spec.whatwg.org/#cdata-rcdata-restrictions
+	var isEscapableRaw = isHTMLEscapableRawTextElement(tagName);
+	if (isEscapableRaw || isHTMLRawTextElement(tagName)) {
+		// The closing tag of a raw-text element matches case-insensitively
+		// (WHATWG HTML §13.2.5.14 RAWTEXT end tag name state). A case-sensitive
+		// search that missed the closing tag would return -1 and the `substring`
+		// below would treat -1 as a backward slice from position 0, re-emitting all
+		// prior source and amplifying output quadratically across repeated elements.
+		// The regex is anchored to `elStartEnd` via `lastIndex` so it scans forward
+		// only (O(distance), not the whole source).
+		var closeTag = new RegExp('</' + tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '>', 'ig');
+		closeTag.lastIndex = elStartEnd;
+		var match = closeTag.exec(source);
+		var elEndStart = match ? match.index : -1;
+		if (elEndStart < 0) {
+			// No closing tag: never slice with a -1 end index. Leave the element to
+			// the parse loop's normal recovery instead of back-capturing the source.
+			return elStartEnd + 1;
 		}
-	}
-	return elStartEnd+1;
-}
-function fixSelfClosed(source,elStartEnd,tagName,closeMap){
-	//if(tagName in closeMap){
-	var pos = closeMap[tagName];
-	if(pos == null){
-		//console.log(tagName)
-		pos =  source.lastIndexOf('</'+tagName+'>')
-		if(pos<elStartEnd){//忘记闭合
-			pos = source.lastIndexOf('</'+tagName)
+		var text = source.substring(elStartEnd + 1, elEndStart);
+
+		if (isEscapableRaw) {
+			text = text.replace(ENTITY_REG, entityReplacer);
 		}
-		closeMap[tagName] =pos
+		domBuilder.characters(text, 0, text.length);
+		return elEndStart;
 	}
-	return pos<elStartEnd;
-	//}
+	return elStartEnd + 1;
 }
 
-function _copy (source, target) {
+function _copy(source, target) {
 	for (var n in source) {
-		if (Object.prototype.hasOwnProperty.call(source, n)) {
+		if (hasOwn(source, n)) {
 			target[n] = source[n];
 		}
 	}
 }
 
-function parseDCC(source,start,domBuilder,errorHandler){//sure start with '<!'
-	var next= source.charAt(start+2)
-	switch(next){
-	case '-':
-		if(source.charAt(start + 3) === '-'){
-			var end = source.indexOf('-->',start+4);
-			//append comment source.substring(4,end)//<!--
-			if(end>start){
-				domBuilder.comment(source,start+4,end-start-4);
-				return end+3;
-			}else{
-				errorHandler.error("Unclosed comment");
-				return -1;
+/**
+ * @typedef ParseUtils
+ * @property {function(relativeIndex: number?): string | undefined} char
+ * Provides look ahead access to a singe character relative to the current index.
+ * @property {function(): number} getIndex
+ * Provides read-only access to the current index.
+ * @property {function(reg: RegExp): string | null} getMatch
+ * Applies the provided regular expression enforcing that it starts at the current index and
+ * returns the complete matching string,
+ * and moves the current index by the length of the matching string.
+ * @property {function(): string} getSource
+ * Provides read-only access to the complete source.
+ * @property {function(places: number?): void} skip
+ * moves the current index by places (defaults to 1)
+ * @property {function(): number} skipBlanks
+ * Moves the current index by the amount of white space that directly follows the current index
+ * and returns the amount of whitespace chars skipped (0..n),
+ * or -1 if the end of the source was reached.
+ * @property {function(): string} substringFromIndex
+ * creates a substring from the current index to the end of `source`
+ * @property {function(compareWith: string): boolean} substringStartsWith
+ * Checks if `source` contains `compareWith`, starting from the current index.
+ * @property {function(compareWith: string): boolean} substringStartsWithCaseInsensitive
+ * Checks if `source` contains `compareWith`, starting from the current index,
+ * comparing the upper case of both sides.
+ * @see {@link parseUtils}
+ */
+
+/**
+ * A temporary scope for parsing and look ahead operations in `source`,
+ * starting from index `start`.
+ *
+ * Some operations move the current index by a number of positions,
+ * after which `getIndex` returns the new index.
+ *
+ * @param {string} source
+ * @param {number} start
+ * @returns {ParseUtils}
+ */
+function parseUtils(source, start) {
+	var index = start;
+
+	function char(n) {
+		n = n || 0;
+		return source.charAt(index + n);
+	}
+
+	function skip(n) {
+		n = n || 1;
+		index += n;
+	}
+
+	function skipBlanks() {
+		var blanks = 0;
+		while (index < source.length) {
+			var c = char();
+			if (c !== ' ' && c !== '\n' && c !== '\t' && c !== '\r') {
+				return blanks;
 			}
-		}else{
-			//error
-			return -1;
+			blanks++;
+			skip();
 		}
-	default:
-		if(source.substr(start+3,6) == 'CDATA['){
-			var end = source.indexOf(']]>',start+9);
-			domBuilder.startCDATA();
-			domBuilder.characters(source,start+9,end-start-9);
-			domBuilder.endCDATA()
-			return end+3;
+		return -1;
+	}
+	function substringFromIndex() {
+		return source.substring(index);
+	}
+	function substringStartsWith(text) {
+		return source.substring(index, index + text.length) === text;
+	}
+	function substringStartsWithCaseInsensitive(text) {
+		return source.substring(index, index + text.length).toUpperCase() === text.toUpperCase();
+	}
+
+	function getMatch(args) {
+		var expr = g.reg('^', args);
+		var match = expr.exec(substringFromIndex());
+		if (match) {
+			skip(match[0].length);
+			return match[0];
 		}
-		//<!DOCTYPE
-		//startDTD(java.lang.String name, java.lang.String publicId, java.lang.String systemId)
-		var matchs = split(source,start);
-		var len = matchs.length;
-		if(len>1 && /!doctype/i.test(matchs[0][0])){
-			var name = matchs[1][0];
-			var pubid = false;
-			var sysid = false;
-			if(len>3){
-				if(/^public$/i.test(matchs[2][0])){
-					pubid = matchs[3][0];
-					sysid = len>4 && matchs[4][0];
-				}else if(/^system$/i.test(matchs[2][0])){
-					sysid = matchs[3][0];
+		return null;
+	}
+	return {
+		char: char,
+		getIndex: function () {
+			return index;
+		},
+		getMatch: getMatch,
+		getSource: function () {
+			return source;
+		},
+		skip: skip,
+		skipBlanks: skipBlanks,
+		substringFromIndex: substringFromIndex,
+		substringStartsWith: substringStartsWith,
+		substringStartsWithCaseInsensitive: substringStartsWithCaseInsensitive,
+	};
+}
+
+/**
+ * @param {ParseUtils} p
+ * @param {DOMHandler} errorHandler
+ * @returns {string}
+ */
+function parseDoctypeInternalSubset(p, errorHandler) {
+	/**
+	 * @param {ParseUtils} p
+	 * @param {DOMHandler} errorHandler
+	 * @returns {string}
+	 */
+	function parsePI(p, errorHandler) {
+		var match = g.PI.exec(p.substringFromIndex());
+		if (!match) {
+			return errorHandler.fatalError('processing instruction is not well-formed at position ' + p.getIndex());
+		}
+		if (match[1].toLowerCase() === 'xml') {
+			return errorHandler.fatalError(
+				'xml declaration is only allowed at the start of the document, but found at position ' + p.getIndex()
+			);
+		}
+		p.skip(match[0].length);
+		return match[0];
+	}
+	// Parse internal subset
+	var source = p.getSource();
+	if (p.char() === '[') {
+		p.skip(1);
+		var intSubsetStart = p.getIndex();
+		while (p.getIndex() < source.length) {
+			p.skipBlanks();
+			if (p.char() === ']') {
+				var internalSubset = source.substring(intSubsetStart, p.getIndex());
+				p.skip(1);
+				return internalSubset;
+			}
+			var current = null;
+			// Only in external subset
+			// if (char() === '<' && char(1) === '!' && char(2) === '[') {
+			// 	parseConditionalSections(p, errorHandler);
+			// } else
+			if (p.char() === '<' && p.char(1) === '!') {
+				switch (p.char(2)) {
+					case 'E': // ELEMENT | ENTITY
+						if (p.char(3) === 'L') {
+							current = p.getMatch(g.elementdecl);
+						} else if (p.char(3) === 'N') {
+							current = p.getMatch(g.EntityDecl);
+						}
+						break;
+					case 'A': // ATTRIBUTE
+						current = p.getMatch(g.AttlistDecl);
+						break;
+					case 'N': // NOTATION
+						current = p.getMatch(g.NotationDecl);
+						break;
+					case '-': // COMMENT
+						current = p.getMatch(g.Comment);
+						break;
+				}
+			} else if (p.char() === '<' && p.char(1) === '?') {
+				current = parsePI(p, errorHandler);
+			} else if (p.char() === '%') {
+				current = p.getMatch(g.PEReference);
+			} else {
+				return errorHandler.fatalError('Error detected in Markup declaration');
+			}
+			if (!current) {
+				return errorHandler.fatalError('Error in internal subset at position ' + p.getIndex());
+			}
+		}
+		return errorHandler.fatalError('doctype internal subset is not well-formed, missing ]');
+	}
+}
+
+/**
+ * Called when the parser encounters an element starting with '<!'.
+ *
+ * @param {string} source
+ * The xml.
+ * @param {number} start
+ * the start index of the '<!'
+ * @param {DOMHandler} domBuilder
+ * @param {DOMHandler} errorHandler
+ * @param {boolean} isHTML
+ * @returns {number | never}
+ * The end index of the element.
+ * @throws {ParseError}
+ * In case the element is not well-formed.
+ */
+function parseDoctypeCommentOrCData(source, start, domBuilder, errorHandler, isHTML) {
+	var p = parseUtils(source, start);
+
+	switch (isHTML ? p.char(2).toUpperCase() : p.char(2)) {
+		case '-':
+			// should be a comment
+			var comment = p.getMatch(g.Comment);
+			if (comment) {
+				domBuilder.comment(comment, g.COMMENT_START.length, comment.length - g.COMMENT_START.length - g.COMMENT_END.length);
+				return p.getIndex();
+			} else {
+				return errorHandler.fatalError('comment is not well-formed at position ' + p.getIndex());
+			}
+		case '[':
+			// should be CDATA
+			var cdata = p.getMatch(g.CDSect);
+			if (cdata) {
+				if (!isHTML && !domBuilder.currentElement) {
+					return errorHandler.fatalError('CDATA outside of element');
+				}
+				domBuilder.startCDATA();
+				domBuilder.characters(cdata, g.CDATA_START.length, cdata.length - g.CDATA_START.length - g.CDATA_END.length);
+				domBuilder.endCDATA();
+				return p.getIndex();
+			} else {
+				return errorHandler.fatalError('Invalid CDATA starting at position ' + start);
+			}
+		case 'D': {
+			// should be DOCTYPE
+			if (domBuilder.doc && domBuilder.doc.documentElement) {
+				return errorHandler.fatalError('Doctype not allowed inside or after documentElement at position ' + p.getIndex());
+			}
+			if (isHTML ? !p.substringStartsWithCaseInsensitive(g.DOCTYPE_DECL_START) : !p.substringStartsWith(g.DOCTYPE_DECL_START)) {
+				return errorHandler.fatalError('Expected ' + g.DOCTYPE_DECL_START + ' at position ' + p.getIndex());
+			}
+			p.skip(g.DOCTYPE_DECL_START.length);
+			if (p.skipBlanks() < 1) {
+				return errorHandler.fatalError('Expected whitespace after ' + g.DOCTYPE_DECL_START + ' at position ' + p.getIndex());
+			}
+
+			var doctype = {
+				name: undefined,
+				publicId: undefined,
+				systemId: undefined,
+				internalSubset: undefined,
+			};
+			// Parse the DOCTYPE name
+			doctype.name = p.getMatch(g.Name);
+			if (!doctype.name)
+				return errorHandler.fatalError('doctype name missing or contains unexpected characters at position ' + p.getIndex());
+
+			if (isHTML && doctype.name.toLowerCase() !== 'html') {
+				errorHandler.warning('Unexpected DOCTYPE in HTML document at position ' + p.getIndex());
+			}
+			p.skipBlanks();
+
+			// Check for ExternalID
+			if (p.substringStartsWith(g.PUBLIC) || p.substringStartsWith(g.SYSTEM)) {
+				var match = g.ExternalID_match.exec(p.substringFromIndex());
+				if (!match) {
+					return errorHandler.fatalError('doctype external id is not well-formed at position ' + p.getIndex());
+				}
+				if (match.groups.SystemLiteralOnly !== undefined) {
+					doctype.systemId = match.groups.SystemLiteralOnly;
+				} else {
+					doctype.systemId = match.groups.SystemLiteral;
+					doctype.publicId = match.groups.PubidLiteral;
+				}
+				p.skip(match[0].length);
+			} else if (isHTML && p.substringStartsWithCaseInsensitive(g.SYSTEM)) {
+				// https://html.spec.whatwg.org/multipage/syntax.html#doctype-legacy-string
+				p.skip(g.SYSTEM.length);
+				if (p.skipBlanks() < 1) {
+					return errorHandler.fatalError('Expected whitespace after ' + g.SYSTEM + ' at position ' + p.getIndex());
+				}
+				doctype.systemId = p.getMatch(g.ABOUT_LEGACY_COMPAT_SystemLiteral);
+				if (!doctype.systemId) {
+					return errorHandler.fatalError(
+						'Expected ' + g.ABOUT_LEGACY_COMPAT + ' in single or double quotes after ' + g.SYSTEM + ' at position ' + p.getIndex()
+					);
 				}
 			}
-			var lastMatch = matchs[len-1]
-			domBuilder.startDTD(name, pubid, sysid);
+			if (isHTML && doctype.systemId && !g.ABOUT_LEGACY_COMPAT_SystemLiteral.test(doctype.systemId)) {
+				errorHandler.warning('Unexpected doctype.systemId in HTML document at position ' + p.getIndex());
+			}
+			if (!isHTML) {
+				p.skipBlanks();
+				doctype.internalSubset = parseDoctypeInternalSubset(p, errorHandler);
+			}
+			p.skipBlanks();
+			if (p.char() !== '>') {
+				return errorHandler.fatalError('doctype not terminated with > at position ' + p.getIndex());
+			}
+			p.skip(1);
+			domBuilder.startDTD(doctype.name, doctype.publicId, doctype.systemId, doctype.internalSubset);
 			domBuilder.endDTD();
+			return p.getIndex();
+		}
+		default:
+			return errorHandler.fatalError('Not well-formed XML starting with "<!" at position ' + start);
+	}
+}
 
-			return lastMatch.index+lastMatch[0].length
+function parseProcessingInstruction(source, start, domBuilder, errorHandler) {
+	var match = source.substring(start).match(g.PI);
+	if (!match) {
+		return errorHandler.fatalError('Invalid processing instruction starting at position ' + start);
+	}
+	if (match[1].toLowerCase() === 'xml') {
+		if (start > 0) {
+			return errorHandler.fatalError(
+				'processing instruction at position ' + start + ' is an xml declaration which is only at the start of the document'
+			);
+		}
+		if (!g.XMLDecl.test(source.substring(start))) {
+			return errorHandler.fatalError('xml declaration is not well-formed');
 		}
 	}
-	return -1;
+	domBuilder.processingInstruction(match[1], match[2]);
+	return start + match[0].length;
 }
 
-
-
-function parseInstruction(source,start,domBuilder){
-	var end = source.indexOf('?>',start);
-	if(end){
-		var match = source.substring(start,end).match(/^<\?(\S*)\s*([\s\S]*?)$/);
-		if(match){
-			var len = match[0].length;
-			domBuilder.processingInstruction(match[1], match[2]) ;
-			return end+2;
-		}else{//error
-			return -1;
-		}
-	}
-	return -1;
+function ElementAttributes() {
+	this.attributeNames = Object.create(null);
 }
 
-function ElementAttributes(){
-	this.attributeNames = {}
-}
 ElementAttributes.prototype = {
-	setTagName:function(tagName){
-		if(!tagNamePattern.test(tagName)){
-			throw new Error('invalid tagName:'+tagName)
+	setTagName: function (tagName) {
+		if (!g.QName_exact.test(tagName)) {
+			throw new Error('invalid tagName:' + tagName);
 		}
-		this.tagName = tagName
+		this.tagName = tagName;
 	},
-	addValue:function(qName, value, offset) {
-		if(!tagNamePattern.test(qName)){
-			throw new Error('invalid attribute:'+qName)
+	addValue: function (qName, value, offset) {
+		if (!g.QName_exact.test(qName)) {
+			throw new Error('invalid attribute:' + qName);
 		}
 		this.attributeNames[qName] = this.length;
-		this[this.length++] = {qName:qName,value:value,offset:offset}
+		this[this.length++] = { qName: qName, value: value, offset: offset };
 	},
-	length:0,
-	getLocalName:function(i){return this[i].localName},
-	getLocator:function(i){return this[i].locator},
-	getQName:function(i){return this[i].qName},
-	getURI:function(i){return this[i].uri},
-	getValue:function(i){return this[i].value}
-//	,getIndex:function(uri, localName)){
-//		if(localName){
-//
-//		}else{
-//			var qName = uri
-//		}
-//	},
-//	getValue:function(){return this.getValue(this.getIndex.apply(this,arguments))},
-//	getType:function(uri,localName){}
-//	getType:function(i){},
-}
-
-
-
-function split(source,start){
-	var match;
-	var buf = [];
-	var reg = /'[^']+'|"[^"]+"|[^\s<>\/=]+=?|(\/?\s*>|<)/g;
-	reg.lastIndex = start;
-	reg.exec(source);//skip <
-	while(match = reg.exec(source)){
-		buf.push(match);
-		if(match[1])return buf;
-	}
-}
+	length: 0,
+	getLocalName: function (i) {
+		return this[i].localName;
+	},
+	getLocator: function (i) {
+		return this[i].locator;
+	},
+	getQName: function (i) {
+		return this[i].qName;
+	},
+	getURI: function (i) {
+		return this[i].uri;
+	},
+	getValue: function (i) {
+		return this[i].value;
+	},
+	//	,getIndex:function(uri, localName)){
+	//		if(localName){
+	//
+	//		}else{
+	//			var qName = uri
+	//		}
+	//	},
+	//	getValue:function(){return this.getValue(this.getIndex.apply(this,arguments))},
+	//	getType:function(uri,localName){}
+	//	getType:function(i){},
+};
 
 exports.XMLReader = XMLReader;
-exports.ParseError = ParseError;
+exports.parseUtils = parseUtils;
+exports.parseDoctypeCommentOrCData = parseDoctypeCommentOrCData;
 
 
 /***/ }),
@@ -33003,7 +36260,7 @@ exports.MultivariateNumericEvaluator = MultivariateNumericEvaluator;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.NewGuid = void 0;
-const uuid_1 = __nccwpck_require__(12048);
+const uuid_1 = __nccwpck_require__(81230);
 const expressionEvaluator_1 = __nccwpck_require__(78571);
 const expressionType_1 = __nccwpck_require__(22700);
 const functionUtils_1 = __nccwpck_require__(38185);
@@ -51875,6 +55132,241 @@ var Template = /** @class */ (function () {
 }());
 exports.Template = Template;
 //# sourceMappingURL=template-engine.js.map
+
+/***/ }),
+
+/***/ 8207:
+/***/ (function(module, __unused_webpack_exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+const events_1 = __nccwpck_require__(24434);
+const debug_1 = __importDefault(__nccwpck_require__(2830));
+const promisify_1 = __importDefault(__nccwpck_require__(98067));
+const debug = debug_1.default('agent-base');
+function isAgent(v) {
+    return Boolean(v) && typeof v.addRequest === 'function';
+}
+function isSecureEndpoint() {
+    const { stack } = new Error();
+    if (typeof stack !== 'string')
+        return false;
+    return stack.split('\n').some(l => l.indexOf('(https.js:') !== -1 || l.indexOf('node:https:') !== -1);
+}
+function createAgent(callback, opts) {
+    return new createAgent.Agent(callback, opts);
+}
+(function (createAgent) {
+    /**
+     * Base `http.Agent` implementation.
+     * No pooling/keep-alive is implemented by default.
+     *
+     * @param {Function} callback
+     * @api public
+     */
+    class Agent extends events_1.EventEmitter {
+        constructor(callback, _opts) {
+            super();
+            let opts = _opts;
+            if (typeof callback === 'function') {
+                this.callback = callback;
+            }
+            else if (callback) {
+                opts = callback;
+            }
+            // Timeout for the socket to be returned from the callback
+            this.timeout = null;
+            if (opts && typeof opts.timeout === 'number') {
+                this.timeout = opts.timeout;
+            }
+            // These aren't actually used by `agent-base`, but are required
+            // for the TypeScript definition files in `@types/node` :/
+            this.maxFreeSockets = 1;
+            this.maxSockets = 1;
+            this.maxTotalSockets = Infinity;
+            this.sockets = {};
+            this.freeSockets = {};
+            this.requests = {};
+            this.options = {};
+        }
+        get defaultPort() {
+            if (typeof this.explicitDefaultPort === 'number') {
+                return this.explicitDefaultPort;
+            }
+            return isSecureEndpoint() ? 443 : 80;
+        }
+        set defaultPort(v) {
+            this.explicitDefaultPort = v;
+        }
+        get protocol() {
+            if (typeof this.explicitProtocol === 'string') {
+                return this.explicitProtocol;
+            }
+            return isSecureEndpoint() ? 'https:' : 'http:';
+        }
+        set protocol(v) {
+            this.explicitProtocol = v;
+        }
+        callback(req, opts, fn) {
+            throw new Error('"agent-base" has no default implementation, you must subclass and override `callback()`');
+        }
+        /**
+         * Called by node-core's "_http_client.js" module when creating
+         * a new HTTP request with this Agent instance.
+         *
+         * @api public
+         */
+        addRequest(req, _opts) {
+            const opts = Object.assign({}, _opts);
+            if (typeof opts.secureEndpoint !== 'boolean') {
+                opts.secureEndpoint = isSecureEndpoint();
+            }
+            if (opts.host == null) {
+                opts.host = 'localhost';
+            }
+            if (opts.port == null) {
+                opts.port = opts.secureEndpoint ? 443 : 80;
+            }
+            if (opts.protocol == null) {
+                opts.protocol = opts.secureEndpoint ? 'https:' : 'http:';
+            }
+            if (opts.host && opts.path) {
+                // If both a `host` and `path` are specified then it's most
+                // likely the result of a `url.parse()` call... we need to
+                // remove the `path` portion so that `net.connect()` doesn't
+                // attempt to open that as a unix socket file.
+                delete opts.path;
+            }
+            delete opts.agent;
+            delete opts.hostname;
+            delete opts._defaultAgent;
+            delete opts.defaultPort;
+            delete opts.createConnection;
+            // Hint to use "Connection: close"
+            // XXX: non-documented `http` module API :(
+            req._last = true;
+            req.shouldKeepAlive = false;
+            let timedOut = false;
+            let timeoutId = null;
+            const timeoutMs = opts.timeout || this.timeout;
+            const onerror = (err) => {
+                if (req._hadError)
+                    return;
+                req.emit('error', err);
+                // For Safety. Some additional errors might fire later on
+                // and we need to make sure we don't double-fire the error event.
+                req._hadError = true;
+            };
+            const ontimeout = () => {
+                timeoutId = null;
+                timedOut = true;
+                const err = new Error(`A "socket" was not created for HTTP request before ${timeoutMs}ms`);
+                err.code = 'ETIMEOUT';
+                onerror(err);
+            };
+            const callbackError = (err) => {
+                if (timedOut)
+                    return;
+                if (timeoutId !== null) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                onerror(err);
+            };
+            const onsocket = (socket) => {
+                if (timedOut)
+                    return;
+                if (timeoutId != null) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                if (isAgent(socket)) {
+                    // `socket` is actually an `http.Agent` instance, so
+                    // relinquish responsibility for this `req` to the Agent
+                    // from here on
+                    debug('Callback returned another Agent instance %o', socket.constructor.name);
+                    socket.addRequest(req, opts);
+                    return;
+                }
+                if (socket) {
+                    socket.once('free', () => {
+                        this.freeSocket(socket, opts);
+                    });
+                    req.onSocket(socket);
+                    return;
+                }
+                const err = new Error(`no Duplex stream was returned to agent-base for \`${req.method} ${req.path}\``);
+                onerror(err);
+            };
+            if (typeof this.callback !== 'function') {
+                onerror(new Error('`callback` is not defined'));
+                return;
+            }
+            if (!this.promisifiedCallback) {
+                if (this.callback.length >= 3) {
+                    debug('Converting legacy callback function to promise');
+                    this.promisifiedCallback = promisify_1.default(this.callback);
+                }
+                else {
+                    this.promisifiedCallback = this.callback;
+                }
+            }
+            if (typeof timeoutMs === 'number' && timeoutMs > 0) {
+                timeoutId = setTimeout(ontimeout, timeoutMs);
+            }
+            if ('port' in opts && typeof opts.port !== 'number') {
+                opts.port = Number(opts.port);
+            }
+            try {
+                debug('Resolving socket for %o request: %o', opts.protocol, `${req.method} ${req.path}`);
+                Promise.resolve(this.promisifiedCallback(req, opts)).then(onsocket, callbackError);
+            }
+            catch (err) {
+                Promise.reject(err).catch(callbackError);
+            }
+        }
+        freeSocket(socket, opts) {
+            debug('Freeing socket %o %o', socket.constructor.name, opts);
+            socket.destroy();
+        }
+        destroy() {
+            debug('Destroying agent %o', this.constructor.name);
+        }
+    }
+    createAgent.Agent = Agent;
+    // So that `instanceof` works correctly
+    createAgent.prototype = createAgent.Agent.prototype;
+})(createAgent || (createAgent = {}));
+module.exports = createAgent;
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 98067:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+function promisify(fn) {
+    return function (req, opts) {
+        return new Promise((resolve, reject) => {
+            fn.call(this, req, opts, (err, rtn) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(rtn);
+                }
+            });
+        });
+    };
+}
+exports["default"] = promisify;
+//# sourceMappingURL=promisify.js.map
 
 /***/ }),
 
@@ -82369,6 +85861,18 @@ var hasOwn = __nccwpck_require__(54076);
 var populate = __nccwpck_require__(11835);
 
 /**
+ * Escape CR, LF, and `"` in a multipart `name`/`filename` parameter, so a field
+ * name or filename can not break out of its header line to inject headers or
+ * smuggle additional parts. Matches the WHATWG HTML multipart/form-data encoding.
+ *
+ * @param {string} str - the parameter value to escape
+ * @returns {string} the escaped value
+ */
+function escapeHeaderParam(str) {
+  return String(str).replace(/\r/g, '%0D').replace(/\n/g, '%0A').replace(/"/g, '%22');
+}
+
+/**
  * Create readable "multipart/form-data" streams.
  * Can be used to submit forms
  * and file uploads to other web applications.
@@ -82533,7 +86037,7 @@ FormData.prototype._multiPartHeader = function (field, value, options) {
   var contents = '';
   var headers = {
     // add custom disposition as third element or keep it two elements if not
-    'Content-Disposition': ['form-data', 'name="' + field + '"'].concat(contentDisposition || []),
+    'Content-Disposition': ['form-data', 'name="' + escapeHeaderParam(field) + '"'].concat(contentDisposition || []),
     // if no content type. allow it to be empty array
     'Content-Type': [].concat(contentType || [])
   };
@@ -82587,7 +86091,7 @@ FormData.prototype._getContentDisposition = function (value, options) { // eslin
   }
 
   if (filename) {
-    return 'filename="' + filename + '"';
+    return 'filename="' + escapeHeaderParam(filename) + '"';
   }
 };
 
@@ -83691,6 +87195,284 @@ var bind = __nccwpck_require__(37564);
 /** @type {import('.')} */
 module.exports = bind.call(call, $hasOwn);
 
+
+/***/ }),
+
+/***/ 96904:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const net_1 = __importDefault(__nccwpck_require__(69278));
+const tls_1 = __importDefault(__nccwpck_require__(64756));
+const url_1 = __importDefault(__nccwpck_require__(87016));
+const assert_1 = __importDefault(__nccwpck_require__(42613));
+const debug_1 = __importDefault(__nccwpck_require__(2830));
+const agent_base_1 = __nccwpck_require__(8207);
+const parse_proxy_response_1 = __importDefault(__nccwpck_require__(37943));
+const debug = debug_1.default('https-proxy-agent:agent');
+/**
+ * The `HttpsProxyAgent` implements an HTTP Agent subclass that connects to
+ * the specified "HTTP(s) proxy server" in order to proxy HTTPS requests.
+ *
+ * Outgoing HTTP requests are first tunneled through the proxy server using the
+ * `CONNECT` HTTP request method to establish a connection to the proxy server,
+ * and then the proxy server connects to the destination target and issues the
+ * HTTP request from the proxy server.
+ *
+ * `https:` requests have their socket connection upgraded to TLS once
+ * the connection to the proxy server has been established.
+ *
+ * @api public
+ */
+class HttpsProxyAgent extends agent_base_1.Agent {
+    constructor(_opts) {
+        let opts;
+        if (typeof _opts === 'string') {
+            opts = url_1.default.parse(_opts);
+        }
+        else {
+            opts = _opts;
+        }
+        if (!opts) {
+            throw new Error('an HTTP(S) proxy server `host` and `port` must be specified!');
+        }
+        debug('creating new HttpsProxyAgent instance: %o', opts);
+        super(opts);
+        const proxy = Object.assign({}, opts);
+        // If `true`, then connect to the proxy server over TLS.
+        // Defaults to `false`.
+        this.secureProxy = opts.secureProxy || isHTTPS(proxy.protocol);
+        // Prefer `hostname` over `host`, and set the `port` if needed.
+        proxy.host = proxy.hostname || proxy.host;
+        if (typeof proxy.port === 'string') {
+            proxy.port = parseInt(proxy.port, 10);
+        }
+        if (!proxy.port && proxy.host) {
+            proxy.port = this.secureProxy ? 443 : 80;
+        }
+        // ALPN is supported by Node.js >= v5.
+        // attempt to negotiate http/1.1 for proxy servers that support http/2
+        if (this.secureProxy && !('ALPNProtocols' in proxy)) {
+            proxy.ALPNProtocols = ['http 1.1'];
+        }
+        if (proxy.host && proxy.path) {
+            // If both a `host` and `path` are specified then it's most likely
+            // the result of a `url.parse()` call... we need to remove the
+            // `path` portion so that `net.connect()` doesn't attempt to open
+            // that as a Unix socket file.
+            delete proxy.path;
+            delete proxy.pathname;
+        }
+        this.proxy = proxy;
+    }
+    /**
+     * Called when the node-core HTTP client library is creating a
+     * new HTTP request.
+     *
+     * @api protected
+     */
+    callback(req, opts) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { proxy, secureProxy } = this;
+            // Create a socket connection to the proxy server.
+            let socket;
+            if (secureProxy) {
+                debug('Creating `tls.Socket`: %o', proxy);
+                socket = tls_1.default.connect(proxy);
+            }
+            else {
+                debug('Creating `net.Socket`: %o', proxy);
+                socket = net_1.default.connect(proxy);
+            }
+            const headers = Object.assign({}, proxy.headers);
+            const hostname = `${opts.host}:${opts.port}`;
+            let payload = `CONNECT ${hostname} HTTP/1.1\r\n`;
+            // Inject the `Proxy-Authorization` header if necessary.
+            if (proxy.auth) {
+                headers['Proxy-Authorization'] = `Basic ${Buffer.from(proxy.auth).toString('base64')}`;
+            }
+            // The `Host` header should only include the port
+            // number when it is not the default port.
+            let { host, port, secureEndpoint } = opts;
+            if (!isDefaultPort(port, secureEndpoint)) {
+                host += `:${port}`;
+            }
+            headers.Host = host;
+            headers.Connection = 'close';
+            for (const name of Object.keys(headers)) {
+                payload += `${name}: ${headers[name]}\r\n`;
+            }
+            const proxyResponsePromise = parse_proxy_response_1.default(socket);
+            socket.write(`${payload}\r\n`);
+            const { statusCode, buffered } = yield proxyResponsePromise;
+            if (statusCode === 200) {
+                req.once('socket', resume);
+                if (opts.secureEndpoint) {
+                    // The proxy is connecting to a TLS server, so upgrade
+                    // this socket connection to a TLS connection.
+                    debug('Upgrading socket connection to TLS');
+                    const servername = opts.servername || opts.host;
+                    return tls_1.default.connect(Object.assign(Object.assign({}, omit(opts, 'host', 'hostname', 'path', 'port')), { socket,
+                        servername }));
+                }
+                return socket;
+            }
+            // Some other status code that's not 200... need to re-play the HTTP
+            // header "data" events onto the socket once the HTTP machinery is
+            // attached so that the node core `http` can parse and handle the
+            // error status code.
+            // Close the original socket, and a new "fake" socket is returned
+            // instead, so that the proxy doesn't get the HTTP request
+            // written to it (which may contain `Authorization` headers or other
+            // sensitive data).
+            //
+            // See: https://hackerone.com/reports/541502
+            socket.destroy();
+            const fakeSocket = new net_1.default.Socket({ writable: false });
+            fakeSocket.readable = true;
+            // Need to wait for the "socket" event to re-play the "data" events.
+            req.once('socket', (s) => {
+                debug('replaying proxy buffer for failed request');
+                assert_1.default(s.listenerCount('data') > 0);
+                // Replay the "buffered" Buffer onto the fake `socket`, since at
+                // this point the HTTP module machinery has been hooked up for
+                // the user.
+                s.push(buffered);
+                s.push(null);
+            });
+            return fakeSocket;
+        });
+    }
+}
+exports["default"] = HttpsProxyAgent;
+function resume(socket) {
+    socket.resume();
+}
+function isDefaultPort(port, secure) {
+    return Boolean((!secure && port === 80) || (secure && port === 443));
+}
+function isHTTPS(protocol) {
+    return typeof protocol === 'string' ? /^https:?$/i.test(protocol) : false;
+}
+function omit(obj, ...keys) {
+    const ret = {};
+    let key;
+    for (key in obj) {
+        if (!keys.includes(key)) {
+            ret[key] = obj[key];
+        }
+    }
+    return ret;
+}
+//# sourceMappingURL=agent.js.map
+
+/***/ }),
+
+/***/ 3669:
+/***/ (function(module, __unused_webpack_exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+const agent_1 = __importDefault(__nccwpck_require__(96904));
+function createHttpsProxyAgent(opts) {
+    return new agent_1.default(opts);
+}
+(function (createHttpsProxyAgent) {
+    createHttpsProxyAgent.HttpsProxyAgent = agent_1.default;
+    createHttpsProxyAgent.prototype = agent_1.default.prototype;
+})(createHttpsProxyAgent || (createHttpsProxyAgent = {}));
+module.exports = createHttpsProxyAgent;
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 37943:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const debug_1 = __importDefault(__nccwpck_require__(2830));
+const debug = debug_1.default('https-proxy-agent:parse-proxy-response');
+function parseProxyResponse(socket) {
+    return new Promise((resolve, reject) => {
+        // we need to buffer any HTTP traffic that happens with the proxy before we get
+        // the CONNECT response, so that if the response is anything other than an "200"
+        // response code, then we can re-play the "data" events on the socket once the
+        // HTTP parser is hooked up...
+        let buffersLength = 0;
+        const buffers = [];
+        function read() {
+            const b = socket.read();
+            if (b)
+                ondata(b);
+            else
+                socket.once('readable', read);
+        }
+        function cleanup() {
+            socket.removeListener('end', onend);
+            socket.removeListener('error', onerror);
+            socket.removeListener('close', onclose);
+            socket.removeListener('readable', read);
+        }
+        function onclose(err) {
+            debug('onclose had error %o', err);
+        }
+        function onend() {
+            debug('onend');
+        }
+        function onerror(err) {
+            cleanup();
+            debug('onerror %o', err);
+            reject(err);
+        }
+        function ondata(b) {
+            buffers.push(b);
+            buffersLength += b.length;
+            const buffered = Buffer.concat(buffers, buffersLength);
+            const endOfHeaders = buffered.indexOf('\r\n\r\n');
+            if (endOfHeaders === -1) {
+                // keep buffering
+                debug('have not received end of HTTP headers yet...');
+                read();
+                return;
+            }
+            const firstLine = buffered.toString('ascii', 0, buffered.indexOf('\r\n'));
+            const statusCode = +firstLine.split(' ')[1];
+            debug('got proxy server response: %o', firstLine);
+            resolve({
+                statusCode,
+                buffered
+            });
+        }
+        socket.on('error', onerror);
+        socket.on('close', onclose);
+        socket.on('end', onend);
+        read();
+    });
+}
+exports["default"] = parseProxyResponse;
+//# sourceMappingURL=parse-proxy-response.js.map
 
 /***/ }),
 
@@ -120633,939 +124415,6 @@ exports.getUserAgent = getUserAgent;
 
 /***/ }),
 
-/***/ 12048:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-Object.defineProperty(exports, "MAX", ({
-  enumerable: true,
-  get: function () {
-    return _max.default;
-  }
-}));
-Object.defineProperty(exports, "NIL", ({
-  enumerable: true,
-  get: function () {
-    return _nil.default;
-  }
-}));
-Object.defineProperty(exports, "parse", ({
-  enumerable: true,
-  get: function () {
-    return _parse.default;
-  }
-}));
-Object.defineProperty(exports, "stringify", ({
-  enumerable: true,
-  get: function () {
-    return _stringify.default;
-  }
-}));
-Object.defineProperty(exports, "v1", ({
-  enumerable: true,
-  get: function () {
-    return _v.default;
-  }
-}));
-Object.defineProperty(exports, "v1ToV6", ({
-  enumerable: true,
-  get: function () {
-    return _v1ToV.default;
-  }
-}));
-Object.defineProperty(exports, "v3", ({
-  enumerable: true,
-  get: function () {
-    return _v2.default;
-  }
-}));
-Object.defineProperty(exports, "v4", ({
-  enumerable: true,
-  get: function () {
-    return _v3.default;
-  }
-}));
-Object.defineProperty(exports, "v5", ({
-  enumerable: true,
-  get: function () {
-    return _v4.default;
-  }
-}));
-Object.defineProperty(exports, "v6", ({
-  enumerable: true,
-  get: function () {
-    return _v5.default;
-  }
-}));
-Object.defineProperty(exports, "v6ToV1", ({
-  enumerable: true,
-  get: function () {
-    return _v6ToV.default;
-  }
-}));
-Object.defineProperty(exports, "v7", ({
-  enumerable: true,
-  get: function () {
-    return _v6.default;
-  }
-}));
-Object.defineProperty(exports, "validate", ({
-  enumerable: true,
-  get: function () {
-    return _validate.default;
-  }
-}));
-Object.defineProperty(exports, "version", ({
-  enumerable: true,
-  get: function () {
-    return _version.default;
-  }
-}));
-var _max = _interopRequireDefault(__nccwpck_require__(90242));
-var _nil = _interopRequireDefault(__nccwpck_require__(37723));
-var _parse = _interopRequireDefault(__nccwpck_require__(17267));
-var _stringify = _interopRequireDefault(__nccwpck_require__(37597));
-var _v = _interopRequireDefault(__nccwpck_require__(6415));
-var _v1ToV = _interopRequireDefault(__nccwpck_require__(89706));
-var _v2 = _interopRequireDefault(__nccwpck_require__(51697));
-var _v3 = _interopRequireDefault(__nccwpck_require__(4676));
-var _v4 = _interopRequireDefault(__nccwpck_require__(69771));
-var _v5 = _interopRequireDefault(__nccwpck_require__(68558));
-var _v6ToV = _interopRequireDefault(__nccwpck_require__(59558));
-var _v6 = _interopRequireDefault(__nccwpck_require__(29261));
-var _validate = _interopRequireDefault(__nccwpck_require__(36200));
-var _version = _interopRequireDefault(__nccwpck_require__(15868));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-
-/***/ }),
-
-/***/ 90242:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _default = exports["default"] = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
-
-/***/ }),
-
-/***/ 10216:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _nodeCrypto = _interopRequireDefault(__nccwpck_require__(77598));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-function md5(bytes) {
-  if (Array.isArray(bytes)) {
-    bytes = Buffer.from(bytes);
-  } else if (typeof bytes === 'string') {
-    bytes = Buffer.from(bytes, 'utf8');
-  }
-  return _nodeCrypto.default.createHash('md5').update(bytes).digest();
-}
-var _default = exports["default"] = md5;
-
-/***/ }),
-
-/***/ 54221:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _nodeCrypto = _interopRequireDefault(__nccwpck_require__(77598));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-var _default = exports["default"] = {
-  randomUUID: _nodeCrypto.default.randomUUID
-};
-
-/***/ }),
-
-/***/ 37723:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _default = exports["default"] = '00000000-0000-0000-0000-000000000000';
-
-/***/ }),
-
-/***/ 17267:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _validate = _interopRequireDefault(__nccwpck_require__(36200));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-function parse(uuid) {
-  if (!(0, _validate.default)(uuid)) {
-    throw TypeError('Invalid UUID');
-  }
-  let v;
-  const arr = new Uint8Array(16);
-
-  // Parse ########-....-....-....-............
-  arr[0] = (v = parseInt(uuid.slice(0, 8), 16)) >>> 24;
-  arr[1] = v >>> 16 & 0xff;
-  arr[2] = v >>> 8 & 0xff;
-  arr[3] = v & 0xff;
-
-  // Parse ........-####-....-....-............
-  arr[4] = (v = parseInt(uuid.slice(9, 13), 16)) >>> 8;
-  arr[5] = v & 0xff;
-
-  // Parse ........-....-####-....-............
-  arr[6] = (v = parseInt(uuid.slice(14, 18), 16)) >>> 8;
-  arr[7] = v & 0xff;
-
-  // Parse ........-....-....-####-............
-  arr[8] = (v = parseInt(uuid.slice(19, 23), 16)) >>> 8;
-  arr[9] = v & 0xff;
-
-  // Parse ........-....-....-....-############
-  // (Use "/" to avoid 32-bit truncation when bit-shifting high-order bytes)
-  arr[10] = (v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000 & 0xff;
-  arr[11] = v / 0x100000000 & 0xff;
-  arr[12] = v >>> 24 & 0xff;
-  arr[13] = v >>> 16 & 0xff;
-  arr[14] = v >>> 8 & 0xff;
-  arr[15] = v & 0xff;
-  return arr;
-}
-var _default = exports["default"] = parse;
-
-/***/ }),
-
-/***/ 67879:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _default = exports["default"] = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
-
-/***/ }),
-
-/***/ 12973:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = rng;
-var _nodeCrypto = _interopRequireDefault(__nccwpck_require__(77598));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-const rnds8Pool = new Uint8Array(256); // # of random values to pre-allocate
-let poolPtr = rnds8Pool.length;
-function rng() {
-  if (poolPtr > rnds8Pool.length - 16) {
-    _nodeCrypto.default.randomFillSync(rnds8Pool);
-    poolPtr = 0;
-  }
-  return rnds8Pool.slice(poolPtr, poolPtr += 16);
-}
-
-/***/ }),
-
-/***/ 507:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _nodeCrypto = _interopRequireDefault(__nccwpck_require__(77598));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-function sha1(bytes) {
-  if (Array.isArray(bytes)) {
-    bytes = Buffer.from(bytes);
-  } else if (typeof bytes === 'string') {
-    bytes = Buffer.from(bytes, 'utf8');
-  }
-  return _nodeCrypto.default.createHash('sha1').update(bytes).digest();
-}
-var _default = exports["default"] = sha1;
-
-/***/ }),
-
-/***/ 37597:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-exports.unsafeStringify = unsafeStringify;
-var _validate = _interopRequireDefault(__nccwpck_require__(36200));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-/**
- * Convert array of 16 byte values to UUID string format of the form:
- * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
- */
-const byteToHex = [];
-for (let i = 0; i < 256; ++i) {
-  byteToHex.push((i + 0x100).toString(16).slice(1));
-}
-function unsafeStringify(arr, offset = 0) {
-  // Note: Be careful editing this code!  It's been tuned for performance
-  // and works in ways you may not expect. See https://github.com/uuidjs/uuid/pull/434
-  //
-  // Note to future-self: No, you can't remove the `toLowerCase()` call.
-  // REF: https://github.com/uuidjs/uuid/pull/677#issuecomment-1757351351
-  return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + '-' + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + '-' + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + '-' + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + '-' + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
-}
-function stringify(arr, offset = 0) {
-  const uuid = unsafeStringify(arr, offset);
-  // Consistency check for valid UUID.  If this throws, it's likely due to one
-  // of the following:
-  // - One or more input array values don't map to a hex octet (leading to
-  // "undefined" in the uuid)
-  // - Invalid input values for the RFC `version` or `variant` fields
-  if (!(0, _validate.default)(uuid)) {
-    throw TypeError('Stringified UUID is invalid');
-  }
-  return uuid;
-}
-var _default = exports["default"] = stringify;
-
-/***/ }),
-
-/***/ 6415:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _rng = _interopRequireDefault(__nccwpck_require__(12973));
-var _stringify = __nccwpck_require__(37597);
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-// **`v1()` - Generate time-based UUID**
-//
-// Inspired by https://github.com/LiosK/UUID.js
-// and http://docs.python.org/library/uuid.html
-
-let _nodeId;
-let _clockseq;
-
-// Previous uuid creation time
-let _lastMSecs = 0;
-let _lastNSecs = 0;
-
-// See https://github.com/uuidjs/uuid for API details
-function v1(options, buf, offset) {
-  let i = buf && offset || 0;
-  const b = buf || new Array(16);
-  options = options || {};
-  let node = options.node;
-  let clockseq = options.clockseq;
-
-  // v1 only: Use cached `node` and `clockseq` values
-  if (!options._v6) {
-    if (!node) {
-      node = _nodeId;
-    }
-    if (clockseq == null) {
-      clockseq = _clockseq;
-    }
-  }
-
-  // Handle cases where we need entropy.  We do this lazily to minimize issues
-  // related to insufficient system entropy.  See #189
-  if (node == null || clockseq == null) {
-    const seedBytes = options.random || (options.rng || _rng.default)();
-
-    // Randomize node
-    if (node == null) {
-      node = [seedBytes[0], seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]];
-
-      // v1 only: cache node value for reuse
-      if (!_nodeId && !options._v6) {
-        // per RFC4122 4.5: Set MAC multicast bit (v1 only)
-        node[0] |= 0x01; // Set multicast bit
-
-        _nodeId = node;
-      }
-    }
-
-    // Randomize clockseq
-    if (clockseq == null) {
-      // Per 4.2.2, randomize (14 bit) clockseq
-      clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
-      if (_clockseq === undefined && !options._v6) {
-        _clockseq = clockseq;
-      }
-    }
-  }
-
-  // v1 & v6 timestamps are 100 nano-second units since the Gregorian epoch,
-  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so time is
-  // handled internally as 'msecs' (integer milliseconds) and 'nsecs'
-  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
-  let msecs = options.msecs !== undefined ? options.msecs : Date.now();
-
-  // Per 4.2.1.2, use count of uuid's generated during the current clock
-  // cycle to simulate higher resolution clock
-  let nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
-
-  // Time since last uuid creation (in msecs)
-  const dt = msecs - _lastMSecs + (nsecs - _lastNSecs) / 10000;
-
-  // Per 4.2.1.2, Bump clockseq on clock regression
-  if (dt < 0 && options.clockseq === undefined) {
-    clockseq = clockseq + 1 & 0x3fff;
-  }
-
-  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
-  // time interval
-  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
-    nsecs = 0;
-  }
-
-  // Per 4.2.1.2 Throw error if too many uuids are requested
-  if (nsecs >= 10000) {
-    throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");
-  }
-  _lastMSecs = msecs;
-  _lastNSecs = nsecs;
-  _clockseq = clockseq;
-
-  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
-  msecs += 12219292800000;
-
-  // `time_low`
-  const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
-  b[i++] = tl >>> 24 & 0xff;
-  b[i++] = tl >>> 16 & 0xff;
-  b[i++] = tl >>> 8 & 0xff;
-  b[i++] = tl & 0xff;
-
-  // `time_mid`
-  const tmh = msecs / 0x100000000 * 10000 & 0xfffffff;
-  b[i++] = tmh >>> 8 & 0xff;
-  b[i++] = tmh & 0xff;
-
-  // `time_high_and_version`
-  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
-  b[i++] = tmh >>> 16 & 0xff;
-
-  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
-  b[i++] = clockseq >>> 8 | 0x80;
-
-  // `clock_seq_low`
-  b[i++] = clockseq & 0xff;
-
-  // `node`
-  for (let n = 0; n < 6; ++n) {
-    b[i + n] = node[n];
-  }
-  return buf || (0, _stringify.unsafeStringify)(b);
-}
-var _default = exports["default"] = v1;
-
-/***/ }),
-
-/***/ 89706:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = v1ToV6;
-var _parse = _interopRequireDefault(__nccwpck_require__(17267));
-var _stringify = __nccwpck_require__(37597);
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-/**
- * Convert a v1 UUID to a v6 UUID
- *
- * @param {string|Uint8Array} uuid - The v1 UUID to convert to v6
- * @returns {string|Uint8Array} The v6 UUID as the same type as the `uuid` arg
- * (string or Uint8Array)
- */
-function v1ToV6(uuid) {
-  const v1Bytes = typeof uuid === 'string' ? (0, _parse.default)(uuid) : uuid;
-  const v6Bytes = _v1ToV6(v1Bytes);
-  return typeof uuid === 'string' ? (0, _stringify.unsafeStringify)(v6Bytes) : v6Bytes;
-}
-
-// Do the field transformation needed for v1 -> v6
-function _v1ToV6(v1Bytes, randomize = false) {
-  return Uint8Array.of((v1Bytes[6] & 0x0f) << 4 | v1Bytes[7] >> 4 & 0x0f, (v1Bytes[7] & 0x0f) << 4 | (v1Bytes[4] & 0xf0) >> 4, (v1Bytes[4] & 0x0f) << 4 | (v1Bytes[5] & 0xf0) >> 4, (v1Bytes[5] & 0x0f) << 4 | (v1Bytes[0] & 0xf0) >> 4, (v1Bytes[0] & 0x0f) << 4 | (v1Bytes[1] & 0xf0) >> 4, (v1Bytes[1] & 0x0f) << 4 | (v1Bytes[2] & 0xf0) >> 4, 0x60 | v1Bytes[2] & 0x0f, v1Bytes[3], v1Bytes[8], v1Bytes[9], v1Bytes[10], v1Bytes[11], v1Bytes[12], v1Bytes[13], v1Bytes[14], v1Bytes[15]);
-}
-
-/***/ }),
-
-/***/ 51697:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _v = _interopRequireDefault(__nccwpck_require__(92930));
-var _md = _interopRequireDefault(__nccwpck_require__(10216));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-const v3 = (0, _v.default)('v3', 0x30, _md.default);
-var _default = exports["default"] = v3;
-
-/***/ }),
-
-/***/ 92930:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports.URL = exports.DNS = void 0;
-exports["default"] = v35;
-var _stringify = __nccwpck_require__(37597);
-var _parse = _interopRequireDefault(__nccwpck_require__(17267));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-function stringToBytes(str) {
-  str = unescape(encodeURIComponent(str)); // UTF8 escape
-
-  const bytes = [];
-  for (let i = 0; i < str.length; ++i) {
-    bytes.push(str.charCodeAt(i));
-  }
-  return bytes;
-}
-const DNS = exports.DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-const URL = exports.URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
-function v35(name, version, hashfunc) {
-  function generateUUID(value, namespace, buf, offset) {
-    var _namespace;
-    if (typeof value === 'string') {
-      value = stringToBytes(value);
-    }
-    if (typeof namespace === 'string') {
-      namespace = (0, _parse.default)(namespace);
-    }
-    if (((_namespace = namespace) === null || _namespace === void 0 ? void 0 : _namespace.length) !== 16) {
-      throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
-    }
-
-    // Compute hash of namespace and value, Per 4.3
-    // Future: Use spread syntax when supported on all platforms, e.g. `bytes =
-    // hashfunc([...namespace, ... value])`
-    let bytes = new Uint8Array(16 + value.length);
-    bytes.set(namespace);
-    bytes.set(value, namespace.length);
-    bytes = hashfunc(bytes);
-    bytes[6] = bytes[6] & 0x0f | version;
-    bytes[8] = bytes[8] & 0x3f | 0x80;
-    if (buf) {
-      offset = offset || 0;
-      for (let i = 0; i < 16; ++i) {
-        buf[offset + i] = bytes[i];
-      }
-      return buf;
-    }
-    return (0, _stringify.unsafeStringify)(bytes);
-  }
-
-  // Function#name is not settable on some platforms (#270)
-  try {
-    generateUUID.name = name;
-  } catch (err) {}
-
-  // For CommonJS default export support
-  generateUUID.DNS = DNS;
-  generateUUID.URL = URL;
-  return generateUUID;
-}
-
-/***/ }),
-
-/***/ 4676:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _native = _interopRequireDefault(__nccwpck_require__(54221));
-var _rng = _interopRequireDefault(__nccwpck_require__(12973));
-var _stringify = __nccwpck_require__(37597);
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-function v4(options, buf, offset) {
-  if (_native.default.randomUUID && !buf && !options) {
-    return _native.default.randomUUID();
-  }
-  options = options || {};
-  const rnds = options.random || (options.rng || _rng.default)();
-
-  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
-  rnds[6] = rnds[6] & 0x0f | 0x40;
-  rnds[8] = rnds[8] & 0x3f | 0x80;
-
-  // Copy bytes to buffer, if provided
-  if (buf) {
-    offset = offset || 0;
-    for (let i = 0; i < 16; ++i) {
-      buf[offset + i] = rnds[i];
-    }
-    return buf;
-  }
-  return (0, _stringify.unsafeStringify)(rnds);
-}
-var _default = exports["default"] = v4;
-
-/***/ }),
-
-/***/ 69771:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _v = _interopRequireDefault(__nccwpck_require__(92930));
-var _sha = _interopRequireDefault(__nccwpck_require__(507));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-const v5 = (0, _v.default)('v5', 0x50, _sha.default);
-var _default = exports["default"] = v5;
-
-/***/ }),
-
-/***/ 68558:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = v6;
-var _stringify = __nccwpck_require__(37597);
-var _v = _interopRequireDefault(__nccwpck_require__(6415));
-var _v1ToV = _interopRequireDefault(__nccwpck_require__(89706));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-/**
- *
- * @param {object} options
- * @param {Uint8Array=} buf
- * @param {number=} offset
- * @returns
- */
-function v6(options = {}, buf, offset = 0) {
-  // v6 is v1 with different field layout, so we start with a v1 UUID, albeit
-  // with slightly different behavior around how the clock_seq and node fields
-  // are randomized, which is why we call v1 with _v6: true.
-  let bytes = (0, _v.default)({
-    ...options,
-    _v6: true
-  }, new Uint8Array(16));
-
-  // Reorder the fields to v6 layout.
-  bytes = (0, _v1ToV.default)(bytes);
-
-  // Return as a byte array if requested
-  if (buf) {
-    for (let i = 0; i < 16; i++) {
-      buf[offset + i] = bytes[i];
-    }
-    return buf;
-  }
-  return (0, _stringify.unsafeStringify)(bytes);
-}
-
-/***/ }),
-
-/***/ 59558:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = v6ToV1;
-var _parse = _interopRequireDefault(__nccwpck_require__(17267));
-var _stringify = __nccwpck_require__(37597);
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-/**
- * Convert a v6 UUID to a v1 UUID
- *
- * @param {string|Uint8Array} uuid - The v6 UUID to convert to v6
- * @returns {string|Uint8Array} The v1 UUID as the same type as the `uuid` arg
- * (string or Uint8Array)
- */
-function v6ToV1(uuid) {
-  const v6Bytes = typeof uuid === 'string' ? (0, _parse.default)(uuid) : uuid;
-  const v1Bytes = _v6ToV1(v6Bytes);
-  return typeof uuid === 'string' ? (0, _stringify.unsafeStringify)(v1Bytes) : v1Bytes;
-}
-
-// Do the field transformation needed for v6 -> v1
-function _v6ToV1(v6Bytes) {
-  return Uint8Array.of((v6Bytes[3] & 0x0f) << 4 | v6Bytes[4] >> 4 & 0x0f, (v6Bytes[4] & 0x0f) << 4 | (v6Bytes[5] & 0xf0) >> 4, (v6Bytes[5] & 0x0f) << 4 | v6Bytes[6] & 0x0f, v6Bytes[7], (v6Bytes[1] & 0x0f) << 4 | (v6Bytes[2] & 0xf0) >> 4, (v6Bytes[2] & 0x0f) << 4 | (v6Bytes[3] & 0xf0) >> 4, 0x10 | (v6Bytes[0] & 0xf0) >> 4, (v6Bytes[0] & 0x0f) << 4 | (v6Bytes[1] & 0xf0) >> 4, v6Bytes[8], v6Bytes[9], v6Bytes[10], v6Bytes[11], v6Bytes[12], v6Bytes[13], v6Bytes[14], v6Bytes[15]);
-}
-
-/***/ }),
-
-/***/ 29261:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _rng = _interopRequireDefault(__nccwpck_require__(12973));
-var _stringify = __nccwpck_require__(37597);
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-/**
- * UUID V7 - Unix Epoch time-based UUID
- *
- * The IETF has published RFC9562, introducing 3 new UUID versions (6,7,8). This
- * implementation of V7 is based on the accepted, though not yet approved,
- * revisions.
- *
- * RFC 9562:https://www.rfc-editor.org/rfc/rfc9562.html Universally Unique
- * IDentifiers (UUIDs)
-
- *
- * Sample V7 value:
- * https://www.rfc-editor.org/rfc/rfc9562.html#name-example-of-a-uuidv7-value
- *
- * Monotonic Bit Layout: RFC rfc9562.6.2 Method 1, Dedicated Counter Bits ref:
- *     https://www.rfc-editor.org/rfc/rfc9562.html#section-6.2-5.1
- *
- *   0                   1                   2                   3 0 1 2 3 4 5 6
- *   7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  |                          unix_ts_ms                           |
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  |          unix_ts_ms           |  ver  |        seq_hi         |
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  |var|               seq_low               |        rand         |
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  |                             rand                              |
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *
- * seq is a 31 bit serialized counter; comprised of 12 bit seq_hi and 19 bit
- * seq_low, and randomly initialized upon timestamp change. 31 bit counter size
- * was selected as any bitwise operations in node are done as _signed_ 32 bit
- * ints. we exclude the sign bit.
- */
-
-let _seqLow = null;
-let _seqHigh = null;
-let _msecs = 0;
-function v7(options, buf, offset) {
-  options = options || {};
-
-  // initialize buffer and pointer
-  let i = buf && offset || 0;
-  const b = buf || new Uint8Array(16);
-
-  // rnds is Uint8Array(16) filled with random bytes
-  const rnds = options.random || (options.rng || _rng.default)();
-
-  // milliseconds since unix epoch, 1970-01-01 00:00
-  const msecs = options.msecs !== undefined ? options.msecs : Date.now();
-
-  // seq is user provided 31 bit counter
-  let seq = options.seq !== undefined ? options.seq : null;
-
-  // initialize local seq high/low parts
-  let seqHigh = _seqHigh;
-  let seqLow = _seqLow;
-
-  // check if clock has advanced and user has not provided msecs
-  if (msecs > _msecs && options.msecs === undefined) {
-    _msecs = msecs;
-
-    // unless user provided seq, reset seq parts
-    if (seq !== null) {
-      seqHigh = null;
-      seqLow = null;
-    }
-  }
-
-  // if we have a user provided seq
-  if (seq !== null) {
-    // trim provided seq to 31 bits of value, avoiding overflow
-    if (seq > 0x7fffffff) {
-      seq = 0x7fffffff;
-    }
-
-    // split provided seq into high/low parts
-    seqHigh = seq >>> 19 & 0xfff;
-    seqLow = seq & 0x7ffff;
-  }
-
-  // randomly initialize seq
-  if (seqHigh === null || seqLow === null) {
-    seqHigh = rnds[6] & 0x7f;
-    seqHigh = seqHigh << 8 | rnds[7];
-    seqLow = rnds[8] & 0x3f; // pad for var
-    seqLow = seqLow << 8 | rnds[9];
-    seqLow = seqLow << 5 | rnds[10] >>> 3;
-  }
-
-  // increment seq if within msecs window
-  if (msecs + 10000 > _msecs && seq === null) {
-    if (++seqLow > 0x7ffff) {
-      seqLow = 0;
-      if (++seqHigh > 0xfff) {
-        seqHigh = 0;
-
-        // increment internal _msecs. this allows us to continue incrementing
-        // while staying monotonic. Note, once we hit 10k milliseconds beyond system
-        // clock, we will reset breaking monotonicity (after (2^31)*10000 generations)
-        _msecs++;
-      }
-    }
-  } else {
-    // resetting; we have advanced more than
-    // 10k milliseconds beyond system clock
-    _msecs = msecs;
-  }
-  _seqHigh = seqHigh;
-  _seqLow = seqLow;
-
-  // [bytes 0-5] 48 bits of local timestamp
-  b[i++] = _msecs / 0x10000000000 & 0xff;
-  b[i++] = _msecs / 0x100000000 & 0xff;
-  b[i++] = _msecs / 0x1000000 & 0xff;
-  b[i++] = _msecs / 0x10000 & 0xff;
-  b[i++] = _msecs / 0x100 & 0xff;
-  b[i++] = _msecs & 0xff;
-
-  // [byte 6] - set 4 bits of version (7) with first 4 bits seq_hi
-  b[i++] = seqHigh >>> 4 & 0x0f | 0x70;
-
-  // [byte 7] remaining 8 bits of seq_hi
-  b[i++] = seqHigh & 0xff;
-
-  // [byte 8] - variant (2 bits), first 6 bits seq_low
-  b[i++] = seqLow >>> 13 & 0x3f | 0x80;
-
-  // [byte 9] 8 bits seq_low
-  b[i++] = seqLow >>> 5 & 0xff;
-
-  // [byte 10] remaining 5 bits seq_low, 3 bits random
-  b[i++] = seqLow << 3 & 0xff | rnds[10] & 0x07;
-
-  // [bytes 11-15] always random
-  b[i++] = rnds[11];
-  b[i++] = rnds[12];
-  b[i++] = rnds[13];
-  b[i++] = rnds[14];
-  b[i++] = rnds[15];
-  return buf || (0, _stringify.unsafeStringify)(b);
-}
-var _default = exports["default"] = v7;
-
-/***/ }),
-
-/***/ 36200:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _regex = _interopRequireDefault(__nccwpck_require__(67879));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-function validate(uuid) {
-  return typeof uuid === 'string' && _regex.default.test(uuid);
-}
-var _default = exports["default"] = validate;
-
-/***/ }),
-
-/***/ 15868:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _validate = _interopRequireDefault(__nccwpck_require__(36200));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-function version(uuid) {
-  if (!(0, _validate.default)(uuid)) {
-    throw TypeError('Invalid UUID');
-  }
-  return parseInt(uuid.slice(14, 15), 16);
-}
-var _default = exports["default"] = version;
-
-/***/ }),
-
 /***/ 26848:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -129146,16 +131995,640 @@ module.exports = parseParams
 
 /***/ }),
 
+/***/ 81230:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.version = exports.validate = exports.v7 = exports.v6ToV1 = exports.v6 = exports.v5 = exports.v4 = exports.v3 = exports.v1ToV6 = exports.v1 = exports.stringify = exports.parse = exports.NIL = exports.MAX = void 0;
+var max_js_1 = __nccwpck_require__(2236);
+Object.defineProperty(exports, "MAX", ({ enumerable: true, get: function () { return max_js_1.default; } }));
+var nil_js_1 = __nccwpck_require__(77889);
+Object.defineProperty(exports, "NIL", ({ enumerable: true, get: function () { return nil_js_1.default; } }));
+var parse_js_1 = __nccwpck_require__(13405);
+Object.defineProperty(exports, "parse", ({ enumerable: true, get: function () { return parse_js_1.default; } }));
+var stringify_js_1 = __nccwpck_require__(89843);
+Object.defineProperty(exports, "stringify", ({ enumerable: true, get: function () { return stringify_js_1.default; } }));
+var v1_js_1 = __nccwpck_require__(65465);
+Object.defineProperty(exports, "v1", ({ enumerable: true, get: function () { return v1_js_1.default; } }));
+var v1ToV6_js_1 = __nccwpck_require__(42656);
+Object.defineProperty(exports, "v1ToV6", ({ enumerable: true, get: function () { return v1ToV6_js_1.default; } }));
+var v3_js_1 = __nccwpck_require__(69591);
+Object.defineProperty(exports, "v3", ({ enumerable: true, get: function () { return v3_js_1.default; } }));
+var v4_js_1 = __nccwpck_require__(53078);
+Object.defineProperty(exports, "v4", ({ enumerable: true, get: function () { return v4_js_1.default; } }));
+var v5_js_1 = __nccwpck_require__(71317);
+Object.defineProperty(exports, "v5", ({ enumerable: true, get: function () { return v5_js_1.default; } }));
+var v6_js_1 = __nccwpck_require__(64620);
+Object.defineProperty(exports, "v6", ({ enumerable: true, get: function () { return v6_js_1.default; } }));
+var v6ToV1_js_1 = __nccwpck_require__(32564);
+Object.defineProperty(exports, "v6ToV1", ({ enumerable: true, get: function () { return v6ToV1_js_1.default; } }));
+var v7_js_1 = __nccwpck_require__(72723);
+Object.defineProperty(exports, "v7", ({ enumerable: true, get: function () { return v7_js_1.default; } }));
+var validate_js_1 = __nccwpck_require__(87642);
+Object.defineProperty(exports, "validate", ({ enumerable: true, get: function () { return validate_js_1.default; } }));
+var version_js_1 = __nccwpck_require__(61626);
+Object.defineProperty(exports, "version", ({ enumerable: true, get: function () { return version_js_1.default; } }));
+
+
+/***/ }),
+
+/***/ 2236:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+
+/***/ }),
+
+/***/ 35434:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const crypto_1 = __nccwpck_require__(76982);
+function md5(bytes) {
+    if (Array.isArray(bytes)) {
+        bytes = Buffer.from(bytes);
+    }
+    else if (typeof bytes === 'string') {
+        bytes = Buffer.from(bytes, 'utf8');
+    }
+    return (0, crypto_1.createHash)('md5').update(bytes).digest();
+}
+exports["default"] = md5;
+
+
+/***/ }),
+
+/***/ 63947:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const crypto_1 = __nccwpck_require__(76982);
+exports["default"] = { randomUUID: crypto_1.randomUUID };
+
+
+/***/ }),
+
+/***/ 77889:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = '00000000-0000-0000-0000-000000000000';
+
+
+/***/ }),
+
+/***/ 13405:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const validate_js_1 = __nccwpck_require__(87642);
+function parse(uuid) {
+    if (!(0, validate_js_1.default)(uuid)) {
+        throw TypeError('Invalid UUID');
+    }
+    let v;
+    return Uint8Array.of((v = parseInt(uuid.slice(0, 8), 16)) >>> 24, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff, (v = parseInt(uuid.slice(9, 13), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(14, 18), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(19, 23), 16)) >>> 8, v & 0xff, ((v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000) & 0xff, (v / 0x100000000) & 0xff, (v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff);
+}
+exports["default"] = parse;
+
+
+/***/ }),
+
+/***/ 38289:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
+
+
+/***/ }),
+
+/***/ 91387:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const crypto_1 = __nccwpck_require__(76982);
+const rnds8Pool = new Uint8Array(256);
+let poolPtr = rnds8Pool.length;
+function rng() {
+    if (poolPtr > rnds8Pool.length - 16) {
+        (0, crypto_1.randomFillSync)(rnds8Pool);
+        poolPtr = 0;
+    }
+    return rnds8Pool.slice(poolPtr, (poolPtr += 16));
+}
+exports["default"] = rng;
+
+
+/***/ }),
+
+/***/ 84405:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const crypto_1 = __nccwpck_require__(76982);
+function sha1(bytes) {
+    if (Array.isArray(bytes)) {
+        bytes = Buffer.from(bytes);
+    }
+    else if (typeof bytes === 'string') {
+        bytes = Buffer.from(bytes, 'utf8');
+    }
+    return (0, crypto_1.createHash)('sha1').update(bytes).digest();
+}
+exports["default"] = sha1;
+
+
+/***/ }),
+
+/***/ 89843:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.unsafeStringify = void 0;
+const validate_js_1 = __nccwpck_require__(87642);
+const byteToHex = [];
+for (let i = 0; i < 256; ++i) {
+    byteToHex.push((i + 0x100).toString(16).slice(1));
+}
+function unsafeStringify(arr, offset = 0) {
+    return (byteToHex[arr[offset + 0]] +
+        byteToHex[arr[offset + 1]] +
+        byteToHex[arr[offset + 2]] +
+        byteToHex[arr[offset + 3]] +
+        '-' +
+        byteToHex[arr[offset + 4]] +
+        byteToHex[arr[offset + 5]] +
+        '-' +
+        byteToHex[arr[offset + 6]] +
+        byteToHex[arr[offset + 7]] +
+        '-' +
+        byteToHex[arr[offset + 8]] +
+        byteToHex[arr[offset + 9]] +
+        '-' +
+        byteToHex[arr[offset + 10]] +
+        byteToHex[arr[offset + 11]] +
+        byteToHex[arr[offset + 12]] +
+        byteToHex[arr[offset + 13]] +
+        byteToHex[arr[offset + 14]] +
+        byteToHex[arr[offset + 15]]).toLowerCase();
+}
+exports.unsafeStringify = unsafeStringify;
+function stringify(arr, offset = 0) {
+    const uuid = unsafeStringify(arr, offset);
+    if (!(0, validate_js_1.default)(uuid)) {
+        throw TypeError('Stringified UUID is invalid');
+    }
+    return uuid;
+}
+exports["default"] = stringify;
+
+
+/***/ }),
+
+/***/ 65465:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.updateV1State = void 0;
+const rng_js_1 = __nccwpck_require__(91387);
+const stringify_js_1 = __nccwpck_require__(89843);
+const _state = {};
+function v1(options, buf, offset) {
+    let bytes;
+    const isV6 = options?._v6 ?? false;
+    if (options) {
+        const optionsKeys = Object.keys(options);
+        if (optionsKeys.length === 1 && optionsKeys[0] === '_v6') {
+            options = undefined;
+        }
+    }
+    if (options) {
+        bytes = v1Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.nsecs, options.clockseq, options.node, buf, offset);
+    }
+    else {
+        const now = Date.now();
+        const rnds = (0, rng_js_1.default)();
+        updateV1State(_state, now, rnds);
+        bytes = v1Bytes(rnds, _state.msecs, _state.nsecs, isV6 ? undefined : _state.clockseq, isV6 ? undefined : _state.node, buf, offset);
+    }
+    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+}
+function updateV1State(state, now, rnds) {
+    state.msecs ??= -Infinity;
+    state.nsecs ??= 0;
+    if (now === state.msecs) {
+        state.nsecs++;
+        if (state.nsecs >= 10000) {
+            state.node = undefined;
+            state.nsecs = 0;
+        }
+    }
+    else if (now > state.msecs) {
+        state.nsecs = 0;
+    }
+    else if (now < state.msecs) {
+        state.node = undefined;
+    }
+    if (!state.node) {
+        state.node = rnds.slice(10, 16);
+        state.node[0] |= 0x01;
+        state.clockseq = ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+    }
+    state.msecs = now;
+    return state;
+}
+exports.updateV1State = updateV1State;
+function v1Bytes(rnds, msecs, nsecs, clockseq, node, buf, offset = 0) {
+    if (rnds.length < 16) {
+        throw new Error('Random bytes length must be >= 16');
+    }
+    if (!buf) {
+        buf = new Uint8Array(16);
+        offset = 0;
+    }
+    else {
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+    }
+    msecs ??= Date.now();
+    nsecs ??= 0;
+    clockseq ??= ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+    node ??= rnds.slice(10, 16);
+    msecs += 12219292800000;
+    const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+    buf[offset++] = (tl >>> 24) & 0xff;
+    buf[offset++] = (tl >>> 16) & 0xff;
+    buf[offset++] = (tl >>> 8) & 0xff;
+    buf[offset++] = tl & 0xff;
+    const tmh = ((msecs / 0x100000000) * 10000) & 0xfffffff;
+    buf[offset++] = (tmh >>> 8) & 0xff;
+    buf[offset++] = tmh & 0xff;
+    buf[offset++] = ((tmh >>> 24) & 0xf) | 0x10;
+    buf[offset++] = (tmh >>> 16) & 0xff;
+    buf[offset++] = (clockseq >>> 8) | 0x80;
+    buf[offset++] = clockseq & 0xff;
+    for (let n = 0; n < 6; ++n) {
+        buf[offset++] = node[n];
+    }
+    return buf;
+}
+exports["default"] = v1;
+
+
+/***/ }),
+
+/***/ 42656:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const parse_js_1 = __nccwpck_require__(13405);
+const stringify_js_1 = __nccwpck_require__(89843);
+function v1ToV6(uuid) {
+    const v1Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+    const v6Bytes = _v1ToV6(v1Bytes);
+    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v6Bytes) : v6Bytes;
+}
+exports["default"] = v1ToV6;
+function _v1ToV6(v1Bytes) {
+    return Uint8Array.of(((v1Bytes[6] & 0x0f) << 4) | ((v1Bytes[7] >> 4) & 0x0f), ((v1Bytes[7] & 0x0f) << 4) | ((v1Bytes[4] & 0xf0) >> 4), ((v1Bytes[4] & 0x0f) << 4) | ((v1Bytes[5] & 0xf0) >> 4), ((v1Bytes[5] & 0x0f) << 4) | ((v1Bytes[0] & 0xf0) >> 4), ((v1Bytes[0] & 0x0f) << 4) | ((v1Bytes[1] & 0xf0) >> 4), ((v1Bytes[1] & 0x0f) << 4) | ((v1Bytes[2] & 0xf0) >> 4), 0x60 | (v1Bytes[2] & 0x0f), v1Bytes[3], v1Bytes[8], v1Bytes[9], v1Bytes[10], v1Bytes[11], v1Bytes[12], v1Bytes[13], v1Bytes[14], v1Bytes[15]);
+}
+
+
+/***/ }),
+
+/***/ 69591:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.URL = exports.DNS = void 0;
+const md5_js_1 = __nccwpck_require__(35434);
+const v35_js_1 = __nccwpck_require__(69924);
+var v35_js_2 = __nccwpck_require__(69924);
+Object.defineProperty(exports, "DNS", ({ enumerable: true, get: function () { return v35_js_2.DNS; } }));
+Object.defineProperty(exports, "URL", ({ enumerable: true, get: function () { return v35_js_2.URL; } }));
+function v3(value, namespace, buf, offset) {
+    return (0, v35_js_1.default)(0x30, md5_js_1.default, value, namespace, buf, offset);
+}
+v3.DNS = v35_js_1.DNS;
+v3.URL = v35_js_1.URL;
+exports["default"] = v3;
+
+
+/***/ }),
+
+/***/ 69924:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.URL = exports.DNS = exports.stringToBytes = void 0;
+const parse_js_1 = __nccwpck_require__(13405);
+const stringify_js_1 = __nccwpck_require__(89843);
+function stringToBytes(str) {
+    str = unescape(encodeURIComponent(str));
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; ++i) {
+        bytes[i] = str.charCodeAt(i);
+    }
+    return bytes;
+}
+exports.stringToBytes = stringToBytes;
+exports.DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+exports.URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+function v35(version, hash, value, namespace, buf, offset) {
+    const valueBytes = typeof value === 'string' ? stringToBytes(value) : value;
+    const namespaceBytes = typeof namespace === 'string' ? (0, parse_js_1.default)(namespace) : namespace;
+    if (typeof namespace === 'string') {
+        namespace = (0, parse_js_1.default)(namespace);
+    }
+    if (namespace?.length !== 16) {
+        throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
+    }
+    let bytes = new Uint8Array(16 + valueBytes.length);
+    bytes.set(namespaceBytes);
+    bytes.set(valueBytes, namespaceBytes.length);
+    bytes = hash(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | version;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    if (buf) {
+        offset = offset || 0;
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; ++i) {
+            buf[offset + i] = bytes[i];
+        }
+        return buf;
+    }
+    return (0, stringify_js_1.unsafeStringify)(bytes);
+}
+exports["default"] = v35;
+
+
+/***/ }),
+
+/***/ 53078:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const native_js_1 = __nccwpck_require__(63947);
+const rng_js_1 = __nccwpck_require__(91387);
+const stringify_js_1 = __nccwpck_require__(89843);
+function v4(options, buf, offset) {
+    if (native_js_1.default.randomUUID && !buf && !options) {
+        return native_js_1.default.randomUUID();
+    }
+    options = options || {};
+    const rnds = options.random ?? options.rng?.() ?? (0, rng_js_1.default)();
+    if (rnds.length < 16) {
+        throw new Error('Random bytes length must be >= 16');
+    }
+    rnds[6] = (rnds[6] & 0x0f) | 0x40;
+    rnds[8] = (rnds[8] & 0x3f) | 0x80;
+    if (buf) {
+        offset = offset || 0;
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; ++i) {
+            buf[offset + i] = rnds[i];
+        }
+        return buf;
+    }
+    return (0, stringify_js_1.unsafeStringify)(rnds);
+}
+exports["default"] = v4;
+
+
+/***/ }),
+
+/***/ 71317:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.URL = exports.DNS = void 0;
+const sha1_js_1 = __nccwpck_require__(84405);
+const v35_js_1 = __nccwpck_require__(69924);
+var v35_js_2 = __nccwpck_require__(69924);
+Object.defineProperty(exports, "DNS", ({ enumerable: true, get: function () { return v35_js_2.DNS; } }));
+Object.defineProperty(exports, "URL", ({ enumerable: true, get: function () { return v35_js_2.URL; } }));
+function v5(value, namespace, buf, offset) {
+    return (0, v35_js_1.default)(0x50, sha1_js_1.default, value, namespace, buf, offset);
+}
+v5.DNS = v35_js_1.DNS;
+v5.URL = v35_js_1.URL;
+exports["default"] = v5;
+
+
+/***/ }),
+
+/***/ 64620:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const stringify_js_1 = __nccwpck_require__(89843);
+const v1_js_1 = __nccwpck_require__(65465);
+const v1ToV6_js_1 = __nccwpck_require__(42656);
+function v6(options, buf, offset) {
+    options ??= {};
+    offset ??= 0;
+    let bytes = (0, v1_js_1.default)({ ...options, _v6: true }, new Uint8Array(16));
+    bytes = (0, v1ToV6_js_1.default)(bytes);
+    if (buf) {
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; i++) {
+            buf[offset + i] = bytes[i];
+        }
+        return buf;
+    }
+    return (0, stringify_js_1.unsafeStringify)(bytes);
+}
+exports["default"] = v6;
+
+
+/***/ }),
+
+/***/ 32564:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const parse_js_1 = __nccwpck_require__(13405);
+const stringify_js_1 = __nccwpck_require__(89843);
+function v6ToV1(uuid) {
+    const v6Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+    const v1Bytes = _v6ToV1(v6Bytes);
+    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v1Bytes) : v1Bytes;
+}
+exports["default"] = v6ToV1;
+function _v6ToV1(v6Bytes) {
+    return Uint8Array.of(((v6Bytes[3] & 0x0f) << 4) | ((v6Bytes[4] >> 4) & 0x0f), ((v6Bytes[4] & 0x0f) << 4) | ((v6Bytes[5] & 0xf0) >> 4), ((v6Bytes[5] & 0x0f) << 4) | (v6Bytes[6] & 0x0f), v6Bytes[7], ((v6Bytes[1] & 0x0f) << 4) | ((v6Bytes[2] & 0xf0) >> 4), ((v6Bytes[2] & 0x0f) << 4) | ((v6Bytes[3] & 0xf0) >> 4), 0x10 | ((v6Bytes[0] & 0xf0) >> 4), ((v6Bytes[0] & 0x0f) << 4) | ((v6Bytes[1] & 0xf0) >> 4), v6Bytes[8], v6Bytes[9], v6Bytes[10], v6Bytes[11], v6Bytes[12], v6Bytes[13], v6Bytes[14], v6Bytes[15]);
+}
+
+
+/***/ }),
+
+/***/ 72723:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.updateV7State = void 0;
+const rng_js_1 = __nccwpck_require__(91387);
+const stringify_js_1 = __nccwpck_require__(89843);
+const _state = {};
+function v7(options, buf, offset) {
+    let bytes;
+    if (options) {
+        bytes = v7Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.seq, buf, offset);
+    }
+    else {
+        const now = Date.now();
+        const rnds = (0, rng_js_1.default)();
+        updateV7State(_state, now, rnds);
+        bytes = v7Bytes(rnds, _state.msecs, _state.seq, buf, offset);
+    }
+    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+}
+function updateV7State(state, now, rnds) {
+    state.msecs ??= -Infinity;
+    state.seq ??= 0;
+    if (now > state.msecs) {
+        state.seq = (rnds[6] << 23) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+        state.msecs = now;
+    }
+    else {
+        state.seq = (state.seq + 1) | 0;
+        if (state.seq === 0) {
+            state.msecs++;
+        }
+    }
+    return state;
+}
+exports.updateV7State = updateV7State;
+function v7Bytes(rnds, msecs, seq, buf, offset = 0) {
+    if (rnds.length < 16) {
+        throw new Error('Random bytes length must be >= 16');
+    }
+    if (!buf) {
+        buf = new Uint8Array(16);
+        offset = 0;
+    }
+    else {
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+    }
+    msecs ??= Date.now();
+    seq ??= ((rnds[6] * 0x7f) << 24) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+    buf[offset++] = (msecs / 0x10000000000) & 0xff;
+    buf[offset++] = (msecs / 0x100000000) & 0xff;
+    buf[offset++] = (msecs / 0x1000000) & 0xff;
+    buf[offset++] = (msecs / 0x10000) & 0xff;
+    buf[offset++] = (msecs / 0x100) & 0xff;
+    buf[offset++] = msecs & 0xff;
+    buf[offset++] = 0x70 | ((seq >>> 28) & 0x0f);
+    buf[offset++] = (seq >>> 20) & 0xff;
+    buf[offset++] = 0x80 | ((seq >>> 14) & 0x3f);
+    buf[offset++] = (seq >>> 6) & 0xff;
+    buf[offset++] = ((seq << 2) & 0xff) | (rnds[10] & 0x03);
+    buf[offset++] = rnds[11];
+    buf[offset++] = rnds[12];
+    buf[offset++] = rnds[13];
+    buf[offset++] = rnds[14];
+    buf[offset++] = rnds[15];
+    return buf;
+}
+exports["default"] = v7;
+
+
+/***/ }),
+
+/***/ 87642:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const regex_js_1 = __nccwpck_require__(38289);
+function validate(uuid) {
+    return typeof uuid === 'string' && regex_js_1.default.test(uuid);
+}
+exports["default"] = validate;
+
+
+/***/ }),
+
+/***/ 61626:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const validate_js_1 = __nccwpck_require__(87642);
+function version(uuid) {
+    if (!(0, validate_js_1.default)(uuid)) {
+        throw TypeError('Invalid UUID');
+    }
+    return parseInt(uuid.slice(14, 15), 16);
+}
+exports["default"] = version;
+
+
+/***/ }),
+
 /***/ 87269:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
-/*! Axios v1.15.2 Copyright (c) 2026 Matt Zabriskie and contributors */
+/*! Axios v1.20.0 Copyright (c) 2026 Matt Zabriskie and contributors */
 
 
 var FormData$1 = __nccwpck_require__(96454);
 var crypto = __nccwpck_require__(76982);
 var url = __nccwpck_require__(87016);
+var HttpsProxyAgent = __nccwpck_require__(3669);
 var http = __nccwpck_require__(58611);
 var https = __nccwpck_require__(65692);
 var http2 = __nccwpck_require__(85675);
@@ -129191,6 +132664,150 @@ const {
   iterator,
   toStringTag
 } = Symbol;
+
+/* Creating a function that will check if an object has a property. */
+const hasOwnProperty = (({
+  hasOwnProperty
+}) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
+const isUnsafeObjectKey = prop => typeof prop === 'string' && (prop === '__proto__' || prop === 'constructor' || prop === 'prototype');
+
+/**
+ * Determine whether an inherited object must be treated as a shared-prototype
+ * boundary. Cross-realm Object.prototype objects cannot be distinguished
+ * reliably from application-created null-prototype objects because their
+ * properties are mutable, so all inherited terminal prototypes are excluded
+ * as a fail-closed boundary. A null-prototype source still keeps its own
+ * properties, as produced by mergeConfig and other safe materialization paths.
+ *
+ * @param {*} obj The object to inspect
+ * @param {*} prototype The object's prototype
+ * @param {boolean} source Whether obj is the original traversal source
+ *
+ * @returns {boolean} True when obj is a safe prototype traversal boundary
+ */
+const isPrototypeBoundary = (obj, prototype, source) => obj === Object.prototype || !source && prototype === null;
+
+/**
+ * Determine whether an object can retain its identity through code paths that
+ * add, replace, and remove config properties without bypassing unsafe-key
+ * filtering. Immutable objects, unsafe-key-bearing objects, and objects with
+ * accessor or restricted data properties must be materialized instead.
+ *
+ * @param {*} obj The object to inspect
+ *
+ * @returns {boolean} True when every own property is safe and fully mutable
+ */
+const isSafeAndFullyMutable = obj => {
+  if (!Object.isExtensible(obj)) {
+    return false;
+  }
+  const props = Object.getOwnPropertyNames(obj);
+  if (Object.getOwnPropertySymbols) {
+    props.push(...Object.getOwnPropertySymbols(obj));
+  }
+  return props.every(prop => {
+    if (isUnsafeObjectKey(prop)) {
+      return false;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    return !!descriptor && descriptor.configurable && descriptor.writable === true;
+  });
+};
+
+/**
+ * Walk the prototype chain (excluding the source realm's Object.prototype)
+ * looking for an own `prop`. This distinguishes genuine own/inherited members
+ * — including class accessors and template prototypes — from members injected
+ * via Object.prototype pollution (e.g. `Object.prototype.username = '...'`),
+ * which live on Object.prototype itself and are therefore never matched.
+ *
+ * @param {*} thing The value whose chain to inspect
+ * @param {string|symbol} prop The property key to look for
+ *
+ * @returns {boolean} True when `prop` is owned below Object.prototype
+ */
+const hasOwnInPrototypeChain = (thing, prop) => {
+  let obj = thing;
+  const seen = [];
+  while (obj != null) {
+    if (seen.indexOf(obj) !== -1) {
+      return false;
+    }
+    seen.push(obj);
+    const prototype = getPrototypeOf(obj);
+    if (isPrototypeBoundary(obj, prototype, obj === thing)) {
+      return false;
+    }
+    if (hasOwnProperty(obj, prop)) {
+      return true;
+    }
+    obj = prototype;
+  }
+  return false;
+};
+
+/**
+ * Read `obj[prop]` only when it is safe from Object.prototype pollution. Own
+ * properties and members inherited from a non-Object.prototype source (a class
+ * instance or template object) are honored; a value reachable only through a
+ * polluted Object.prototype is ignored and `undefined` is returned.
+ *
+ * @param {*} obj The source object
+ * @param {string|symbol} prop The property key to read
+ *
+ * @returns {*} The resolved value, or undefined when unsafe/absent
+ */
+const getSafeProp = (obj, prop) => obj != null && hasOwnInPrototypeChain(obj, prop) ? obj[prop] : undefined;
+
+/**
+ * Flatten an object and its application-defined prototype chain into a
+ * null-prototype object. Members inherited only from the source realm's
+ * Object.prototype are deliberately excluded, while class/template members
+ * below that boundary are preserved.
+ *
+ * @param {*} thing The value to flatten
+ *
+ * @returns {*} A null-prototype copy, or the original value when it is already
+ * structurally safe or is not an object
+ */
+const toSafeFlatObject = thing => {
+  if (thing == null || typeof thing !== 'object' && typeof thing !== 'function') {
+    return thing;
+  }
+  const sourcePrototype = getPrototypeOf(thing);
+  if (sourcePrototype === null && isSafeAndFullyMutable(thing)) {
+    return thing;
+  }
+  const result = Object.create(null);
+  const merged = Object.create(null);
+  const seen = [];
+  let current = thing;
+  while (current != null) {
+    if (seen.indexOf(current) !== -1) {
+      break;
+    }
+    seen.push(current);
+    const prototype = current === thing ? sourcePrototype : getPrototypeOf(current);
+    if (isPrototypeBoundary(current, prototype, current === thing)) {
+      break;
+    }
+    const props = Object.getOwnPropertyNames(current);
+    if (Object.getOwnPropertySymbols) {
+      props.push(...Object.getOwnPropertySymbols(current));
+    }
+    for (const prop of props) {
+      if (isUnsafeObjectKey(prop)) {
+        continue;
+      }
+      if (!hasOwnProperty(merged, prop)) {
+        result[prop] = thing[prop];
+        merged[prop] = true;
+      }
+    }
+    current = prototype;
+  }
+  return result;
+};
 const kindOf = (cache => thing => {
   const str = toString.call(thing);
   return cache[str] || (cache[str] = str.slice(8, -1).toLowerCase());
@@ -129309,11 +132926,15 @@ const isBoolean = thing => thing === true || thing === false;
  * @returns {boolean} True if value is a plain Object, otherwise false
  */
 const isPlainObject = val => {
-  if (kindOf(val) !== 'object') {
+  if (!isObject(val)) {
     return false;
   }
   const prototype = getPrototypeOf(val);
-  return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(toStringTag in val) && !(iterator in val);
+  return (prototype === null || prototype === Object.prototype || getPrototypeOf(prototype) === null) &&
+  // Treat safe own/inherited Symbol.toStringTag or Symbol.iterator members as
+  // evidence the value is tagged/iterable, while ignoring members reachable
+  // only through shared or terminal prototype boundaries.
+  !hasOwnInPrototypeChain(val, toStringTag) && !hasOwnInPrototypeChain(val, iterator);
 };
 
 /**
@@ -129360,9 +132981,9 @@ const isFile = kindOfTest('File');
  * also have a `name` and `type` attribute to specify filename and content type
  *
  * @see https://github.com/facebook/react-native/blob/26684cf3adf4094eb6c405d345a75bf8c7c0bf88/Libraries/Network/FormData.js#L68-L71
- * 
+ *
  * @param {*} value The value to test
- * 
+ *
  * @returns {boolean} True if value is a React Native Blob, otherwise false
  */
 const isReactNativeBlob = value => {
@@ -129372,9 +132993,9 @@ const isReactNativeBlob = value => {
 /**
  * Determine if environment is React Native
  * ReactNative `FormData` has a non-standard `getParts()` method
- * 
+ *
  * @param {*} formData The formData to test
- * 
+ *
  * @returns {boolean} True if environment is React Native, otherwise false
  */
 const isReactNative = formData => formData && typeof formData.getParts !== 'undefined';
@@ -129393,9 +133014,10 @@ const isBlob = kindOfTest('Blob');
  *
  * @param {*} val The value to test
  *
- * @returns {boolean} True if value is a File, otherwise false
+ * @returns {boolean} True if value is a FileList, otherwise false
  */
 const isFileList = kindOfTest('FileList');
+const isSet = kindOfTest('Set');
 
 /**
  * Determine if a value is a Stream
@@ -129425,7 +133047,7 @@ const FormDataCtor = typeof G.FormData !== 'undefined' ? G.FormData : undefined;
 const isFormData = thing => {
   if (!thing) return false;
   if (FormDataCtor && thing instanceof FormDataCtor) return true;
-  // Reject plain objects inheriting directly from Object.prototype so prototype-pollution gadgets can't spoof FormData (GHSA-6chq-wfr3-2hj9).
+  // Reject plain objects inheriting directly from Object.prototype so prototype-pollution gadgets can't spoof FormData.
   const proto = getPrototypeOf(thing);
   if (!proto || proto === Object.prototype) return false;
   if (!isFunction$1(thing.append)) return false;
@@ -129557,8 +133179,7 @@ const isContextDefined = context => !isUndefined(context) && context !== _global
  *
  * @returns {Object} Result of all merge properties
  */
-function merge(/* obj1, obj2, obj3, ... */
-) {
+function merge(...objs) {
   const {
     caseless,
     skipUndefined
@@ -129569,9 +133190,16 @@ function merge(/* obj1, obj2, obj3, ... */
     if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
       return;
     }
-    const targetKey = caseless && findKey(result, key) || key;
-    if (isPlainObject(result[targetKey]) && isPlainObject(val)) {
-      result[targetKey] = merge(result[targetKey], val);
+
+    // findKey lowercases the key, so caseless lookup only applies to strings —
+    // symbol keys are identity-matched.
+    const targetKey = caseless && typeof key === 'string' && findKey(result, key) || key;
+    // Read via own-prop only — a bare `result[targetKey]` walks the prototype
+    // chain, so a polluted Object.prototype value could surface here and get
+    // copied into the merged result.
+    const existing = hasOwnProperty(result, targetKey) ? result[targetKey] : undefined;
+    if (isPlainObject(existing) && isPlainObject(val)) {
+      result[targetKey] = merge(existing, val);
     } else if (isPlainObject(val)) {
       result[targetKey] = merge({}, val);
     } else if (isArray(val)) {
@@ -129580,8 +133208,22 @@ function merge(/* obj1, obj2, obj3, ... */
       result[targetKey] = val;
     }
   };
-  for (let i = 0, l = arguments.length; i < l; i++) {
-    arguments[i] && forEach(arguments[i], assignValue);
+  for (let i = 0, l = objs.length; i < l; i++) {
+    const source = objs[i];
+    if (!source || isBuffer(source)) {
+      continue;
+    }
+    forEach(source, assignValue);
+    if (typeof source !== 'object' || isArray(source)) {
+      continue;
+    }
+    const symbols = Object.getOwnPropertySymbols(source);
+    for (let j = 0; j < symbols.length; j++) {
+      const symbol = symbols[j];
+      if (propertyIsEnumerable.call(source, symbol)) {
+        assignValue(source[symbol], symbol);
+      }
+    }
   }
   return result;
 }
@@ -129603,6 +133245,9 @@ const extend = (a, b, thisArg, {
   forEach(b, (val, key) => {
     if (thisArg && isFunction$1(val)) {
       Object.defineProperty(a, key, {
+        // Null-proto descriptor so a polluted Object.prototype.get cannot
+        // hijack defineProperty's accessor-vs-data resolution.
+        __proto__: null,
         value: bind(val, thisArg),
         writable: true,
         enumerable: true,
@@ -129610,6 +133255,7 @@ const extend = (a, b, thisArg, {
       });
     } else {
       Object.defineProperty(a, key, {
+        __proto__: null,
         value: val,
         writable: true,
         enumerable: true,
@@ -129648,12 +133294,14 @@ const stripBOM = content => {
 const inherits = (constructor, superConstructor, props, descriptors) => {
   constructor.prototype = Object.create(superConstructor.prototype, descriptors);
   Object.defineProperty(constructor.prototype, 'constructor', {
+    __proto__: null,
     value: constructor,
     writable: true,
     enumerable: false,
     configurable: true
   });
   Object.defineProperty(constructor, 'super', {
+    __proto__: null,
     value: superConstructor.prototype
   });
   props && Object.assign(constructor.prototype, props);
@@ -129787,11 +133435,9 @@ const toCamelCase = str => {
     return p1.toUpperCase() + p2;
   });
 };
-
-/* Creating a function that will check if an object has a property. */
-const hasOwnProperty = (({
-  hasOwnProperty
-}) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
+const {
+  propertyIsEnumerable
+} = Object.prototype;
 
 /**
  * Determine if a value is a RegExp object
@@ -129821,7 +133467,7 @@ const reduceDescriptors = (obj, reducer) => {
 const freezeMethods = obj => {
   reduceDescriptors(obj, (descriptor, name) => {
     // skip restricted props in strict mode
-    if (isFunction$1(obj) && ['arguments', 'caller', 'callee'].indexOf(name) !== -1) {
+    if (isFunction$1(obj) && ['arguments', 'caller', 'callee'].includes(name)) {
       return false;
     }
     const value = obj[name];
@@ -129880,10 +133526,10 @@ function isSpecCompliantForm(thing) {
  * @returns {Object} The JSON-compatible object.
  */
 const toJSONObject = obj => {
-  const stack = new Array(10);
-  const visit = (source, i) => {
+  const visited = new WeakSet();
+  const visit = source => {
     if (isObject(source)) {
-      if (stack.indexOf(source) >= 0) {
+      if (visited.has(source)) {
         return;
       }
 
@@ -129892,19 +133538,29 @@ const toJSONObject = obj => {
         return source;
       }
       if (!('toJSON' in source)) {
-        stack[i] = source;
-        const target = isArray(source) ? [] : {};
-        forEach(source, (value, key) => {
-          const reducedValue = visit(value, i + 1);
-          !isUndefined(reducedValue) && (target[key] = reducedValue);
-        });
-        stack[i] = undefined;
+        // add-on descent / delete-on-ascent: preserves path semantics, so DAG nodes serialise at every occurrence (see #7230).
+        visited.add(source);
+        let target;
+        if (isSet(source)) {
+          target = [];
+          for (const value of source) {
+            const reducedValue = visit(value);
+            !isUndefined(reducedValue) && target.push(reducedValue);
+          }
+        } else {
+          target = isArray(source) ? [] : {};
+          forEach(source, (value, key) => {
+            const reducedValue = visit(value);
+            !isUndefined(reducedValue) && (target[key] = reducedValue);
+          });
+        }
+        visited.delete(source);
         return target;
       }
     }
     return source;
   };
-  return visit(obj, 0);
+  return visit(obj);
 };
 
 /**
@@ -129965,6 +133621,19 @@ const asap = typeof queueMicrotask !== 'undefined' ? queueMicrotask.bind(_global
 // *********************
 
 const isIterable = thing => thing != null && isFunction$1(thing[iterator]);
+
+/**
+ * Determine if a value is iterable via an iterator that is NOT sourced solely
+ * from a polluted Object.prototype. Use this instead of `isIterable` whenever
+ * the iterable comes from untrusted input (e.g. user-supplied header sources),
+ * so `Object.prototype[Symbol.iterator] = ...` cannot turn an ordinary object
+ * into an attacker-controlled entries iterator.
+ *
+ * @param {*} thing The value to test
+ *
+ * @returns {boolean} True if value has a non-polluted iterator
+ */
+const isSafeIterable = thing => thing != null && hasOwnInPrototypeChain(thing, iterator) && isIterable(thing);
 var utils$1 = {
   isArray,
   isArrayBuffer,
@@ -130010,6 +133679,9 @@ var utils$1 = {
   hasOwnProperty,
   hasOwnProp: hasOwnProperty,
   // an alias to avoid ESLint no-prototype-builtins detection
+  hasOwnInPrototypeChain,
+  getSafeProp,
+  toSafeFlatObject,
   reduceDescriptors,
   freezeMethods,
   toObjectSet,
@@ -130025,13 +133697,521 @@ var utils$1 = {
   isThenable,
   setImmediate: _setImmediate,
   asap,
-  isIterable
+  isIterable,
+  isSafeIterable
 };
 
+// RawAxiosHeaders whose duplicates are ignored by node
+// c.f. https://nodejs.org/api/http.html#http_message_headers
+const ignoreDuplicateOf = utils$1.toObjectSet(['age', 'authorization', 'content-length', 'content-type', 'etag', 'expires', 'from', 'host', 'if-modified-since', 'if-unmodified-since', 'last-modified', 'location', 'max-forwards', 'proxy-authorization', 'referer', 'retry-after', 'user-agent']);
+
+/**
+ * Parse headers into an object
+ *
+ * ```
+ * Date: Wed, 27 Aug 2014 08:58:49 GMT
+ * Content-Type: application/json
+ * Connection: keep-alive
+ * Transfer-Encoding: chunked
+ * ```
+ *
+ * @param {String} rawHeaders Headers needing to be parsed
+ *
+ * @returns {Object} Headers parsed into an object
+ */
+var parseHeaders = rawHeaders => {
+  const parsed = {};
+  let key;
+  let val;
+  let i;
+  rawHeaders && rawHeaders.split('\n').forEach(function parser(line) {
+    i = line.indexOf(':');
+    key = line.substring(0, i).trim().toLowerCase();
+    val = line.substring(i + 1).trim();
+    const hasKey = utils$1.hasOwnProp(parsed, key);
+    if (!key || hasKey && utils$1.hasOwnProp(ignoreDuplicateOf, key)) {
+      return;
+    }
+    if (key === 'set-cookie') {
+      if (hasKey) {
+        parsed[key].push(val);
+      } else {
+        parsed[key] = [val];
+      }
+    } else {
+      parsed[key] = hasKey ? parsed[key] + ', ' + val : val;
+    }
+  });
+  return parsed;
+};
+
+function trimSPorHTAB(str) {
+  let start = 0;
+  let end = str.length;
+  while (start < end) {
+    const code = str.charCodeAt(start);
+    if (code !== 0x09 && code !== 0x20) {
+      break;
+    }
+    start += 1;
+  }
+  while (end > start) {
+    const code = str.charCodeAt(end - 1);
+    if (code !== 0x09 && code !== 0x20) {
+      break;
+    }
+    end -= 1;
+  }
+  return start === 0 && end === str.length ? str : str.slice(start, end);
+}
+
+// The control-code ranges are intentional: header sanitization strips C0/DEL bytes.
+// eslint-disable-next-line no-control-regex
+const INVALID_UNICODE_HEADER_VALUE_CHARS = new RegExp('[\\u0000-\\u0008\\u000a-\\u001f\\u007f]+', 'g');
+// eslint-disable-next-line no-control-regex
+const INVALID_BYTE_STRING_HEADER_VALUE_CHARS = new RegExp('[^\\u0009\\u0020-\\u007e\\u0080-\\u00ff]+', 'g');
+function sanitizeValue(value, invalidChars) {
+  if (utils$1.isArray(value)) {
+    return value.map(item => sanitizeValue(item, invalidChars));
+  }
+  return trimSPorHTAB(String(value).replace(invalidChars, ''));
+}
+const sanitizeHeaderValue = value => sanitizeValue(value, INVALID_UNICODE_HEADER_VALUE_CHARS);
+const sanitizeByteStringHeaderValue = value => sanitizeValue(value, INVALID_BYTE_STRING_HEADER_VALUE_CHARS);
+function toByteStringHeaderObject(headers) {
+  const byteStringHeaders = Object.create(null);
+  utils$1.forEach(headers.toJSON(), (value, header) => {
+    byteStringHeaders[header] = sanitizeByteStringHeaderValue(value);
+  });
+  return byteStringHeaders;
+}
+
+const $internals$1 = Symbol('internals');
+function normalizeHeader(header) {
+  return header && String(header).trim().toLowerCase();
+}
+function normalizeValue(value) {
+  if (value === false || value == null) {
+    return value;
+  }
+  return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
+}
+function parseTokens(str) {
+  const tokens = Object.create(null);
+  const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
+  let match;
+  while (match = tokensRE.exec(str)) {
+    tokens[match[1]] = match[2];
+  }
+  return tokens;
+}
+const parameterNameRE = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+function trimOWS(value) {
+  let start = 0;
+  let end = value.length;
+  while (start < end) {
+    const code = value.charCodeAt(start);
+    if (code !== 0x09 && code !== 0x20) {
+      break;
+    }
+    start += 1;
+  }
+  while (end > start) {
+    const code = value.charCodeAt(end - 1);
+    if (code !== 0x09 && code !== 0x20) {
+      break;
+    }
+    end -= 1;
+  }
+  return start === 0 && end === value.length ? value : value.slice(start, end);
+}
+function decodeQuotedString(value) {
+  const last = value.length - 1;
+  if (last < 1 || value.charCodeAt(0) !== 0x22 || value.charCodeAt(last) !== 0x22) {
+    return value;
+  }
+  let decoded = '';
+  for (let i = 1; i < last; i++) {
+    const code = value.charCodeAt(i);
+    if (code === 0x22) {
+      return value;
+    }
+    if (code === 0x5c) {
+      i += 1;
+      if (i >= last) {
+        return value;
+      }
+    }
+    decoded += value[i];
+  }
+  return decoded;
+}
+function parseParameters(value) {
+  const parameters = Object.create(null);
+  const str = String(value);
+  let start = 0;
+  let quoted = false;
+  let escaped = false;
+  function parseParameter(end) {
+    const part = trimOWS(str.slice(start, end));
+    const equals = part.indexOf('=');
+    if (equals < 1) {
+      return;
+    }
+    const name = trimOWS(part.slice(0, equals));
+    if (!parameterNameRE.test(name)) {
+      return;
+    }
+    const normalizedName = name.toLowerCase();
+    if (normalizedName === '__proto__' || normalizedName === 'constructor' || normalizedName === 'prototype') {
+      return;
+    }
+    const parameterValue = trimOWS(part.slice(equals + 1));
+    parameters[normalizedName] = decodeQuotedString(parameterValue);
+  }
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (quoted) {
+      if (escaped) {
+        escaped = false;
+      } else if (code === 0x5c) {
+        escaped = true;
+      } else if (code === 0x22) {
+        quoted = false;
+      }
+    } else if (code === 0x22) {
+      quoted = true;
+    } else if (code === 0x2c || code === 0x3b) {
+      parseParameter(i);
+      start = i + 1;
+    }
+  }
+  parseParameter(str.length);
+  return parameters;
+}
+const isValidHeaderName = str => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
+function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
+  if (utils$1.isFunction(filter)) {
+    return filter.call(this, value, header);
+  }
+  if (isHeaderNameFilter) {
+    value = header;
+  }
+  if (!utils$1.isString(value)) return;
+  if (utils$1.isString(filter)) {
+    return value.indexOf(filter) !== -1;
+  }
+  if (utils$1.isRegExp(filter)) {
+    return filter.test(value);
+  }
+}
+function formatHeader(header) {
+  return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
+    return char.toUpperCase() + str;
+  });
+}
+function buildAccessors(obj, header) {
+  const accessorName = utils$1.toCamelCase(' ' + header);
+  ['get', 'set', 'has'].forEach(methodName => {
+    Object.defineProperty(obj, methodName + accessorName, {
+      // Null-proto descriptor so a polluted Object.prototype.get cannot turn
+      // this data descriptor into an accessor descriptor on the way in.
+      __proto__: null,
+      value: function (arg1, arg2, arg3) {
+        return this[methodName].call(this, header, arg1, arg2, arg3);
+      },
+      configurable: true
+    });
+  });
+}
+class AxiosHeaders {
+  constructor(headers) {
+    headers && this.set(headers);
+  }
+  set(header, valueOrRewrite, rewrite) {
+    const self = this;
+    function setHeader(_value, _header, _rewrite) {
+      const lHeader = normalizeHeader(_header);
+      if (!lHeader) {
+        return;
+      }
+      const key = utils$1.findKey(self, lHeader);
+      if (!key || self[key] === undefined || _rewrite === true || _rewrite === undefined && self[key] !== false) {
+        self[key || _header] = normalizeValue(_value);
+      }
+    }
+    const setHeaders = (headers, _rewrite) => utils$1.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
+    if (utils$1.isPlainObject(header) || header instanceof this.constructor) {
+      setHeaders(header, valueOrRewrite);
+    } else if (utils$1.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
+      setHeaders(parseHeaders(header), valueOrRewrite);
+    } else if (utils$1.isObject(header) && utils$1.isSafeIterable(header)) {
+      let obj = Object.create(null),
+        dest,
+        key;
+      for (const entry of header) {
+        if (!utils$1.isArray(entry)) {
+          throw new TypeError('Object iterator must return a key-value pair');
+        }
+        key = entry[0];
+        if (utils$1.hasOwnProp(obj, key)) {
+          dest = obj[key];
+          obj[key] = utils$1.isArray(dest) ? [...dest, entry[1]] : [dest, entry[1]];
+        } else {
+          obj[key] = entry[1];
+        }
+      }
+      setHeaders(obj, valueOrRewrite);
+    } else {
+      header != null && setHeader(valueOrRewrite, header, rewrite);
+    }
+    return this;
+  }
+  get(header, parser) {
+    header = normalizeHeader(header);
+    if (header) {
+      const key = utils$1.findKey(this, header);
+      if (key) {
+        const value = this[key];
+        if (!parser) {
+          return value;
+        }
+        if (parser === true) {
+          return parseTokens(value);
+        }
+        if (utils$1.isFunction(parser)) {
+          return parser.call(this, value, key);
+        }
+        if (utils$1.isRegExp(parser)) {
+          return parser.exec(value);
+        }
+        throw new TypeError('parser must be boolean|regexp|function');
+      }
+    }
+  }
+  has(header, matcher) {
+    header = normalizeHeader(header);
+    if (header) {
+      const key = utils$1.findKey(this, header);
+      return !!(key && this[key] !== undefined && (!matcher || matchHeaderValue(this, this[key], key, matcher)));
+    }
+    return false;
+  }
+  delete(header, matcher) {
+    const self = this;
+    let deleted = false;
+    function deleteHeader(_header) {
+      _header = normalizeHeader(_header);
+      if (_header) {
+        const key = utils$1.findKey(self, _header);
+        if (key && (!matcher || matchHeaderValue(self, self[key], key, matcher))) {
+          delete self[key];
+          deleted = true;
+        }
+      }
+    }
+    if (utils$1.isArray(header)) {
+      header.forEach(deleteHeader);
+    } else {
+      deleteHeader(header);
+    }
+    return deleted;
+  }
+  clear(matcher) {
+    const keys = Object.keys(this);
+    let i = keys.length;
+    let deleted = false;
+    while (i--) {
+      const key = keys[i];
+      if (!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
+        delete this[key];
+        deleted = true;
+      }
+    }
+    return deleted;
+  }
+  normalize(format) {
+    const self = this;
+    const headers = {};
+    utils$1.forEach(this, (value, header) => {
+      const key = utils$1.findKey(headers, header);
+      if (key) {
+        self[key] = normalizeValue(value);
+        delete self[header];
+        return;
+      }
+      const normalized = format ? formatHeader(header) : String(header).trim();
+      if (normalized !== header) {
+        delete self[header];
+      }
+      self[normalized] = normalizeValue(value);
+      headers[normalized] = true;
+    });
+    return this;
+  }
+  concat(...targets) {
+    return this.constructor.concat(this, ...targets);
+  }
+  toJSON(asStrings) {
+    const obj = Object.create(null);
+    utils$1.forEach(this, (value, header) => {
+      value != null && value !== false && (obj[header] = asStrings && utils$1.isArray(value) ? value.join(', ') : value);
+    });
+    return obj;
+  }
+  [Symbol.iterator]() {
+    return Object.entries(this.toJSON())[Symbol.iterator]();
+  }
+  toString() {
+    return Object.entries(this.toJSON()).map(([header, value]) => header + ': ' + value).join('\n');
+  }
+  getSetCookie() {
+    const value = this.get('set-cookie');
+    return utils$1.isArray(value) ? value : value == null || value === false ? [] : [value];
+  }
+  get [Symbol.toStringTag]() {
+    return 'AxiosHeaders';
+  }
+  static from(thing) {
+    return thing instanceof this ? thing : new this(thing);
+  }
+  static parseParameters(value) {
+    return parseParameters(value);
+  }
+  static concat(first, ...targets) {
+    const computed = new this(first);
+    targets.forEach(target => computed.set(target));
+    return computed;
+  }
+  static accessor(header) {
+    const internals = this[$internals$1] = this[$internals$1] = {
+      accessors: {}
+    };
+    const accessors = internals.accessors;
+    const prototype = this.prototype;
+    function defineAccessor(_header) {
+      const lHeader = normalizeHeader(_header);
+      if (!accessors[lHeader]) {
+        buildAccessors(prototype, _header);
+        accessors[lHeader] = true;
+      }
+    }
+    utils$1.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
+    return this;
+  }
+}
+AxiosHeaders.accessor(['Content-Type', 'Content-Length', 'Accept', 'Accept-Encoding', 'User-Agent', 'Authorization']);
+
+// reserved names hotfix
+utils$1.reduceDescriptors(AxiosHeaders.prototype, ({
+  value
+}, key) => {
+  let mapped = key[0].toUpperCase() + key.slice(1); // map `set` => `Set`
+  return {
+    get: () => value,
+    set(headerValue) {
+      this[mapped] = headerValue;
+    }
+  };
+});
+utils$1.freezeMethods(AxiosHeaders);
+
+const REDACTED = '[REDACTED ****]';
+function hasOwnOrPrototypeToJSON(source) {
+  if (utils$1.hasOwnProp(source, 'toJSON')) {
+    return true;
+  }
+  let prototype = Object.getPrototypeOf(source);
+  while (prototype && prototype !== Object.prototype) {
+    if (utils$1.hasOwnProp(prototype, 'toJSON')) {
+      return true;
+    }
+    prototype = Object.getPrototypeOf(prototype);
+  }
+  return false;
+}
+
+// Build a plain-object snapshot of `config` and replace the value of any key
+// (case-insensitive) listed in `redactKeys` with REDACTED. Walks through arrays
+// and AxiosHeaders, and short-circuits on circular references.
+function redactConfig(config, redactKeys) {
+  const lowerKeys = new Set(redactKeys.map(k => String(k).toLowerCase()));
+  const seen = [];
+  const visit = source => {
+    if (source === null || typeof source !== 'object') return source;
+    if (utils$1.isBuffer(source)) return source;
+    if (seen.indexOf(source) !== -1) return undefined;
+    if (source instanceof AxiosHeaders) {
+      source = source.toJSON();
+    }
+    seen.push(source);
+    let result;
+    if (utils$1.isArray(source)) {
+      result = [];
+      source.forEach((v, i) => {
+        const reducedValue = visit(v);
+        if (!utils$1.isUndefined(reducedValue)) {
+          result[i] = reducedValue;
+        }
+      });
+    } else {
+      if (!utils$1.isPlainObject(source) && hasOwnOrPrototypeToJSON(source)) {
+        seen.pop();
+        return source;
+      }
+      result = Object.create(null);
+      for (const [key, value] of Object.entries(source)) {
+        const reducedValue = lowerKeys.has(key.toLowerCase()) ? REDACTED : visit(value);
+        if (!utils$1.isUndefined(reducedValue)) {
+          result[key] = reducedValue;
+        }
+      }
+    }
+    seen.pop();
+    return result;
+  };
+  return visit(config);
+}
+function stringifySafely$1(value) {
+  try {
+    return String(value);
+  } catch (err) {
+    return '';
+  }
+}
+function aggregateErrorMessage(error) {
+  const message = error.errors.map(entry => {
+    try {
+      return entry && entry.message ? stringifySafely$1(entry.message) : stringifySafely$1(entry);
+    } catch (err) {
+      return '';
+    }
+  }).filter(Boolean).join('; ');
+  return message || error.name || 'AggregateError';
+}
 class AxiosError extends Error {
   static from(error, code, config, request, response, customProps) {
-    const axiosError = new AxiosError(error.message, code || error.code, config, request, response);
-    axiosError.cause = error;
+    // `AggregateError` (thrown by Node on dual-stack/Happy-Eyeballs connection
+    // failures) has an empty `message`; its detail lives in `errors[]`. Without
+    // this, the wrapped error surfaces with a blank message (see #6721).
+    let message = error.message;
+    if (!message && utils$1.isArray(error.errors) && error.errors.length) {
+      message = aggregateErrorMessage(error);
+    }
+    const axiosError = new AxiosError(message, code || error.code, config, request, response);
+    // Match native `Error` `cause` semantics: non-enumerable. The wrapped
+    // error often carries circular internals (sockets, requests, agents), so
+    // an enumerable `cause` makes structured loggers (pino/winston) and any
+    // own-property walk throw "Converting circular structure to JSON".
+    // Regression from #6982; see #7205. `__proto__: null` mirrors the
+    // `message` descriptor below (prototype-pollution-safe descriptor).
+    Object.defineProperty(axiosError, 'cause', {
+      __proto__: null,
+      value: error,
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
     axiosError.name = error.name;
 
     // Preserve status from the original error if not already set from response
@@ -130060,6 +134240,9 @@ class AxiosError extends Error {
     // The native Error constructor sets message as non-enumerable,
     // but axios < v1.13.3 had it as enumerable
     Object.defineProperty(this, 'message', {
+      // Null-proto descriptor so a polluted Object.prototype.get cannot turn
+      // this data descriptor into an accessor descriptor on the way in.
+      __proto__: null,
       value: message,
       enumerable: true,
       writable: true,
@@ -130076,6 +134259,13 @@ class AxiosError extends Error {
     }
   }
   toJSON() {
+    // Opt-in redaction: when the request config carries a `redact` array, the
+    // value of any matching key (case-insensitive, at any depth) is replaced
+    // with REDACTED in the serialized snapshot. Undefined or empty leaves the
+    // existing serialization behavior unchanged.
+    const config = this.config;
+    const redactKeys = config && utils$1.hasOwnProp(config, 'redact') ? config.redact : undefined;
+    const serializedConfig = utils$1.isArray(redactKeys) && redactKeys.length > 0 ? redactConfig(config, redactKeys) : utils$1.toJSONObject(config);
     return {
       // Standard
       message: this.message,
@@ -130089,7 +134279,7 @@ class AxiosError extends Error {
       columnNumber: this.columnNumber,
       stack: this.stack,
       // Axios
-      config: utils$1.toJSONObject(this.config),
+      config: serializedConfig,
       code: this.code,
       status: this.status
     };
@@ -130101,6 +134291,7 @@ AxiosError.ERR_BAD_OPTION_VALUE = 'ERR_BAD_OPTION_VALUE';
 AxiosError.ERR_BAD_OPTION = 'ERR_BAD_OPTION';
 AxiosError.ECONNABORTED = 'ECONNABORTED';
 AxiosError.ETIMEDOUT = 'ETIMEDOUT';
+AxiosError.ECONNREFUSED = 'ECONNREFUSED';
 AxiosError.ERR_NETWORK = 'ERR_NETWORK';
 AxiosError.ERR_FR_TOO_MANY_REDIRECTS = 'ERR_FR_TOO_MANY_REDIRECTS';
 AxiosError.ERR_DEPRECATED = 'ERR_DEPRECATED';
@@ -130110,6 +134301,19 @@ AxiosError.ERR_CANCELED = 'ERR_CANCELED';
 AxiosError.ERR_NOT_SUPPORT = 'ERR_NOT_SUPPORT';
 AxiosError.ERR_INVALID_URL = 'ERR_INVALID_URL';
 AxiosError.ERR_FORM_DATA_DEPTH_EXCEEDED = 'ERR_FORM_DATA_DEPTH_EXCEEDED';
+
+var PlatformBuffer = {
+  isBufferAvailable() {
+    return typeof Buffer !== 'undefined';
+  },
+  from(value) {
+    return Buffer.from(value);
+  }
+};
+
+// Default nesting limit shared with the inverse transform (formDataToJSON) so
+// the FormData <-> JSON round-trip stays symmetric.
+const DEFAULT_FORM_DATA_MAX_DEPTH = 100;
 
 /**
  * Determines if the given thing is a array or js object.
@@ -130195,24 +134399,19 @@ function toFormData(obj, formData, options) {
 
   // eslint-disable-next-line no-param-reassign
   formData = formData || new (FormData$1 || FormData)();
-
-  // eslint-disable-next-line no-param-reassign
-  options = utils$1.toFlatObject(options, {
-    metaTokens: true,
-    dots: false,
-    indexes: false
-  }, false, function defined(option, source) {
-    // eslint-disable-next-line no-eq-null,eqeqeq
-    return !utils$1.isUndefined(source[option]);
-  });
-  const metaTokens = options.metaTokens;
+  const option = (name, fallback) => {
+    const value = utils$1.getSafeProp(options, name);
+    return utils$1.isUndefined(value) ? fallback : value;
+  };
+  const metaTokens = option('metaTokens', true);
   // eslint-disable-next-line no-use-before-define
-  const visitor = options.visitor || defaultVisitor;
-  const dots = options.dots;
-  const indexes = options.indexes;
-  const _Blob = options.Blob || typeof Blob !== 'undefined' && Blob;
-  const maxDepth = options.maxDepth === undefined ? 100 : options.maxDepth;
+  const visitor = option('visitor') || defaultVisitor;
+  const dots = option('dots', false);
+  const indexes = option('indexes', false);
+  const _Blob = option('Blob') || typeof Blob !== 'undefined' && Blob;
+  const maxDepth = option('maxDepth', DEFAULT_FORM_DATA_MAX_DEPTH);
   const useBlob = _Blob && utils$1.isSpecCompliantForm(formData);
+  const stack = [];
   if (!utils$1.isFunction(visitor)) {
     throw new TypeError('visitor must be a function');
   }
@@ -130228,9 +134427,37 @@ function toFormData(obj, formData, options) {
       throw new AxiosError('Blob is not supported. Use a Buffer instead.');
     }
     if (utils$1.isArrayBuffer(value) || utils$1.isTypedArray(value)) {
-      return useBlob && typeof Blob === 'function' ? new Blob([value]) : Buffer.from(value);
+      if (useBlob && typeof _Blob === 'function') {
+        return new _Blob([value]);
+      }
+      if (PlatformBuffer && PlatformBuffer.isBufferAvailable()) {
+        return PlatformBuffer.from(value);
+      }
+      throw new AxiosError('Blob is not supported. Use a Buffer instead.', AxiosError.ERR_NOT_SUPPORT);
     }
     return value;
+  }
+  function throwIfMaxDepthExceeded(depth) {
+    if (depth > maxDepth) {
+      throw new AxiosError('Object is too deeply nested (' + depth + ' levels). Max depth: ' + maxDepth, AxiosError.ERR_FORM_DATA_DEPTH_EXCEEDED);
+    }
+  }
+  function stringifyWithDepthLimit(value, depth) {
+    if (maxDepth === Infinity) {
+      return JSON.stringify(value);
+    }
+    const ancestors = [];
+    return JSON.stringify(value, function limitDepth(_key, currentValue) {
+      if (!utils$1.isObject(currentValue)) {
+        return currentValue;
+      }
+      while (ancestors.length && ancestors[ancestors.length - 1] !== this) {
+        ancestors.pop();
+      }
+      ancestors.push(currentValue);
+      throwIfMaxDepthExceeded(depth + ancestors.length - 1);
+      return currentValue;
+    });
   }
 
   /**
@@ -130254,7 +134481,7 @@ function toFormData(obj, formData, options) {
         // eslint-disable-next-line no-param-reassign
         key = metaTokens ? key : key.slice(0, -2);
         // eslint-disable-next-line no-param-reassign
-        value = JSON.stringify(value);
+        value = stringifyWithDepthLimit(value, 1);
       } else if (utils$1.isArray(value) && isFlatArray(value) || (utils$1.isFileList(value) || utils$1.endsWith(key, '[]')) && (arr = utils$1.toArray(value))) {
         // eslint-disable-next-line no-param-reassign
         key = removeBrackets(key);
@@ -130272,7 +134499,6 @@ function toFormData(obj, formData, options) {
     formData.append(renderKey(path, key, dots), convertValue(value));
     return false;
   }
-  const stack = [];
   const exposedHelpers = Object.assign(predicates, {
     defaultVisitor,
     convertValue,
@@ -130280,11 +134506,9 @@ function toFormData(obj, formData, options) {
   });
   function build(value, path, depth = 0) {
     if (utils$1.isUndefined(value)) return;
-    if (depth > maxDepth) {
-      throw new AxiosError('Object is too deeply nested (' + depth + ' levels). Max depth: ' + maxDepth, AxiosError.ERR_FORM_DATA_DEPTH_EXCEEDED);
-    }
+    throwIfMaxDepthExceeded(depth);
     if (stack.indexOf(value) !== -1) {
-      throw Error('Circular reference detected in ' + path.join('.'));
+      throw new Error('Circular reference detected in ' + path.join('.'));
     }
     stack.push(value);
     utils$1.forEach(value, function each(el, key) {
@@ -130341,9 +134565,7 @@ prototype.append = function append(name, value) {
   this._pairs.push([name, value]);
 };
 prototype.toString = function toString(encoder) {
-  const _encode = encoder ? function (value) {
-    return encoder.call(this, value, encode$1);
-  } : encode$1;
+  const _encode = encoder ? value => encoder.call(this, value, encode$1) : encode$1;
   return this._pairs.map(function each(pair) {
     return _encode(pair[0]) + '=' + _encode(pair[1]);
   }, '').join('&');
@@ -130374,11 +134596,16 @@ function buildURL(url, params, options) {
   if (!params) {
     return url;
   }
-  const _encode = options && options.encode || encode;
+  url = url || '';
   const _options = utils$1.isFunction(options) ? {
     serialize: options
   } : options;
-  const serializeFn = _options && _options.serialize;
+
+  // Read serializer options pollution-safely: own properties and methods on a
+  // class/template prototype are honored, but values injected onto a polluted
+  // Object.prototype are ignored.
+  const _encode = utils$1.getSafeProp(_options, 'encode') || encode;
+  const serializeFn = utils$1.getSafeProp(_options, 'serialize');
   let serializedParams;
   if (serializeFn) {
     serializedParams = serializeFn(params, _options);
@@ -130395,9 +134622,51 @@ function buildURL(url, params, options) {
   return url;
 }
 
+const $internals = Symbol('internals');
+
+// `handlers` is public and may be replaced with a nullish value by user code;
+// `clear()` has always tolerated that. Treat it as an empty stack rather than
+// dereferencing it.
+function countHandlers(handlers) {
+  return handlers ? handlers.length : 0;
+}
+function trimHandlers(handlers) {
+  if (!handlers) {
+    return;
+  }
+  while (handlers.length && handlers[handlers.length - 1] === null) {
+    handlers.pop();
+  }
+}
+function syncHandlerEntries(manager, internals) {
+  const handlers = manager.handlers;
+  const length = countHandlers(handlers);
+  if (handlers !== internals.handlersRef) {
+    internals.handlersRef = handlers;
+    internals.handlerEntries.clear();
+  } else if (length !== internals.handlersLength) {
+    if (!length) {
+      internals.handlerEntries.clear();
+    } else {
+      internals.handlerEntries.forEach(function removeStaleEntry(entry, id) {
+        if (handlers[entry.index] !== entry.handler) {
+          internals.handlerEntries.delete(id);
+        }
+      });
+    }
+  }
+  internals.handlersLength = length;
+}
 class InterceptorManager {
   constructor() {
     this.handlers = [];
+    this[$internals] = {
+      handlersRef: this.handlers,
+      handlersLength: this.handlers.length,
+      handlerEntries: new Map(),
+      iterationDepth: 0,
+      nextId: 0
+    };
   }
 
   /**
@@ -130410,13 +134679,25 @@ class InterceptorManager {
    * @return {Number} An ID used to remove interceptor later
    */
   use(fulfilled, rejected, options) {
-    this.handlers.push({
+    const handler = {
       fulfilled,
       rejected,
       synchronous: options ? options.synchronous : false,
       runWhen: options ? options.runWhen : null
+    };
+    const internals = this[$internals];
+    if (this.handlers == null) {
+      this.handlers = [];
+    }
+    syncHandlerEntries(this, internals);
+    const id = internals.nextId++;
+    this.handlers.push(handler);
+    internals.handlerEntries.set(id, {
+      handler,
+      index: this.handlers.length - 1
     });
-    return this.handlers.length - 1;
+    internals.handlersLength = this.handlers.length;
+    return id;
   }
 
   /**
@@ -130427,8 +134708,23 @@ class InterceptorManager {
    * @returns {void}
    */
   eject(id) {
-    if (this.handlers[id]) {
-      this.handlers[id] = null;
+    const internals = this[$internals];
+    syncHandlerEntries(this, internals);
+    const entry = internals.handlerEntries.get(id);
+    if (entry) {
+      internals.handlerEntries.delete(id);
+
+      // Ignore IDs invalidated by clear or direct replacement of handlers.
+      if (this.handlers[entry.index] !== entry.handler) {
+        return;
+      }
+      this.handlers[entry.index] = null;
+
+      // Do not reuse an index while forEach is walking its length snapshot.
+      if (!internals.iterationDepth) {
+        trimHandlers(this.handlers);
+        internals.handlersLength = this.handlers.length;
+      }
     }
   }
 
@@ -130440,6 +134736,7 @@ class InterceptorManager {
   clear() {
     if (this.handlers) {
       this.handlers = [];
+      syncHandlerEntries(this, this[$internals]);
     }
   }
 
@@ -130454,11 +134751,22 @@ class InterceptorManager {
    * @returns {void}
    */
   forEach(fn) {
-    utils$1.forEach(this.handlers, function forEachHandler(h) {
-      if (h !== null) {
-        fn(h);
+    const internals = this[$internals];
+    syncHandlerEntries(this, internals);
+    internals.iterationDepth++;
+    try {
+      utils$1.forEach(this.handlers, function forEachHandler(h) {
+        if (h !== null) {
+          fn(h);
+        }
+      });
+    } finally {
+      if (! --internals.iterationDepth) {
+        syncHandlerEntries(this, internals);
+        trimHandlers(this.handlers);
+        internals.handlersLength = countHandlers(this.handlers);
       }
-    });
+    }
   }
 }
 
@@ -130466,7 +134774,9 @@ var transitionalDefaults = {
   silentJSONParsing: true,
   forcedJSONParsing: true,
   clarifyTimeoutError: false,
-  legacyInterceptorReqResOrdering: true
+  legacyInterceptorReqResOrdering: true,
+  advertiseZstdAcceptEncoding: false,
+  validateStatusUndefinedResolves: true
 };
 
 var URLSearchParams = url.URLSearchParams;
@@ -130567,6 +134877,13 @@ function toURLEncodedForm(data, options) {
   });
 }
 
+const MAX_DEPTH = DEFAULT_FORM_DATA_MAX_DEPTH;
+function throwIfDepthExceeded(index) {
+  if (index > MAX_DEPTH) {
+    throw new AxiosError('FormData field is too deeply nested (' + index + ' levels). Max depth: ' + MAX_DEPTH, AxiosError.ERR_FORM_DATA_DEPTH_EXCEEDED);
+  }
+}
+
 /**
  * It takes a string like `foo[x][y][z]` and returns an array like `['foo', 'x', 'y', 'z']
  *
@@ -130575,13 +134892,24 @@ function toURLEncodedForm(data, options) {
  * @returns An array of strings.
  */
 function parsePropPath(name) {
-  // foo[x][y][z]
-  // foo.x.y.z
-  // foo-x-y-z
-  // foo x y z
-  return utils$1.matchAll(/\w+|\[(\w*)]/g, name).map(match => {
-    return match[0] === '[]' ? '' : match[1] || match[0];
-  });
+  // foo[x][y][z] -> ['foo', 'x', 'y', 'z']
+  // foo.x.y.z    -> ['foo', 'x', 'y', 'z']
+  // A path is split on `.` and on `[...]` groups. A segment — whether written
+  // in dot notation or captured inside brackets — may contain any character
+  // except `.`, `[` and `]`, so a key like `user-name` or `user name` is kept
+  // literal instead of being split (#5402). `.`, `[` and `]` keep their existing
+  // meaning, e.g. `foo[bar.baz]` -> ['foo', 'bar', 'baz'] and `[]` is an array push.
+  // Excluding `[` from the bracket group also makes the match fail fast at the
+  // next `[`, so a malformed name cannot rescan to the end of the string from
+  // every unmatched `[` — parsing stays linear in the length of the name.
+  const path = [];
+  const pattern = /[^.[\]]+|\[([^.[\]]*)]/g;
+  let match;
+  while ((match = pattern.exec(name)) !== null) {
+    throwIfDepthExceeded(path.length);
+    path.push(match[0] === '[]' ? '' : match[1] || match[0]);
+  }
+  return path;
 }
 
 /**
@@ -130613,6 +134941,7 @@ function arrayToObject(arr) {
  */
 function formDataToJSON(formData) {
   function buildPath(path, value, target, index) {
+    throwIfDepthExceeded(index);
     let name = path[index++];
     if (name === '__proto__') return true;
     const isNumericKey = Number.isFinite(+name);
@@ -130626,7 +134955,7 @@ function formDataToJSON(formData) {
       }
       return !isNumericKey;
     }
-    if (!target[name] || !utils$1.isObject(target[name])) {
+    if (!utils$1.hasOwnProp(target, name) || !utils$1.isObject(target[name])) {
       target[name] = [];
     }
     const result = buildPath(path, value, target[name], index);
@@ -130644,6 +134973,8 @@ function formDataToJSON(formData) {
   }
   return null;
 }
+
+const methodList = Object.freeze(['get', 'delete', 'head', 'options', 'post', 'put', 'patch', 'purge', 'link', 'unlink', 'query']);
 
 const own = (obj, key) => obj != null && utils$1.hasOwnProp(obj, key) ? obj[key] : undefined;
 
@@ -130761,308 +135092,9 @@ const defaults = {
     }
   }
 };
-utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch'], method => {
+utils$1.forEach(methodList, method => {
   defaults.headers[method] = {};
 });
-
-// RawAxiosHeaders whose duplicates are ignored by node
-// c.f. https://nodejs.org/api/http.html#http_message_headers
-const ignoreDuplicateOf = utils$1.toObjectSet(['age', 'authorization', 'content-length', 'content-type', 'etag', 'expires', 'from', 'host', 'if-modified-since', 'if-unmodified-since', 'last-modified', 'location', 'max-forwards', 'proxy-authorization', 'referer', 'retry-after', 'user-agent']);
-
-/**
- * Parse headers into an object
- *
- * ```
- * Date: Wed, 27 Aug 2014 08:58:49 GMT
- * Content-Type: application/json
- * Connection: keep-alive
- * Transfer-Encoding: chunked
- * ```
- *
- * @param {String} rawHeaders Headers needing to be parsed
- *
- * @returns {Object} Headers parsed into an object
- */
-var parseHeaders = rawHeaders => {
-  const parsed = {};
-  let key;
-  let val;
-  let i;
-  rawHeaders && rawHeaders.split('\n').forEach(function parser(line) {
-    i = line.indexOf(':');
-    key = line.substring(0, i).trim().toLowerCase();
-    val = line.substring(i + 1).trim();
-    if (!key || parsed[key] && ignoreDuplicateOf[key]) {
-      return;
-    }
-    if (key === 'set-cookie') {
-      if (parsed[key]) {
-        parsed[key].push(val);
-      } else {
-        parsed[key] = [val];
-      }
-    } else {
-      parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
-    }
-  });
-  return parsed;
-};
-
-const $internals = Symbol('internals');
-const INVALID_HEADER_VALUE_CHARS_RE = /[^\x09\x20-\x7E\x80-\xFF]/g;
-function trimSPorHTAB(str) {
-  let start = 0;
-  let end = str.length;
-  while (start < end) {
-    const code = str.charCodeAt(start);
-    if (code !== 0x09 && code !== 0x20) {
-      break;
-    }
-    start += 1;
-  }
-  while (end > start) {
-    const code = str.charCodeAt(end - 1);
-    if (code !== 0x09 && code !== 0x20) {
-      break;
-    }
-    end -= 1;
-  }
-  return start === 0 && end === str.length ? str : str.slice(start, end);
-}
-function normalizeHeader(header) {
-  return header && String(header).trim().toLowerCase();
-}
-function sanitizeHeaderValue(str) {
-  return trimSPorHTAB(str.replace(INVALID_HEADER_VALUE_CHARS_RE, ''));
-}
-function normalizeValue(value) {
-  if (value === false || value == null) {
-    return value;
-  }
-  return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
-}
-function parseTokens(str) {
-  const tokens = Object.create(null);
-  const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
-  let match;
-  while (match = tokensRE.exec(str)) {
-    tokens[match[1]] = match[2];
-  }
-  return tokens;
-}
-const isValidHeaderName = str => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
-function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
-  if (utils$1.isFunction(filter)) {
-    return filter.call(this, value, header);
-  }
-  if (isHeaderNameFilter) {
-    value = header;
-  }
-  if (!utils$1.isString(value)) return;
-  if (utils$1.isString(filter)) {
-    return value.indexOf(filter) !== -1;
-  }
-  if (utils$1.isRegExp(filter)) {
-    return filter.test(value);
-  }
-}
-function formatHeader(header) {
-  return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
-    return char.toUpperCase() + str;
-  });
-}
-function buildAccessors(obj, header) {
-  const accessorName = utils$1.toCamelCase(' ' + header);
-  ['get', 'set', 'has'].forEach(methodName => {
-    Object.defineProperty(obj, methodName + accessorName, {
-      value: function (arg1, arg2, arg3) {
-        return this[methodName].call(this, header, arg1, arg2, arg3);
-      },
-      configurable: true
-    });
-  });
-}
-class AxiosHeaders {
-  constructor(headers) {
-    headers && this.set(headers);
-  }
-  set(header, valueOrRewrite, rewrite) {
-    const self = this;
-    function setHeader(_value, _header, _rewrite) {
-      const lHeader = normalizeHeader(_header);
-      if (!lHeader) {
-        throw new Error('header name must be a non-empty string');
-      }
-      const key = utils$1.findKey(self, lHeader);
-      if (!key || self[key] === undefined || _rewrite === true || _rewrite === undefined && self[key] !== false) {
-        self[key || _header] = normalizeValue(_value);
-      }
-    }
-    const setHeaders = (headers, _rewrite) => utils$1.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
-    if (utils$1.isPlainObject(header) || header instanceof this.constructor) {
-      setHeaders(header, valueOrRewrite);
-    } else if (utils$1.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
-      setHeaders(parseHeaders(header), valueOrRewrite);
-    } else if (utils$1.isObject(header) && utils$1.isIterable(header)) {
-      let obj = {},
-        dest,
-        key;
-      for (const entry of header) {
-        if (!utils$1.isArray(entry)) {
-          throw TypeError('Object iterator must return a key-value pair');
-        }
-        obj[key = entry[0]] = (dest = obj[key]) ? utils$1.isArray(dest) ? [...dest, entry[1]] : [dest, entry[1]] : entry[1];
-      }
-      setHeaders(obj, valueOrRewrite);
-    } else {
-      header != null && setHeader(valueOrRewrite, header, rewrite);
-    }
-    return this;
-  }
-  get(header, parser) {
-    header = normalizeHeader(header);
-    if (header) {
-      const key = utils$1.findKey(this, header);
-      if (key) {
-        const value = this[key];
-        if (!parser) {
-          return value;
-        }
-        if (parser === true) {
-          return parseTokens(value);
-        }
-        if (utils$1.isFunction(parser)) {
-          return parser.call(this, value, key);
-        }
-        if (utils$1.isRegExp(parser)) {
-          return parser.exec(value);
-        }
-        throw new TypeError('parser must be boolean|regexp|function');
-      }
-    }
-  }
-  has(header, matcher) {
-    header = normalizeHeader(header);
-    if (header) {
-      const key = utils$1.findKey(this, header);
-      return !!(key && this[key] !== undefined && (!matcher || matchHeaderValue(this, this[key], key, matcher)));
-    }
-    return false;
-  }
-  delete(header, matcher) {
-    const self = this;
-    let deleted = false;
-    function deleteHeader(_header) {
-      _header = normalizeHeader(_header);
-      if (_header) {
-        const key = utils$1.findKey(self, _header);
-        if (key && (!matcher || matchHeaderValue(self, self[key], key, matcher))) {
-          delete self[key];
-          deleted = true;
-        }
-      }
-    }
-    if (utils$1.isArray(header)) {
-      header.forEach(deleteHeader);
-    } else {
-      deleteHeader(header);
-    }
-    return deleted;
-  }
-  clear(matcher) {
-    const keys = Object.keys(this);
-    let i = keys.length;
-    let deleted = false;
-    while (i--) {
-      const key = keys[i];
-      if (!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
-        delete this[key];
-        deleted = true;
-      }
-    }
-    return deleted;
-  }
-  normalize(format) {
-    const self = this;
-    const headers = {};
-    utils$1.forEach(this, (value, header) => {
-      const key = utils$1.findKey(headers, header);
-      if (key) {
-        self[key] = normalizeValue(value);
-        delete self[header];
-        return;
-      }
-      const normalized = format ? formatHeader(header) : String(header).trim();
-      if (normalized !== header) {
-        delete self[header];
-      }
-      self[normalized] = normalizeValue(value);
-      headers[normalized] = true;
-    });
-    return this;
-  }
-  concat(...targets) {
-    return this.constructor.concat(this, ...targets);
-  }
-  toJSON(asStrings) {
-    const obj = Object.create(null);
-    utils$1.forEach(this, (value, header) => {
-      value != null && value !== false && (obj[header] = asStrings && utils$1.isArray(value) ? value.join(', ') : value);
-    });
-    return obj;
-  }
-  [Symbol.iterator]() {
-    return Object.entries(this.toJSON())[Symbol.iterator]();
-  }
-  toString() {
-    return Object.entries(this.toJSON()).map(([header, value]) => header + ': ' + value).join('\n');
-  }
-  getSetCookie() {
-    return this.get('set-cookie') || [];
-  }
-  get [Symbol.toStringTag]() {
-    return 'AxiosHeaders';
-  }
-  static from(thing) {
-    return thing instanceof this ? thing : new this(thing);
-  }
-  static concat(first, ...targets) {
-    const computed = new this(first);
-    targets.forEach(target => computed.set(target));
-    return computed;
-  }
-  static accessor(header) {
-    const internals = this[$internals] = this[$internals] = {
-      accessors: {}
-    };
-    const accessors = internals.accessors;
-    const prototype = this.prototype;
-    function defineAccessor(_header) {
-      const lHeader = normalizeHeader(_header);
-      if (!accessors[lHeader]) {
-        buildAccessors(prototype, _header);
-        accessors[lHeader] = true;
-      }
-    }
-    utils$1.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
-    return this;
-  }
-}
-AxiosHeaders.accessor(['Content-Type', 'Content-Length', 'Accept', 'Accept-Encoding', 'User-Agent', 'Authorization']);
-
-// reserved names hotfix
-utils$1.reduceDescriptors(AxiosHeaders.prototype, ({
-  value
-}, key) => {
-  let mapped = key[0].toUpperCase() + key.slice(1); // map `set` => `Set`
-  return {
-    get: () => value,
-    set(headerValue) {
-      this[mapped] = headerValue;
-    }
-  };
-});
-utils$1.freezeMethods(AxiosHeaders);
 
 /**
  * Transform the data for a request or a response
@@ -131119,7 +135151,7 @@ function settle(resolve, reject, response) {
   if (!response.status || !validateStatus || validateStatus(response.status)) {
     resolve(response);
   } else {
-    reject(new AxiosError('Request failed with status code ' + response.status, [AxiosError.ERR_BAD_REQUEST, AxiosError.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4], response.config, response.request, response));
+    reject(new AxiosError('Request failed with status code ' + response.status, response.status >= 400 && response.status < 500 ? AxiosError.ERR_BAD_REQUEST : AxiosError.ERR_BAD_RESPONSE, response.config, response.request, response));
   }
 }
 
@@ -131149,7 +135181,71 @@ function isAbsoluteURL(url) {
  * @returns {string} The combined URL
  */
 function combineURLs(baseURL, relativeURL) {
-  return relativeURL ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '') : baseURL;
+  if (!relativeURL) {
+    return baseURL;
+  }
+  let end = baseURL.length;
+  while (end > 0 && baseURL.charCodeAt(end - 1) === 47) {
+    end--;
+  }
+  return baseURL.slice(0, end) + '/' + relativeURL.replace(/^\/+/, '');
+}
+
+const urlParserControlCharacters = /[\t\n\r]/g;
+
+/**
+ * Match WHATWG URL preprocessing before checking a URL's protocol.
+ *
+ * @param {string} url
+ *
+ * @returns {string}
+ */
+function normalizeURLForProtocolCheck(url) {
+  if (typeof url !== 'string') {
+    return url;
+  }
+  let start = 0;
+  while (start < url.length && url.charCodeAt(start) <= 0x20) {
+    start++;
+  }
+  return url.slice(start).replace(urlParserControlCharacters, '');
+}
+
+const malformedHttpProtocol = /^https?:(?!\/\/)/i;
+
+// Redact the parts of a URL that can carry secrets before it is embedded in an
+// error message. AxiosError.toJSON() serializes `message` verbatim and errors
+// are commonly logged, while the opt-in `config.redact` model only cleans
+// config keys — it cannot reach the message. Redact only the genuinely
+// sensitive substrings — userinfo (credentials), query parameter values and
+// fragment contents — with the same REDACTED marker the config redaction uses,
+// while keeping the scheme, host, path and parameter names so the offending
+// request stays accurately identifiable.
+function redactFragment(fragment) {
+  if (!fragment) {
+    return fragment;
+  }
+  return fragment.replace(/(^|&)([^=&]*=)?[^&]+/g, (match, separator, parameterName = '') => {
+    return `${separator}${parameterName}${REDACTED}`;
+  });
+}
+function redactSensitiveURLParts(url) {
+  const redactedURL = url.replace(/^(https?:\/{0,2})[^/?#]*@/i, `$1${REDACTED}@`);
+  const fragmentIndex = redactedURL.indexOf('#');
+  const urlWithoutFragment = fragmentIndex === -1 ? redactedURL : redactedURL.slice(0, fragmentIndex);
+  const redactedURLWithoutFragment = urlWithoutFragment.replace(/([?&][^=&#]*=)[^&#]*/g, `$1${REDACTED}`);
+  if (fragmentIndex === -1) {
+    return redactedURLWithoutFragment;
+  }
+  return `${redactedURLWithoutFragment}#${redactFragment(redactedURL.slice(fragmentIndex + 1))}`;
+}
+function assertValidHttpProtocolURL(url, config) {
+  if (typeof url === 'string') {
+    const normalizedURL = normalizeURLForProtocolCheck(url);
+    if (malformedHttpProtocol.test(normalizedURL)) {
+      throw new AxiosError(`Invalid URL ${JSON.stringify(redactSensitiveURLParts(normalizedURL))}: missing "//" after protocol`, AxiosError.ERR_INVALID_URL, config);
+    }
+  }
 }
 
 /**
@@ -131162,9 +135258,11 @@ function combineURLs(baseURL, relativeURL) {
  *
  * @returns {string} The combined full path
  */
-function buildFullPath(baseURL, requestedURL, allowAbsoluteUrls) {
+function buildFullPath(baseURL, requestedURL, allowAbsoluteUrls, config) {
+  assertValidHttpProtocolURL(requestedURL, config);
   let isRelativeUrl = !isAbsoluteURL(requestedURL);
   if (baseURL && (isRelativeUrl || allowAbsoluteUrls === false)) {
+    assertValidHttpProtocolURL(baseURL, config);
     return combineURLs(baseURL, requestedURL);
   }
   return requestedURL;
@@ -131266,14 +135364,16 @@ function getEnv(key) {
   return process.env[key.toLowerCase()] || process.env[key.toUpperCase()] || '';
 }
 
-const VERSION = "1.15.2";
+const VERSION = "1.20.0";
 
 function parseProtocol(url) {
-  const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
+  const match = /^([-+\w]{1,25}):(?:\/\/)?/.exec(url);
   return match && match[1] || '';
 }
 
-const DATA_URL_PATTERN = /^(?:([^;]+);)?(?:[^;]+;)?(base64|),([\s\S]*)$/;
+// RFC 2397: data:[<mediatype>][;base64],<data>
+// mediatype = type/subtype followed by optional ;name=value parameters
+const DATA_URL_PATTERN = /^([^,;/]+\/[^,;/]+)?((?:;[^,;=]+=[^,;]+)*)(;base64)?,([\s\S]*)$/;
 
 /**
  * Parse data uri to a Buffer or Blob
@@ -131297,10 +135397,20 @@ function fromDataURI(uri, asBlob, options) {
     if (!match) {
       throw new AxiosError('Invalid URL', AxiosError.ERR_INVALID_URL);
     }
-    const mime = match[1];
-    const isBase64 = match[2];
-    const body = match[3];
-    const buffer = Buffer.from(decodeURIComponent(body), isBase64 ? 'base64' : 'utf8');
+    const type = match[1];
+    const params = match[2];
+    const encoding = match[3] ? 'base64' : 'utf8';
+    const body = match[4];
+
+    // RFC 2397 section 3: default mediatype is text/plain;charset=US-ASCII
+    // Bare `data:,` leaves mime undefined; Blob normalises that to "" per spec.
+    let mime = '';
+    if (type) {
+      mime = params ? type + params : type;
+    } else if (params) {
+      mime = 'text/plain' + params;
+    }
+    const buffer = encoding === 'base64' ? Buffer.from(body, 'base64') : Buffer.from(decodeURIComponent(body), encoding);
     if (asBlob) {
       if (!_Blob) {
         throw new AxiosError('Blob is not supported', AxiosError.ERR_NOT_SUPPORT);
@@ -131312,6 +135422,31 @@ function fromDataURI(uri, asBlob, options) {
     return buffer;
   }
   throw new AxiosError('Unsupported protocol ' + protocol, AxiosError.ERR_NOT_SUPPORT);
+}
+
+const FORM_DATA_CONTENT_HEADERS = ['content-type', 'content-length'];
+
+/**
+ * Apply the headers generated by a FormData implementation to the request headers,
+ * honoring the `formDataHeaderPolicy` option: with 'content-only', copy only the
+ * content-* headers; otherwise merge all of them.
+ *
+ * @param {AxiosHeaders} headers - the request headers to mutate
+ * @param {Object | null | undefined} formHeaders - headers produced by the FormData implementation
+ * @param {String} [policy] - the resolved `formDataHeaderPolicy` config value
+ *
+ * @returns {void}
+ */
+function setFormDataHeaders(headers, formHeaders, policy) {
+  if (policy !== 'content-only') {
+    headers.set(formHeaders);
+    return;
+  }
+  Object.entries(formHeaders || {}).forEach(([key, val]) => {
+    if (FORM_DATA_CONTENT_HEADERS.includes(key.toLowerCase())) {
+      headers.set(key, val);
+    }
+  });
 }
 
 const kInternals = Symbol('internals');
@@ -131493,10 +135628,10 @@ const formDataToStream = (form, headersHandler, options) => {
     boundary = tag + '-' + platform.generateString(size, BOUNDARY_ALPHABET)
   } = options || {};
   if (!utils$1.isFormData(form)) {
-    throw TypeError('FormData instance required');
+    throw new TypeError('FormData instance required');
   }
   if (boundary.length < 1 || boundary.length > 70) {
-    throw Error('boundary must be 10-70 characters long');
+    throw new Error('boundary must be 1-70 characters long');
   }
   const boundaryBytes = textEncoder.encode('--' + boundary + CRLF);
   const footerBytes = textEncoder.encode('--' + boundary + '--' + CRLF);
@@ -131546,6 +135681,85 @@ class ZlibHeaderTransformStream extends stream.Transform {
   }
 }
 
+class Http2Sessions {
+  constructor() {
+    this.sessions = Object.create(null);
+  }
+  getSession(authority, options) {
+    options = Object.assign(Object.create(null), {
+      sessionTimeout: 1000
+    }, options);
+    let authoritySessions = this.sessions[authority];
+    if (authoritySessions) {
+      let len = authoritySessions.length;
+      for (let i = 0; i < len; i++) {
+        const [sessionHandle, sessionOptions] = authoritySessions[i];
+        if (!sessionHandle.destroyed && !sessionHandle.closed && util.isDeepStrictEqual(sessionOptions, options)) {
+          return sessionHandle;
+        }
+      }
+    }
+    const session = http2.connect(authority, options);
+    let removed;
+    let timer;
+    const removeSession = () => {
+      if (removed) {
+        return;
+      }
+      removed = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      let entries = authoritySessions,
+        len = entries.length,
+        i = len;
+      while (i--) {
+        if (entries[i][0] === session) {
+          if (len === 1) {
+            delete this.sessions[authority];
+          } else {
+            entries.splice(i, 1);
+          }
+          if (!session.closed) {
+            session.close();
+          }
+          return;
+        }
+      }
+    };
+    const originalRequestFn = session.request;
+    const {
+      sessionTimeout
+    } = options;
+    if (sessionTimeout != null) {
+      let streamsCount = 0;
+      session.request = function () {
+        const stream = originalRequestFn.apply(this, arguments);
+        streamsCount++;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        stream.once('close', () => {
+          if (! --streamsCount) {
+            timer = setTimeout(() => {
+              timer = null;
+              removeSession();
+            }, sessionTimeout);
+          }
+        });
+        return stream;
+      };
+    }
+    session.once('close', removeSession);
+    session.once('error', removeSession);
+    let entry = [session, options];
+    authoritySessions ? authoritySessions.push(entry) : authoritySessions = this.sessions[authority] = [entry];
+    return session;
+  }
+}
+
 const callbackify = (fn, reducer) => {
   return utils$1.isAsyncFn(fn) ? function (...args) {
     const cb = args.pop();
@@ -131559,12 +135773,138 @@ const callbackify = (fn, reducer) => {
   } : fn;
 };
 
-const LOOPBACK_HOSTNAMES = new Set(['localhost']);
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '0.0.0.0']);
+const trimTrailingDots = value => {
+  let end = value.length;
+  while (end && value.charCodeAt(end - 1) === 46) {
+    end--;
+  }
+  return end === value.length ? value : value.slice(0, end);
+};
 const isIPv4Loopback = host => {
   const parts = host.split('.');
   if (parts.length !== 4) return false;
   if (parts[0] !== '127') return false;
   return parts.every(p => /^\d+$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
+};
+
+/**
+ * Canonicalize an IPv4 address written in shorthand, octal, or hex form into
+ * dotted-decimal. IPv6 addresses and non-IP strings are returned unchanged so
+ * the existing IPv4-mapped IPv6 unmap path and the isLoopback path can still
+ * see them.
+ *
+ * Shorthand expansion mirrors Node's URL parser: literal parts fill from the
+ * left, the final part fills the remaining octets from the right with
+ * zero-padding on the left.
+ *   127.1     -> 127.0.0.1
+ *   127.0.1   -> 127.0.0.1
+ *   1.2.3     -> 1.2.0.3
+ *
+ * Each octet is parsed with an explicit base: 16 for `0x`/`0X` prefix, 8 for
+ * zero-prefixed multi-digit all-`0-7` parts, 10 otherwise. Zero-prefixed
+ * decimal-looking parts that contain `8` or `9` are rejected to match Node's
+ * URL parser, and the comparison layer falls through to non-bypass if either
+ * side rejects the form (fail-safe).
+ *
+ * Returns the input unchanged on any parse failure, out-of-range octet, or
+ * unusual shape (1-part, 5+ parts) so the comparison layer fails closed.
+ */
+const parseIPv4Octet = text => {
+  if (/^0[xX][0-9a-fA-F]+$/.test(text)) {
+    const n = parseInt(text.slice(2), 16);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (text.length > 1 && /^0[0-7]+$/.test(text)) {
+    const n = parseInt(text, 8);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (text.length > 1 && /^0[0-9]+$/.test(text)) {
+    return null;
+  }
+  if (/^[0-9]+$/.test(text)) {
+    const n = parseInt(text, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+const normalizeIPAddress = host => {
+  if (typeof host !== 'string' || !host || host.indexOf(':') !== -1) {
+    return host;
+  }
+  let h = host;
+  if (h.charAt(0) === '[' && h.charAt(h.length - 1) === ']') {
+    h = h.slice(1, -1);
+  }
+  h = trimTrailingDots(h);
+
+  // Allowed characters for any IPv4 shape: digits, dot, 'x', 'X', hex digits.
+  if (!/^[0-9.xXa-fA-F]+$/.test(h)) return host;
+  const parts = h.split('.');
+
+  // No part may be empty (e.g. "127..0.1" or "127.0.0."). Trailing dots are
+  // already stripped above; this guards against the empty-middle case.
+  if (parts.some(p => p === '')) return host;
+  if (parts.length === 4) {
+    // Full IPv4 form: each part is an octet.
+    const octets = parts.map(parseIPv4Octet);
+    if (octets.some(n => n === null || n < 0 || n > 255)) return host;
+    return octets.join('.');
+  }
+  if (parts.length > 4) {
+    return host;
+  }
+
+  // Shorthand: 1..3 parts. Node's URL parser treats a 1-part input as a 32-bit
+  // integer split into octets, which has surprising semantics (e.g. "127" ->
+  // "0.0.0.127"). Reject 1-part inputs to keep the helper predictable: the
+  // fail-safe returns the input unchanged and the comparison layer falls
+  // through to non-bypass.
+  if (parts.length === 1) return host;
+
+  // 2..3 parts: literal parts fill from the left, tail fills remaining octets
+  // from the right with zero-padding.
+  const literalOctets = parts.slice(0, -1);
+  const tail = parts[parts.length - 1];
+  const tailSlots = 4 - literalOctets.length;
+
+  // Tail is parsed as a full IPv4 number (hex/octal/decimal) and packed
+  // low-byte-right into the remaining octets, matching Node's URL parser.
+  // e.g. 127.65535 (tail 0xFFFF into 3 slots) -> 127.0.255.255;
+  //      127.0x00ff (tail 0xFF into 3 slots) -> 127.0.0.255;
+  //      127.0.65535 (tail 0xFFFF into 2 slots) -> 127.0.255.255.
+  const tailValue = parseIPv4Octet(tail);
+  if (tailValue === null) return host;
+  const maxTail = (1 << 8 * tailSlots) - 1;
+  if (tailValue < 0 || tailValue > maxTail) return host;
+  const tailOctets = new Array(tailSlots).fill(0);
+  for (let i = tailSlots - 1, v = tailValue; i >= 0; i--, v >>= 8) {
+    tailOctets[i] = v & 0xff;
+  }
+  const literal = literalOctets.map(parseIPv4Octet);
+  if (literal.some(n => n === null || n < 0 || n > 255)) return host;
+  return [...literal, ...tailOctets].join('.');
+};
+const isIPv6ZeroGroup = group => /^0{1,4}$/.test(group);
+
+// The unspecified address (IPv4 0.0.0.0 / IPv6 ::) resolves to the local host
+// for outbound connections, so treat it as loopback-equivalent for NO_PROXY
+// matching. 0.0.0.0 is covered by LOOPBACK_HOSTNAMES; this handles compressed
+// and full IPv6 all-zero forms so both families bypass symmetrically.
+const isIPv6Unspecified = host => {
+  if (host === '::') return true;
+  const compressionIndex = host.indexOf('::');
+  if (compressionIndex !== -1) {
+    if (compressionIndex !== host.lastIndexOf('::')) return false;
+    const left = host.slice(0, compressionIndex);
+    const right = host.slice(compressionIndex + 2);
+    const leftGroups = left ? left.split(':') : [];
+    const rightGroups = right ? right.split(':') : [];
+    const explicitGroups = leftGroups.length + rightGroups.length;
+    return explicitGroups < 8 && leftGroups.every(isIPv6ZeroGroup) && rightGroups.every(isIPv6ZeroGroup);
+  }
+  const groups = host.split(':');
+  return groups.length === 8 && groups.every(isIPv6ZeroGroup);
 };
 const isIPv6Loopback = host => {
   // Collapse all-zero groups: any form of ::1 / 0:0:...:0:1
@@ -131598,6 +135938,7 @@ const isLoopback = host => {
   if (!host) return false;
   if (LOOPBACK_HOSTNAMES.has(host)) return true;
   if (isIPv4Loopback(host)) return true;
+  if (isIPv6Unspecified(host)) return true;
   return isIPv6Loopback(host);
 };
 const DEFAULT_PORTS = {
@@ -131629,6 +135970,61 @@ const parseNoProxyEntry = entry => {
   }
   return [entryHost, entryPort];
 };
+
+// Convert IPv4-mapped IPv6 (::ffff:0:0/96 prefix) to IPv4 dotted form so both
+// sides of a NO_PROXY comparison see the same canonical address. Without this,
+// `NO_PROXY=192.168.1.5` would not match a request to `http://[::ffff:192.168.1.5]/`
+// (Node's URL parser normalises that to `[::ffff:c0a8:105]`), and vice-versa,
+// allowing the proxy-bypass policy to be circumvented by using the alternate
+// representation. Returns the input unchanged when not IPv4-mapped.
+const IPV4_MAPPED_DOTTED_RE = /^(?:::|(?:0{1,4}:){1,4}:|(?:0{1,4}:){5})ffff:(\d+\.\d+\.\d+\.\d+)$/i;
+const IPV4_MAPPED_HEX_RE = /^(?:::|(?:0{1,4}:){1,4}:|(?:0{1,4}:){5})ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
+const unmapIPv4MappedIPv6 = host => {
+  if (typeof host !== 'string' || host.indexOf(':') === -1) return host;
+  const dotted = host.match(IPV4_MAPPED_DOTTED_RE);
+  if (dotted) return dotted[1];
+  const hex = host.match(IPV4_MAPPED_HEX_RE);
+  if (hex) {
+    const high = parseInt(hex[1], 16);
+    const low = parseInt(hex[2], 16);
+    return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+  }
+  return host;
+};
+const IPV4_OCTET_RE = /^(?:0|[1-9]\d{0,2})$/;
+const ipv4ToBytes = host => {
+  const parts = host.split('.');
+  return parts.length === 4 && parts.every(part => IPV4_OCTET_RE.test(part) && Number(part) <= 255) ? parts.map(Number) : null;
+};
+const IPV6_GROUP_RE = /^[0-9a-f]{1,4}$/i;
+const ipv6ToBytes = host => {
+  const halves = host.split('::');
+  if (halves.length > 2) {
+    return null;
+  }
+  const groups = halves[0] ? halves[0].split(':') : [];
+  if (halves.length === 2) {
+    const rear = halves[1] ? halves[1].split(':') : [];
+    const missing = 8 - groups.length - rear.length;
+    if (missing < 1) {
+      return null;
+    }
+    groups.push(...new Array(missing).fill('0'), ...rear);
+  }
+  if (groups.length !== 8 || groups.some(group => !IPV6_GROUP_RE.test(group))) {
+    return null;
+  }
+  return groups.flatMap(group => {
+    const value = Number.parseInt(group, 16);
+    return [value >> 8 & 0xff, value & 0xff];
+  });
+};
+const ipToBytes = host => {
+  if (typeof host !== 'string' || !host) {
+    return null;
+  }
+  return host.indexOf(':') !== -1 ? ipv6ToBytes(host) : ipv4ToBytes(host);
+};
 const normalizeNoProxyHost = hostname => {
   if (!hostname) {
     return hostname;
@@ -131636,7 +136032,101 @@ const normalizeNoProxyHost = hostname => {
   if (hostname.charAt(0) === '[' && hostname.charAt(hostname.length - 1) === ']') {
     hostname = hostname.slice(1, -1);
   }
-  return hostname.replace(/\.+$/, '');
+  const trimmed = trimTrailingDots(hostname);
+
+  // IPv4 shorthand/octal/hex → dotted-decimal; helper is a no-op for inputs
+  // containing ':' (IPv6 and IPv4-mapped IPv6) so we fall through to unmap.
+  const ipv4 = normalizeIPAddress(trimmed);
+  if (ipv4 !== trimmed) {
+    return ipv4;
+  }
+  return unmapIPv4MappedIPv6(trimmed);
+};
+const normalizeCidrBase = input => {
+  let base = input;
+  const startsBracket = base.charAt(0) === '[';
+  const endsBracket = base.charAt(base.length - 1) === ']';
+  const hasBracket = base.includes('[') || base.includes(']');
+  if (startsBracket || endsBracket) {
+    if (!startsBracket || !endsBracket) {
+      return null;
+    }
+    base = base.slice(1, -1);
+    if (base.indexOf(':') === -1 || base.includes('[') || base.includes(']')) {
+      return null;
+    }
+  } else if (hasBracket) {
+    return null;
+  }
+  if (!base || base.charAt(base.length - 1) === '.') {
+    return null;
+  }
+  const wasIPv6 = base.indexOf(':') !== -1;
+  if (wasIPv6) {
+    try {
+      base = new URL(`http://[${base}]/`).hostname.slice(1, -1);
+    } catch (_err) {
+      return null;
+    }
+  } else {
+    base = normalizeIPAddress(base);
+    if (!ipv4ToBytes(base)) {
+      return null;
+    }
+  }
+  return {
+    normalized: unmapIPv4MappedIPv6(base),
+    wasIPv6
+  };
+};
+const CIDR_ENTRY_RE = /^(.+)\/(0|[1-9]\d{0,2})$/;
+const parseCidrEntry = entry => {
+  if (entry.indexOf('/') === -1) {
+    return undefined;
+  }
+  const match = CIDR_ENTRY_RE.exec(entry);
+  if (!match) {
+    return null;
+  }
+  let prefix = Number(match[2]);
+  const parsedBase = normalizeCidrBase(match[1]);
+  if (!parsedBase) {
+    return null;
+  }
+  const {
+    normalized,
+    wasIPv6
+  } = parsedBase;
+  if (wasIPv6 && normalized.indexOf(':') === -1) {
+    if (prefix < 96) {
+      return null;
+    }
+    prefix -= 96;
+  }
+  const bytes = ipToBytes(normalized);
+  if (!bytes || prefix > bytes.length * 8) {
+    return null;
+  }
+  return {
+    bytes,
+    prefix
+  };
+};
+const isInSubnet = (addressBytes, networkBytes, prefix) => {
+  const fullBytes = prefix >> 3;
+  for (let i = 0; i < fullBytes; i++) {
+    if (addressBytes[i] !== networkBytes[i]) {
+      return false;
+    }
+  }
+  const remainingBits = prefix & 7;
+  if (remainingBits) {
+    const mask = 0xff << 8 - remainingBits & 0xff;
+    if ((addressBytes[fullBytes] & mask) !== (networkBytes[fullBytes] & mask)) {
+      return false;
+    }
+  }
+  return true;
 };
 function shouldBypassProxy(location) {
   let parsed;
@@ -131654,9 +136144,17 @@ function shouldBypassProxy(location) {
   }
   const port = Number.parseInt(parsed.port, 10) || DEFAULT_PORTS[parsed.protocol.split(':', 1)[0]] || 0;
   const hostname = normalizeNoProxyHost(parsed.hostname.toLowerCase());
+  const hostnameBytes = ipToBytes(hostname);
   return noProxy.split(/[\s,]+/).some(entry => {
     if (!entry) {
       return false;
+    }
+    if (entry === '*') {
+      return true;
+    }
+    const cidr = parseCidrEntry(entry);
+    if (cidr !== undefined) {
+      return cidr !== null && !!hostnameBytes && hostnameBytes.length === cidr.bytes.length && isInSubnet(hostnameBytes, cidr.bytes, cidr.prefix);
     }
     let [entryHost, entryPort] = parseNoProxyEntry(entry);
     entryHost = normalizeNoProxyHost(entryHost);
@@ -131720,7 +136218,7 @@ function speedometer(samplesCount, min) {
  * Throttle decorator
  * @param {Function} fn
  * @param {Number} freq
- * @return {Function}
+ * @return {Array<Function>}
  */
 function throttle(fn, freq) {
   let timestamp = 0;
@@ -131752,16 +136250,20 @@ function throttle(fn, freq) {
     }
   };
   const flush = () => lastArgs && invoke(lastArgs);
-  return [throttled, flush];
+  const flushWith = (...args) => invoke(args);
+  return [throttled, flush, flushWith];
 }
 
 const progressEventReducer = (listener, isDownloadStream, freq = 3) => {
   let bytesNotified = 0;
   const _speedometer = speedometer(50, 250);
   return throttle(e => {
+    if (!e || !utils$1.isNumber(e.loaded)) {
+      return;
+    }
     const rawLoaded = e.loaded;
     const total = e.lengthComputable ? e.total : undefined;
-    const loaded = total != null ? Math.min(rawLoaded, total) : rawLoaded;
+    const loaded = Math.max(0, total != null ? Math.min(rawLoaded, total) : rawLoaded);
     const progressBytes = Math.max(0, loaded - bytesNotified);
     const rate = _speedometer(progressBytes);
     bytesNotified = Math.max(bytesNotified, loaded);
@@ -131787,18 +136289,85 @@ const progressEventDecorator = (total, throttled) => {
     loaded
   }), throttled[1]];
 };
-const asyncDecorator = fn => (...args) => utils$1.asap(() => fn(...args));
+const asyncDecorator = (fn, scheduler = utils$1.asap) => (...args) => scheduler(() => fn(...args));
 
 /**
- * Estimate decoded byte length of a data:// URL *without* allocating large buffers.
- * - For base64: compute exact decoded size using length and padding;
- *               handle %XX at the character-count level (no string allocation).
- * - For non-base64: use UTF-8 byteLength of the encoded body as a safe upper bound.
- *
- * @param {string} url
- * @returns {number}
+ * Estimate data: URL byte lengths *without* allocating large buffers.
+ * - Fetch percent-decodes a base64 body before decoding it.
+ * - Node's Buffer.from(body, 'base64') sizes its backing allocation from the
+ *   raw body, including ignored characters and content after padding.
+ * - Non-base64 data is percent-decoded and then encoded as UTF-8.
  */
-function estimateDataURLDecodedBytes(url) {
+const isHexDigit = charCode => charCode >= 48 && charCode <= 57 || charCode >= 65 && charCode <= 70 || charCode >= 97 && charCode <= 102;
+const isPercentEncodedByte = (str, i, len) => i + 2 < len && isHexDigit(str.charCodeAt(i + 1)) && isHexDigit(str.charCodeAt(i + 2));
+const hexValue = charCode => charCode <= 57 ? charCode - 48 : (charCode & 0xdf) - 55;
+const isBase64Char = charCode => charCode >= 65 && charCode <= 90 ||
+// A-Z
+charCode >= 97 && charCode <= 122 ||
+// a-z
+charCode >= 48 && charCode <= 57 ||
+// 0-9
+charCode === 43 ||
+// +
+charCode === 47 ||
+// /
+charCode === 45 ||
+// - (base64url)
+charCode === 95; // _ (base64url)
+
+const isBase64Whitespace = charCode => charCode === 9 || charCode === 10 || charCode === 12 || charCode === 13 || charCode === 32;
+const base64Bytes = significant => {
+  const groups = Math.floor(significant / 4);
+  const remainder = significant % 4;
+  return groups * 3 + (remainder === 2 ? 1 : remainder === 3 ? 2 : 0);
+};
+
+// Buffer.byteLength(body, 'base64') uses the raw string length as an allocation
+// upper bound even when Buffer.from later ignores characters or stops at '='.
+const estimateBase64BufferAllocation = body => {
+  const len = body.length;
+  let padding = 0;
+  if (len > 0 && body.charCodeAt(len - 1) === 61 /* '=' */) {
+    padding++;
+    if (len > 1 && body.charCodeAt(len - 2) === 61 /* '=' */) {
+      padding++;
+    }
+  }
+  return Math.floor((len - padding) * 3 / 4);
+};
+const estimatePercentDecodedBase64Bytes = body => {
+  const len = body.length;
+  let significant = 0;
+  let padding = 0;
+  let invalid = false;
+  for (let i = 0; i < len; i++) {
+    let code = body.charCodeAt(i);
+    if (code === 37 /* '%' */ && isPercentEncodedByte(body, i, len)) {
+      code = hexValue(body.charCodeAt(i + 1)) * 16 + hexValue(body.charCodeAt(i + 2));
+      i += 2;
+    }
+    if (isBase64Whitespace(code)) {
+      continue;
+    }
+    if (code === 61 /* '=' */) {
+      padding++;
+      continue;
+    }
+    if (!isBase64Char(code) || padding > 0) {
+      invalid = true;
+      continue;
+    }
+    significant++;
+  }
+
+  // Fetch rejects malformed forgiving-base64 input. Returning the raw-size
+  // allocation bound keeps that invalid input from becoming a pre-check bypass.
+  if (invalid || padding > 2 || padding > 0 && (significant + padding) % 4 !== 0 || significant % 4 === 1) {
+    return estimateBase64BufferAllocation(body);
+  }
+  return base64Bytes(significant);
+};
+const estimateDataURLBytes = (url, estimateBase64) => {
   if (!url || typeof url !== 'string') return 0;
   if (!url.startsWith('data:')) return 0;
   const comma = url.indexOf(',');
@@ -131807,49 +136376,58 @@ function estimateDataURLDecodedBytes(url) {
   const body = url.slice(comma + 1);
   const isBase64 = /;base64/i.test(meta);
   if (isBase64) {
-    let effectiveLen = body.length;
-    const len = body.length; // cache length
-
-    for (let i = 0; i < len; i++) {
-      if (body.charCodeAt(i) === 37 /* '%' */ && i + 2 < len) {
-        const a = body.charCodeAt(i + 1);
-        const b = body.charCodeAt(i + 2);
-        const isHex = (a >= 48 && a <= 57 || a >= 65 && a <= 70 || a >= 97 && a <= 102) && (b >= 48 && b <= 57 || b >= 65 && b <= 70 || b >= 97 && b <= 102);
-        if (isHex) {
-          effectiveLen -= 2;
-          i += 2;
-        }
-      }
-    }
-    let pad = 0;
-    let idx = len - 1;
-    const tailIsPct3D = j => j >= 2 && body.charCodeAt(j - 2) === 37 &&
-    // '%'
-    body.charCodeAt(j - 1) === 51 && (
-    // '3'
-    body.charCodeAt(j) === 68 || body.charCodeAt(j) === 100); // 'D' or 'd'
-
-    if (idx >= 0) {
-      if (body.charCodeAt(idx) === 61 /* '=' */) {
-        pad++;
-        idx--;
-      } else if (tailIsPct3D(idx)) {
-        pad++;
-        idx -= 3;
-      }
-    }
-    if (pad === 1 && idx >= 0) {
-      if (body.charCodeAt(idx) === 61 /* '=' */) {
-        pad++;
-      } else if (tailIsPct3D(idx)) {
-        pad++;
-      }
-    }
-    const groups = Math.floor(effectiveLen / 4);
-    const bytes = groups * 3 - (pad || 0);
-    return bytes > 0 ? bytes : 0;
+    return estimateBase64(body);
   }
-  return Buffer.byteLength(body, 'utf8');
+
+  // Compute UTF-8 byte length directly from UTF-16 code units without allocating
+  // a byte buffer (TextEncoder.encode would defeat the DoS guard on large bodies).
+  // Valid %XX triplets count as one decoded byte; this matches the bytes that
+  // decodeURIComponent(body) would produce before Buffer re-encodes the string.
+  let bytes = 0;
+  for (let i = 0, len = body.length; i < len; i++) {
+    const c = body.charCodeAt(i);
+    if (c === 37 /* '%' */ && isPercentEncodedByte(body, i, len)) {
+      bytes += 1;
+      i += 2;
+    } else if (c < 0x80) {
+      bytes += 1;
+    } else if (c < 0x800) {
+      bytes += 2;
+    } else if (c >= 0xd800 && c <= 0xdbff && i + 1 < len) {
+      const next = body.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        i++;
+      } else {
+        bytes += 3;
+      }
+    } else {
+      bytes += 3;
+    }
+  }
+  return bytes;
+};
+
+/**
+ * Estimate the percent-decoded payload size used by Fetch data: URLs.
+ *
+ * @param {string} url
+ * @returns {number}
+ */
+function estimateDataURLDecodedBytes(url) {
+  // Fetch removes URL fragments before processing a data: URL.
+  const fragmentIndex = typeof url === 'string' ? url.indexOf('#') : -1;
+  return estimateDataURLBytes(fragmentIndex === -1 ? url : url.slice(0, fragmentIndex), estimatePercentDecodedBase64Bytes);
+}
+
+/**
+ * Estimate the Buffer backing allocation used by Node's raw base64 decoder.
+ *
+ * @param {string} url
+ * @returns {number}
+ */
+function estimateDataURLBufferAllocation(url) {
+  return estimateDataURLBytes(url, estimateBase64BufferAllocation);
 }
 
 const zlibOptions = {
@@ -131860,7 +136438,15 @@ const brotliOptions = {
   flush: zlib.constants.BROTLI_OPERATION_FLUSH,
   finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH
 };
+const zstdOptions = {
+  flush: zlib.constants.ZSTD_e_flush,
+  finishFlush: zlib.constants.ZSTD_e_flush
+};
 const isBrotliSupported = utils$1.isFunction(zlib.createBrotliDecompress);
+const isZstdSupported = utils$1.isFunction(zlib.createZstdDecompress);
+const ACCEPT_ENCODING = 'gzip, compress, deflate' + (isBrotliSupported ? ', br' : '');
+const ACCEPT_ENCODING_WITH_ZSTD = ACCEPT_ENCODING + (isZstdSupported ? ', zstd' : '');
+const scheduleProgress = typeof process !== 'undefined' && process.nextTick ? process.nextTick.bind(process) : utils$1.asap;
 const {
   http: httpFollow,
   https: httpsFollow
@@ -131871,102 +136457,152 @@ const isHttps = /https:?/;
 // the request currently owning that socket across keep-alive reuse (issue #10780).
 const kAxiosSocketListener = Symbol('axios.http.socketListener');
 const kAxiosCurrentReq = Symbol('axios.http.currentReq');
+
+// A shared listener avoids retaining an adapter context for the lifetime of a
+// pooled socket. EventEmitter invokes listeners with `this` set to the emitter.
+function handleSocketError(err) {
+  const current = this[kAxiosCurrentReq];
+  if (current && !current.destroyed) {
+    current.destroy(err);
+  }
+}
+
+// Tags HttpsProxyAgent instances installed by setProxy() so the redirect path
+// can strip them without clobbering a user-supplied agent that happens to be
+// an HttpsProxyAgent.
+const kAxiosInstalledTunnel = Symbol('axios.http.installedTunnel');
+
+// Cache of CONNECT-tunneling agents keyed by proxy config so repeat requests
+// through the same proxy reuse a single agent (and its socket pool). The
+// keyspace is bounded by the set of distinct proxy configs the process uses,
+// so unbounded growth is not a concern in practice.
+const tunnelingAgentCache = new Map();
+const tunnelingAgentCacheUser = new WeakMap();
+// Minimum minor versions where Node's HTTP Agent supports native proxyEnv
+// handling. Checking the selected agent below also covers startup modes such
+// as NODE_OPTIONS=--use-env-proxy and --no-use-env-proxy precedence.
+const NODE_NATIVE_ENV_PROXY_SUPPORT = {
+  22: 21,
+  24: 5
+};
+function isNodeNativeEnvProxySupported(nodeVersion = process.versions && process.versions.node) {
+  if (!nodeVersion) {
+    return false;
+  }
+  const [major, minor] = nodeVersion.split('.').map(part => Number(part));
+  if (!Number.isInteger(major) || !Number.isInteger(minor)) {
+    return false;
+  }
+  if (major > 24) {
+    return true;
+  }
+  return NODE_NATIVE_ENV_PROXY_SUPPORT[major] != null && minor >= NODE_NATIVE_ENV_PROXY_SUPPORT[major];
+}
+function isNodeEnvProxyEnabled(agent, nodeVersion = process.versions && process.versions.node) {
+  if (!isNodeNativeEnvProxySupported(nodeVersion)) {
+    return false;
+  }
+  const agentOptions = agent && agent.options;
+  return Boolean(agentOptions && utils$1.hasOwnProp(agentOptions, 'proxyEnv') && agentOptions.proxyEnv != null);
+}
+function getProxyEnvAgent(options, configHttpAgent, configHttpsAgent) {
+  return isHttps.test(options.protocol) ? configHttpsAgent || https.globalAgent : configHttpAgent || http.globalAgent;
+}
+function getTunnelingAgent(agentOptions, userHttpsAgent) {
+  const key = agentOptions.protocol + '//' + agentOptions.hostname + ':' + (agentOptions.port || '') + '#' + (agentOptions.auth || '');
+  const cache = userHttpsAgent ? tunnelingAgentCacheUser.get(userHttpsAgent) || tunnelingAgentCacheUser.set(userHttpsAgent, new Map()).get(userHttpsAgent) : tunnelingAgentCache;
+  let agent = cache.get(key);
+  if (agent) return agent;
+  // Forward the user's TLS options (custom CA, rejectUnauthorized, client cert,
+  // etc.) into the tunneling agent so they apply to the origin TLS upgrade
+  // performed after CONNECT. Our proxy fields take precedence on conflict.
+  const merged = userHttpsAgent && userHttpsAgent.options ? {
+    ...userHttpsAgent.options,
+    ...agentOptions
+  } : agentOptions;
+  agent = new HttpsProxyAgent(merged);
+  if (userHttpsAgent && userHttpsAgent.options) {
+    const originTLSOptions = {
+      ...userHttpsAgent.options
+    };
+    const callback = agent.callback;
+    agent.callback = function axiosTunnelingAgentCallback(req, opts) {
+      // HttpsProxyAgent v5 reads callback opts for the post-CONNECT origin TLS upgrade.
+      return callback.call(this, req, {
+        ...originTLSOptions,
+        ...opts
+      });
+    };
+  }
+  agent[kAxiosInstalledTunnel] = true;
+  cache.set(key, agent);
+  return agent;
+}
 const supportedProtocols = platform.protocols.map(protocol => {
   return protocol + ':';
 });
+
+// Node's WHATWG URL parser returns `username` and `password` percent-encoded.
+// Decode before composing the `auth` option so credentials such as
+// `my%40email.com:pass` are sent as `my@email.com:pass`. Falls back to the
+// original value for malformed input so a bad encoding never throws.
+const decodeURIComponentSafe$1 = value => {
+  if (!utils$1.isString(value)) {
+    return value;
+  }
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    return value;
+  }
+};
 const flushOnFinish = (stream, [throttled, flush]) => {
   stream.on('end', flush).on('error', flush);
   return throttled;
 };
-class Http2Sessions {
-  constructor() {
-    this.sessions = Object.create(null);
-  }
-  getSession(authority, options) {
-    options = Object.assign({
-      sessionTimeout: 1000
-    }, options);
-    let authoritySessions = this.sessions[authority];
-    if (authoritySessions) {
-      let len = authoritySessions.length;
-      for (let i = 0; i < len; i++) {
-        const [sessionHandle, sessionOptions] = authoritySessions[i];
-        if (!sessionHandle.destroyed && !sessionHandle.closed && util.isDeepStrictEqual(sessionOptions, options)) {
-          return sessionHandle;
-        }
-      }
-    }
-    const session = http2.connect(authority, options);
-    let removed;
-    const removeSession = () => {
-      if (removed) {
-        return;
-      }
-      removed = true;
-      let entries = authoritySessions,
-        len = entries.length,
-        i = len;
-      while (i--) {
-        if (entries[i][0] === session) {
-          if (len === 1) {
-            delete this.sessions[authority];
-          } else {
-            entries.splice(i, 1);
-          }
-          if (!session.closed) {
-            session.close();
-          }
-          return;
-        }
-      }
-    };
-    const originalRequestFn = session.request;
-    const {
-      sessionTimeout
-    } = options;
-    if (sessionTimeout != null) {
-      let timer;
-      let streamsCount = 0;
-      session.request = function () {
-        const stream = originalRequestFn.apply(this, arguments);
-        streamsCount++;
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-        stream.once('close', () => {
-          if (! --streamsCount) {
-            timer = setTimeout(() => {
-              timer = null;
-              removeSession();
-            }, sessionTimeout);
-          }
-        });
-        return stream;
-      };
-    }
-    session.once('close', removeSession);
-    let entry = [session, options];
-    authoritySessions ? authoritySessions.push(entry) : authoritySessions = this.sessions[authority] = [entry];
-    return session;
-  }
-}
 const http2Sessions = new Http2Sessions();
 
 /**
- * If the proxy or config beforeRedirects functions are defined, call them with the options
- * object.
+ * If the proxy, auth, sensitive header, or config beforeRedirects functions are defined,
+ * call them with the options object.
  *
  * @param {Object<string, any>} options - The options object that was passed to the request.
  *
  * @returns {Object<string, any>}
  */
-function dispatchBeforeRedirect(options, responseDetails) {
+function dispatchBeforeRedirect(options, responseDetails, requestDetails) {
   if (options.beforeRedirects.proxy) {
     options.beforeRedirects.proxy(options);
   }
+  if (options.beforeRedirects.auth) {
+    options.beforeRedirects.auth(options);
+  }
+  if (options.beforeRedirects.sensitiveHeaders) {
+    options.beforeRedirects.sensitiveHeaders(options, requestDetails);
+  }
   if (options.beforeRedirects.config) {
-    options.beforeRedirects.config(options, responseDetails);
+    options.beforeRedirects.config(options, responseDetails, requestDetails);
+  }
+}
+function stripMatchingHeaders(headers, sensitiveSet) {
+  if (!headers) {
+    return;
+  }
+  Object.keys(headers).forEach(header => {
+    if (sensitiveSet.has(header.toLowerCase())) {
+      delete headers[header];
+    }
+  });
+}
+function isSameOriginRedirect(redirectOptions, requestDetails) {
+  if (!requestDetails) {
+    return false;
+  }
+  try {
+    return new URL(requestDetails.url).origin === new URL(redirectOptions.href).origin;
+  } catch (e) {
+    // If origin comparison fails, treat the redirect as unsafe.
+    return false;
   }
 }
 
@@ -131976,12 +136612,14 @@ function dispatchBeforeRedirect(options, responseDetails) {
  * @param {http.ClientRequestArgs} options
  * @param {AxiosProxyConfig} configProxy configuration from Axios options object
  * @param {string} location
+ * @param {boolean} [allowEnvProxy=true] whether environment proxy configuration can be used
  *
- * @returns {http.ClientRequestArgs}
+ * @returns {boolean} whether a proxy applies to the selected transport
  */
-function setProxy(options, configProxy, location) {
+function setProxy(options, configProxy, location, isRedirect, configHttpsAgent, configHttpAgent, allowEnvProxy = true) {
   let proxy = configProxy;
-  if (!proxy && proxy !== false) {
+  const proxyEnvAgent = getProxyEnvAgent(options, configHttpAgent, configHttpsAgent);
+  if (!proxy && proxy !== false && allowEnvProxy && !isNodeEnvProxyEnabled(proxyEnvAgent)) {
     const proxyUrl = getProxyForUrl(location);
     if (proxyUrl) {
       if (!shouldBypassProxy(location)) {
@@ -131989,40 +136627,136 @@ function setProxy(options, configProxy, location) {
       }
     }
   }
-  if (proxy) {
-    // Basic proxy authorization
-    if (proxy.username) {
-      proxy.auth = (proxy.username || '') + ':' + (proxy.password || '');
+  // On redirect re-invocation, strip any stale Proxy-Authorization header carried
+  // over from the prior request (e.g. new target no longer uses a proxy, or uses
+  // a different proxy). Skip on the initial request so user-supplied headers are
+  // preserved. Header names are case-insensitive, so remove every case variant.
+  if (isRedirect && options.headers) {
+    for (const name of Object.keys(options.headers)) {
+      if (name.toLowerCase() === 'proxy-authorization') {
+        delete options.headers[name];
+      }
     }
-    if (proxy.auth) {
-      // Support proxy auth object form
-      const validProxyAuth = Boolean(proxy.auth.username || proxy.auth.password);
+  }
+  // Strip any tunneling agent we installed for the previous hop so a redirect
+  // that drops the proxy or crosses an HTTPS↔HTTP boundary doesn't reuse a
+  // stale one. Match on our Symbol marker so a user-supplied HttpsProxyAgent
+  // (which won't carry the marker) is left alone.
+  if (isRedirect && options.agent && options.agent[kAxiosInstalledTunnel]) {
+    options.agent = undefined;
+  }
+  if (proxy) {
+    // Read proxy fields without traversing the prototype chain. URL instances expose
+    // username/password/hostname/host/port/protocol via getters on URL.prototype (so
+    // direct reads are shielded), but plain object proxies — and the `auth` field
+    // (which URL does not expose) — must be guarded so a polluted Object.prototype
+    // (e.g. Object.prototype.auth = { username, password }) cannot inject
+    // attacker-controlled credentials into the Proxy-Authorization header or
+    // redirect proxying to an attacker-controlled host.
+    const isProxyURL = proxy instanceof URL;
+    const readProxyField = key => isProxyURL || utils$1.hasOwnProp(proxy, key) ? proxy[key] : undefined;
+    const proxyUsername = readProxyField('username');
+    const proxyPassword = readProxyField('password');
+    let proxyAuth = utils$1.hasOwnProp(proxy, 'auth') ? proxy.auth : undefined;
+
+    // Basic proxy authorization
+    if (proxyUsername) {
+      proxyAuth = (proxyUsername || '') + ':' + (proxyPassword || '');
+    }
+    if (proxyAuth) {
+      // Support proxy auth object form. Read sub-fields via own-prop checks so a
+      // plain object inheriting from polluted Object.prototype cannot leak creds.
+      const authIsObject = typeof proxyAuth === 'object';
+      const authUsername = authIsObject && utils$1.hasOwnProp(proxyAuth, 'username') ? proxyAuth.username : undefined;
+      const authPassword = authIsObject && utils$1.hasOwnProp(proxyAuth, 'password') ? proxyAuth.password : undefined;
+      const validProxyAuth = Boolean(authUsername || authPassword);
       if (validProxyAuth) {
-        proxy.auth = (proxy.auth.username || '') + ':' + (proxy.auth.password || '');
-      } else if (typeof proxy.auth === 'object') {
+        proxyAuth = (authUsername || '') + ':' + (authPassword || '');
+      } else if (authIsObject) {
         throw new AxiosError('Invalid proxy authorization', AxiosError.ERR_BAD_OPTION, {
           proxy
         });
       }
-      const base64 = Buffer.from(proxy.auth, 'utf8').toString('base64');
-      options.headers['Proxy-Authorization'] = 'Basic ' + base64;
     }
-    options.headers.host = options.hostname + (options.port ? ':' + options.port : '');
-    const proxyHost = proxy.hostname || proxy.host;
-    options.hostname = proxyHost;
-    // Replace 'host' since options is not a URL object
-    options.host = proxyHost;
-    options.port = proxy.port;
-    options.path = location;
-    if (proxy.protocol) {
-      options.protocol = proxy.protocol.includes(':') ? proxy.protocol : `${proxy.protocol}:`;
+    const targetIsHttps = isHttps.test(options.protocol);
+    if (targetIsHttps) {
+      // CONNECT-tunneling path for HTTPS targets. Preserves end-to-end TLS to
+      // the origin so the proxy cannot inspect the URL, headers, or body — the
+      // behavior already promised by THREATMODEL.md (T-R9). HttpsProxyAgent
+      // sends Proxy-Authorization on the CONNECT request only, never on the
+      // wrapped TLS request, which is why we don't stamp it onto
+      // options.headers here. If the user already supplied an HttpsProxyAgent,
+      // they own tunneling end-to-end and we leave them alone; otherwise we
+      // install our own tunneling agent and forward their TLS options (if any)
+      // so a custom httpsAgent for cert pinning / rejectUnauthorized still
+      // applies to the origin TLS upgrade.
+      if (!(configHttpsAgent instanceof HttpsProxyAgent)) {
+        const proxyHost = readProxyField('hostname') || readProxyField('host');
+        const proxyPort = readProxyField('port');
+        const rawProxyProtocol = readProxyField('protocol');
+        const normalizedProtocol = rawProxyProtocol ? rawProxyProtocol.includes(':') ? rawProxyProtocol : `${rawProxyProtocol}:` : 'http:';
+        // Bracket IPv6 literals for URL parsing; URL.hostname strips the
+        // brackets again on read so the agent receives the raw form.
+        const proxyHostForURL = proxyHost && proxyHost.includes(':') && !proxyHost.startsWith('[') ? `[${proxyHost}]` : proxyHost;
+        const proxyURL = new URL(`${normalizedProtocol}//${proxyHostForURL}${proxyPort ? ':' + proxyPort : ''}`);
+        const agentOptions = {
+          protocol: proxyURL.protocol,
+          hostname: proxyURL.hostname.replace(/^\[|\]$/g, ''),
+          port: proxyURL.port,
+          auth: proxyAuth && typeof proxyAuth === 'string' ? proxyAuth : undefined
+        };
+        if (proxyURL.protocol === 'https:') {
+          agentOptions.ALPNProtocols = ['http/1.1'];
+        }
+        const tunnelingAgent = getTunnelingAgent(agentOptions, configHttpsAgent);
+        // Set both: `options.agent` is consumed by the native https.request path
+        // (maxRedirects === 0); `options.agents.https` is consumed by
+        // follow-redirects, which ignores `options.agent` when `options.agents`
+        // is present.
+        options.agent = tunnelingAgent;
+        if (options.agents) {
+          options.agents.https = tunnelingAgent;
+        }
+      }
+    } else {
+      // Forward-proxy mode for plaintext HTTP targets. The request line carries
+      // the absolute URL and the proxy sees everything — acceptable for plain
+      // HTTP since the wire was already plaintext.
+      if (proxyAuth) {
+        const base64 = Buffer.from(proxyAuth, 'utf8').toString('base64');
+        options.headers['Proxy-Authorization'] = 'Basic ' + base64;
+      }
+
+      // Preserve a user-supplied Host header (case-insensitive) so callers can override
+      // the value forwarded to the proxy; otherwise default to the request URL's host.
+      let hasUserHostHeader = false;
+      for (const name of Object.keys(options.headers)) {
+        if (name.toLowerCase() === 'host') {
+          hasUserHostHeader = true;
+          break;
+        }
+      }
+      if (!hasUserHostHeader) {
+        options.headers.host = options.hostname + (options.port ? ':' + options.port : '');
+      }
+      const proxyHost = readProxyField('hostname') || readProxyField('host');
+      options.hostname = proxyHost;
+      // Replace 'host' since options is not a URL object
+      options.host = proxyHost;
+      options.port = readProxyField('port');
+      options.path = location;
+      const proxyProtocol = readProxyField('protocol');
+      if (proxyProtocol) {
+        options.protocol = proxyProtocol.includes(':') ? proxyProtocol : `${proxyProtocol}:`;
+      }
     }
   }
   options.beforeRedirects.proxy = function beforeRedirect(redirectOptions) {
     // Configure proxy for redirected request, passing the original config proxy to apply
     // the exact same logic as if the redirected request was performed by axios directly.
-    setProxy(redirectOptions, configProxy, redirectOptions.href);
+    setProxy(redirectOptions, configProxy, redirectOptions.href, true, configHttpsAgent, configHttpAgent, allowEnvProxy);
   };
+  return Boolean(proxy || configProxy !== false && allowEnvProxy && isNodeEnvProxyEnabled(proxyEnvAgent));
 }
 const isHttpAdapterSupported = typeof process !== 'undefined' && utils$1.kindOf(process) === 'process';
 
@@ -132053,7 +136787,7 @@ const resolveFamily = ({
   family
 }) => {
   if (!utils$1.isString(address)) {
-    throw TypeError('address must be a string');
+    throw new AxiosError('address must be a string', AxiosError.ERR_BAD_OPTION_VALUE);
   }
   return {
     address,
@@ -132064,6 +136798,32 @@ const buildAddressEntry = (address, family) => resolveFamily(utils$1.isObject(ad
   address,
   family
 });
+const normalizedLookupCache = new WeakMap();
+const normalizeLookup = lookup => {
+  let normalized = normalizedLookupCache.get(lookup);
+  if (normalized) {
+    return normalized;
+  }
+  const callbackLookup = callbackify(lookup, value => utils$1.isArray(value) ? value : [value]);
+
+  // Support opt.all, which is required by current Node.js releases.
+  normalized = (hostname, opt, cb) => {
+    callbackLookup(hostname, opt, (err, arg0, arg1) => {
+      if (err) {
+        return cb(err);
+      }
+      let addresses;
+      try {
+        addresses = utils$1.isArray(arg0) ? arg0.map(addr => buildAddressEntry(addr)) : [buildAddressEntry(arg0, arg1)];
+      } catch (error) {
+        return cb(error);
+      }
+      opt.all ? cb(err, addresses) : cb(err, addresses[0].address, addresses[0].family);
+    });
+  };
+  normalizedLookupCache.set(lookup, normalized);
+  return normalized;
+};
 const http2Transport = {
   request(options, cb) {
     const authority = options.protocol + '//' + options.hostname + ':' + (options.port || (options.protocol === 'https:' ? 443 : 80));
@@ -132104,50 +136864,76 @@ const http2Transport = {
 /*eslint consistent-return:0*/
 var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
   return wrapAsync(async function dispatchHttpRequest(resolve, reject, onDone) {
-    const own = key => utils$1.hasOwnProp(config, key) ? config[key] : undefined;
+    // Read config pollution-safely: own properties and members inherited from
+    // a non-Object.prototype source (e.g. an Object.create(defaults) template)
+    // are honored, but values injected onto a polluted Object.prototype are
+    // ignored. All behavior-affecting reads in this adapter go through own()
+    // so the protection boundary stays consistent.
+    const own = key => utils$1.getSafeProp(config, key);
+    const transitional = own('transitional') || transitionalDefaults;
     let data = own('data');
     let lookup = own('lookup');
     let family = own('family');
     let httpVersion = own('httpVersion');
     if (httpVersion === undefined) httpVersion = 1;
+    const rawHttpVersion = httpVersion;
     let http2Options = own('http2Options');
+    const httpAgent = own('httpAgent');
+    const httpsAgent = own('httpsAgent');
+    const configProxy = own('proxy');
     const responseType = own('responseType');
     const responseEncoding = own('responseEncoding');
-    const method = config.method.toUpperCase();
+    const socketPath = own('socketPath');
+    const method = own('method').toUpperCase();
+    const maxRedirects = own('maxRedirects');
+    const maxBodyLength = own('maxBodyLength');
+    const maxContentLength = own('maxContentLength');
+    const decompress = own('decompress');
     let isDone;
     let rejected = false;
     let req;
-    httpVersion = +httpVersion;
+    let connectPhaseTimer;
+    try {
+      httpVersion = +httpVersion;
+    } catch (err) {
+      throw new AxiosError('Invalid protocol version: value is not a number', AxiosError.ERR_BAD_OPTION_VALUE, config);
+    }
     if (Number.isNaN(httpVersion)) {
-      throw TypeError(`Invalid protocol version: '${config.httpVersion}' is not a number`);
+      throw new AxiosError(`Invalid protocol version: '${rawHttpVersion}' is not a number`, AxiosError.ERR_BAD_OPTION_VALUE, config);
     }
     if (httpVersion !== 1 && httpVersion !== 2) {
-      throw TypeError(`Unsupported protocol version '${httpVersion}'`);
+      throw new AxiosError(`Unsupported protocol version '${httpVersion}'`, AxiosError.ERR_BAD_OPTION_VALUE, config);
     }
     const isHttp2 = httpVersion === 2;
     if (lookup) {
-      const _lookup = callbackify(lookup, value => utils$1.isArray(value) ? value : [value]);
-      // hotfix to support opt.all option which is required for node 20.x
-      lookup = (hostname, opt, cb) => {
-        _lookup(hostname, opt, (err, arg0, arg1) => {
-          if (err) {
-            return cb(err);
-          }
-          const addresses = utils$1.isArray(arg0) ? arg0.map(addr => buildAddressEntry(addr)) : [buildAddressEntry(arg0, arg1)];
-          opt.all ? cb(err, addresses) : cb(err, addresses[0].address, addresses[0].family);
-        });
-      };
+      lookup = normalizeLookup(lookup);
     }
     const abortEmitter = new events.EventEmitter();
     function abort(reason) {
       try {
         abortEmitter.emit('abort', !reason || reason.type ? new CanceledError(null, config, req) : reason);
       } catch (err) {
-        console.warn('emit error', err);
+        // ignore emit errors
       }
+    }
+    function clearConnectPhaseTimer() {
+      if (connectPhaseTimer) {
+        clearTimeout(connectPhaseTimer);
+        connectPhaseTimer = null;
+      }
+    }
+    function createTimeoutError() {
+      const configTimeout = own('timeout');
+      let timeoutErrorMessage = configTimeout ? 'timeout of ' + configTimeout + 'ms exceeded' : 'timeout exceeded';
+      const configTimeoutErrorMessage = own('timeoutErrorMessage');
+      if (configTimeoutErrorMessage) {
+        timeoutErrorMessage = configTimeoutErrorMessage;
+      }
+      return new AxiosError(timeoutErrorMessage, transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED, config, req);
     }
     abortEmitter.once('abort', reject);
     const onFinished = () => {
+      clearConnectPhaseTimer();
       if (config.cancelToken) {
         config.cancelToken.unsubscribe(abort);
       }
@@ -132164,6 +136950,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     }
     onDone((response, isRejected) => {
       isDone = true;
+      clearConnectPhaseTimer();
       if (isRejected) {
         rejected = true;
         onFinished();
@@ -132183,17 +136970,22 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     });
 
     // Parse url
-    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
-    const parsed = new URL(fullPath, platform.hasBrowserEnv ? platform.origin : undefined);
+    const fullPath = buildFullPath(own('baseURL'), own('url'), own('allowAbsoluteUrls'), config);
+    // Unix-socket requests (own socketPath) commonly pass a path-only url
+    // like '/foo'; supply a synthetic base so new URL() can still parse it.
+    // Use the own-property value (not config.socketPath) so a polluted
+    // prototype cannot influence URL base selection.
+    const urlBase = socketPath ? 'http://localhost' : platform.hasBrowserEnv ? platform.origin : undefined;
+    const parsed = new URL(fullPath, urlBase);
     const protocol = parsed.protocol || supportedProtocols[0];
     if (protocol === 'data:') {
       // Apply the same semantics as HTTP: only enforce if a finite, non-negative cap is set.
-      if (config.maxContentLength > -1) {
-        // Use the exact string passed to fromDataURI (config.url); fall back to fullPath if needed.
-        const dataUrl = String(config.url || fullPath || '');
-        const estimated = estimateDataURLDecodedBytes(dataUrl);
-        if (estimated > config.maxContentLength) {
-          return reject(new AxiosError('maxContentLength size of ' + config.maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config));
+      if (maxContentLength > -1) {
+        // Use the exact string passed to fromDataURI (the configured url); fall back to fullPath if needed.
+        const dataUrl = String(own('url') || fullPath || '');
+        const estimated = estimateDataURLBufferAllocation(dataUrl);
+        if (estimated > maxContentLength) {
+          return reject(new AxiosError('maxContentLength size of ' + maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config));
         }
       }
       let convertedData;
@@ -132206,7 +136998,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
         });
       }
       try {
-        convertedData = fromDataURI(config.url, responseType === 'blob', {
+        convertedData = fromDataURI(own('url'), responseType === 'blob', {
           Blob: config.env && config.env.Blob
         });
       } catch (err) {
@@ -132257,7 +137049,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       });
       // support for https://www.npmjs.com/package/form-data api
     } else if (utils$1.isFormData(data) && utils$1.isFunction(data.getHeaders) && data.getHeaders !== Object.prototype.getHeaders) {
-      headers.set(data.getHeaders());
+      setFormDataHeaders(headers, data.getHeaders(), own('formDataHeaderPolicy'));
       if (!headers.hasContentLength()) {
         try {
           const knownLength = await util.promisify(data.getLength).call(data);
@@ -132280,7 +137072,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
 
       // Add Content-Length header if data exists
       headers.setContentLength(data.length, false);
-      if (config.maxBodyLength > -1 && data.length > config.maxBodyLength) {
+      if (maxBodyLength > -1 && data.length > maxBodyLength) {
         return reject(new AxiosError('Request body larger than maxBodyLength limit', AxiosError.ERR_BAD_REQUEST, config));
       }
     }
@@ -132300,110 +137092,178 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       data = stream.pipeline([data, new AxiosTransformStream({
         maxRate: utils$1.toFiniteNumber(maxUploadRate)
       })], utils$1.noop);
-      onUploadProgress && data.on('progress', flushOnFinish(data, progressEventDecorator(contentLength, progressEventReducer(asyncDecorator(onUploadProgress), false, 3))));
+      onUploadProgress && data.on('progress', flushOnFinish(data, progressEventDecorator(contentLength, progressEventReducer(asyncDecorator(onUploadProgress, scheduleProgress), false, 3))));
     }
 
     // HTTP basic authentication
     let auth = undefined;
     const configAuth = own('auth');
     if (configAuth) {
-      const username = configAuth.username || '';
-      const password = configAuth.password || '';
+      const username = utils$1.getSafeProp(configAuth, 'username') || '';
+      const password = utils$1.getSafeProp(configAuth, 'password') || '';
       auth = username + ':' + password;
     }
-    if (!auth && parsed.username) {
-      const urlUsername = parsed.username;
-      const urlPassword = parsed.password;
+    if (!auth && (parsed.username || parsed.password)) {
+      const urlUsername = decodeURIComponentSafe$1(parsed.username);
+      const urlPassword = decodeURIComponentSafe$1(parsed.password);
       auth = urlUsername + ':' + urlPassword;
     }
     auth && headers.delete('authorization');
     let path$1;
     try {
-      path$1 = buildURL(parsed.pathname + parsed.search, config.params, config.paramsSerializer).replace(/^\?/, '');
+      path$1 = buildURL(parsed.pathname + parsed.search, own('params'), own('paramsSerializer')).replace(/^\?/, '');
     } catch (err) {
-      const customErr = new Error(err.message);
-      customErr.config = config;
-      customErr.url = config.url;
-      customErr.exists = true;
-      return reject(customErr);
+      return reject(AxiosError.from(err, AxiosError.ERR_BAD_REQUEST, config, null, null, {
+        url: own('url'),
+        exists: true
+      }));
     }
-    headers.set('Accept-Encoding', 'gzip, compress, deflate' + (isBrotliSupported ? ', br' : ''), false);
+    headers.set('Accept-Encoding', utils$1.hasOwnProp(transitional, 'advertiseZstdAcceptEncoding') && transitional.advertiseZstdAcceptEncoding === true ? ACCEPT_ENCODING_WITH_ZSTD : ACCEPT_ENCODING, false);
+    if (isHttp2 && lookup) {
+      http2Options = Object.assign(Object.create(null), http2Options, {
+        lookup
+      });
+    }
 
     // Null-prototype to block prototype pollution gadgets on properties read
     // directly by Node's http.request (e.g. insecureHTTPParser, lookup).
-    // See GHSA-q8qp-cvcw-x6jj.
     const options = Object.assign(Object.create(null), {
       path: path$1,
       method: method,
-      headers: headers.toJSON(),
+      headers: toByteStringHeaderObject(headers),
       agents: {
-        http: config.httpAgent,
-        https: config.httpsAgent
+        http: httpAgent,
+        https: httpsAgent
       },
       auth,
       protocol,
       family,
       beforeRedirect: dispatchBeforeRedirect,
       beforeRedirects: Object.create(null),
-      http2Options
+      http2Options,
+      createConnection: undefined
     });
 
     // cacheable-lookup integration hotfix
     !utils$1.isUndefined(lookup) && (options.lookup = lookup);
-    if (config.socketPath) {
-      if (typeof config.socketPath !== 'string') {
+    let proxyApplied = false;
+    if (socketPath) {
+      if (typeof socketPath !== 'string') {
         return reject(new AxiosError('socketPath must be a string', AxiosError.ERR_BAD_OPTION_VALUE, config));
       }
-      if (config.allowedSocketPaths != null) {
-        const allowed = Array.isArray(config.allowedSocketPaths) ? config.allowedSocketPaths : [config.allowedSocketPaths];
-        const resolvedSocket = path.resolve(config.socketPath);
+      const allowedSocketPaths = own('allowedSocketPaths');
+      if (allowedSocketPaths != null) {
+        const allowed = Array.isArray(allowedSocketPaths) ? allowedSocketPaths : [allowedSocketPaths];
+        const resolvedSocket = path.resolve(socketPath);
         const isAllowed = allowed.some(entry => typeof entry === 'string' && path.resolve(entry) === resolvedSocket);
         if (!isAllowed) {
-          return reject(new AxiosError(`socketPath "${config.socketPath}" is not permitted by allowedSocketPaths`, AxiosError.ERR_BAD_OPTION_VALUE, config));
+          return reject(new AxiosError(`socketPath "${socketPath}" is not permitted by allowedSocketPaths`, AxiosError.ERR_BAD_OPTION_VALUE, config));
         }
       }
-      options.socketPath = config.socketPath;
+      options.socketPath = socketPath;
     } else {
       options.hostname = parsed.hostname.startsWith('[') ? parsed.hostname.slice(1, -1) : parsed.hostname;
       options.port = parsed.port;
-      setProxy(options, config.proxy, protocol + '//' + parsed.hostname + (parsed.port ? ':' + parsed.port : '') + options.path);
+      proxyApplied = setProxy(options, configProxy, protocol + '//' + parsed.hostname + (parsed.port ? ':' + parsed.port : '') + options.path, false, httpsAgent, httpAgent,
+      // The HTTP/2 transport connects independently of HTTP/1 agents, so it
+      // cannot apply either axios-resolved or agent-local environment proxies.
+      // Explicit proxy config is still processed and rejected below.
+      !isHttp2);
     }
     let transport;
+    let isNativeTransport = false;
+    // True only for the follow-redirects transport, which applies
+    // options.maxBodyLength itself. Every other transport (http2, native
+    // http/https, a user-supplied custom transport) needs the explicit
+    // byte-counting pipeline below to enforce maxBodyLength on streamed uploads.
+    let transportEnforcesMaxBodyLength = false;
     const isHttpsRequest = isHttps.test(options.protocol);
-    options.agent = isHttpsRequest ? config.httpsAgent : config.httpAgent;
+    // Don't clobber a CONNECT-tunneling agent installed by setProxy() for an
+    // HTTPS target.
+    if (options.agent == null) {
+      options.agent = isHttpsRequest ? httpsAgent : httpAgent;
+    }
     if (isHttp2) {
+      if (proxyApplied) {
+        return reject(new AxiosError('HTTP/2 requests with a proxy are not supported', AxiosError.ERR_NOT_SUPPORT, config));
+      }
       transport = http2Transport;
     } else {
       const configTransport = own('transport');
       if (configTransport) {
         transport = configTransport;
-      } else if (config.maxRedirects === 0) {
+      } else if (maxRedirects === 0) {
         transport = isHttpsRequest ? https : http;
+        isNativeTransport = true;
       } else {
-        if (config.maxRedirects) {
-          options.maxRedirects = config.maxRedirects;
+        transportEnforcesMaxBodyLength = true;
+        options.sensitiveHeaders = [];
+        if (maxRedirects) {
+          options.maxRedirects = maxRedirects;
         }
         const configBeforeRedirect = own('beforeRedirect');
         if (configBeforeRedirect) {
           options.beforeRedirects.config = configBeforeRedirect;
         }
+        if (auth) {
+          // Restore HTTP Basic credentials on same-origin redirects only.
+          // follow-redirects >= 1.15.8 strips Authorization on every redirect (see #6929);
+          // cross-origin stripping is the documented mitigation for T-R2 in THREATMODEL.md
+          // and is preserved by deliberately not restoring on origin change.
+          const requestOrigin = parsed.origin;
+          const authToRestore = auth;
+          options.beforeRedirects.auth = function beforeRedirectAuth(redirectOptions) {
+            try {
+              if (new URL(redirectOptions.href).origin === requestOrigin) {
+                redirectOptions.auth = authToRestore;
+              }
+            } catch (e) {
+              // ignore malformed URL: leaving auth stripped is fail-safe
+            }
+          };
+        }
+        const sensitiveHeaders = own('sensitiveHeaders');
+        if (sensitiveHeaders != null) {
+          if (!utils$1.isArray(sensitiveHeaders)) {
+            return reject(new AxiosError('sensitiveHeaders must be an array of strings', AxiosError.ERR_BAD_OPTION_VALUE, config));
+          }
+          const sensitiveSet = new Set();
+          for (const header of sensitiveHeaders) {
+            if (!utils$1.isString(header)) {
+              return reject(new AxiosError('sensitiveHeaders must be an array of strings', AxiosError.ERR_BAD_OPTION_VALUE, config));
+            }
+            sensitiveSet.add(header.toLowerCase());
+          }
+          if (sensitiveSet.size) {
+            options.sensitiveHeaders = Array.from(sensitiveSet);
+            options.beforeRedirects.sensitiveHeaders = function beforeRedirectSensitiveHeaders(redirectOptions, requestDetails) {
+              if (!isSameOriginRedirect(redirectOptions, requestDetails)) {
+                stripMatchingHeaders(redirectOptions.headers, sensitiveSet);
+              }
+            };
+          }
+        }
         transport = isHttpsRequest ? httpsFollow : httpFollow;
       }
     }
-    if (config.maxBodyLength > -1) {
-      options.maxBodyLength = config.maxBodyLength;
+
+    // Set an explicit maxBodyLength option for transports that inspect it.
+    // When maxBodyLength is -1 (default/unlimited), use Infinity so
+    // follow-redirects does not fall back to its own 10MB default.
+    if (maxBodyLength > -1) {
+      options.maxBodyLength = maxBodyLength;
     } else {
-      // follow-redirects does not skip comparison, so it should always succeed for axios -1 unlimited
       options.maxBodyLength = Infinity;
     }
 
     // Always set an explicit own value so a polluted
     // Object.prototype.insecureHTTPParser cannot enable the lenient parser
-    // through Node's internal options copy (GHSA-q8qp-cvcw-x6jj).
+    // through Node's internal options copy
     options.insecureHTTPParser = Boolean(own('insecureHTTPParser'));
 
     // Create the request
     req = transport.request(options, function handleResponse(res) {
+      clearConnectPhaseTimer();
       if (req.destroyed) return;
       const streams = [res];
       const responseLength = utils$1.toFiniteNumber(res.headers['content-length']);
@@ -132411,7 +137271,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
         const transformStream = new AxiosTransformStream({
           maxRate: utils$1.toFiniteNumber(maxDownloadRate)
         });
-        onDownloadProgress && transformStream.on('progress', flushOnFinish(transformStream, progressEventDecorator(responseLength, progressEventReducer(asyncDecorator(onDownloadProgress), true, 3))));
+        onDownloadProgress && transformStream.on('progress', flushOnFinish(transformStream, progressEventDecorator(responseLength, progressEventReducer(asyncDecorator(onDownloadProgress, scheduleProgress), true, 3))));
         streams.push(transformStream);
       }
 
@@ -132422,7 +137282,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       const lastRequest = res.req || req;
 
       // if decompress disabled we should not decompress
-      if (config.decompress !== false && res.headers['content-encoding']) {
+      if (decompress !== false && res.headers['content-encoding']) {
         // if no content, but headers still say that it is encoded,
         // remove the header not confuse downstream operations
         if (method === 'HEAD' || res.statusCode === 204) {
@@ -132454,6 +137314,13 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
               streams.push(zlib.createBrotliDecompress(brotliOptions));
               delete res.headers['content-encoding'];
             }
+            break;
+          case 'zstd':
+            if (isZstdSupported) {
+              streams.push(zlib.createZstdDecompress(zstdOptions));
+              delete res.headers['content-encoding'];
+            }
+            break;
         }
       }
       responseStream = streams.length > 1 ? stream.pipeline(streams, utils$1.noop) : streams[0];
@@ -132466,9 +137333,9 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       };
       if (responseType === 'stream') {
         // Enforce maxContentLength on streamed responses; previously this
-        // was applied only to buffered responses. See GHSA-vf2m-468p-8v99.
-        if (config.maxContentLength > -1) {
-          const limit = config.maxContentLength;
+        // was applied only to buffered responses.
+        if (maxContentLength > -1) {
+          const limit = maxContentLength;
           const source = responseStream;
           async function* enforceMaxContentLength() {
             let totalResponseBytes = 0;
@@ -132494,24 +137361,24 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
           totalResponseBytes += chunk.length;
 
           // make sure the content length is not over the maxContentLength if specified
-          if (config.maxContentLength > -1 && totalResponseBytes > config.maxContentLength) {
+          if (maxContentLength > -1 && totalResponseBytes > maxContentLength) {
             // stream.destroy() emit aborted event before calling reject() on Node.js v16
             rejected = true;
             responseStream.destroy();
-            abort(new AxiosError('maxContentLength size of ' + config.maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config, lastRequest));
+            abort(new AxiosError('maxContentLength size of ' + maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config, lastRequest));
           }
         });
         responseStream.on('aborted', function handlerStreamAborted() {
           if (rejected) {
             return;
           }
-          const err = new AxiosError('stream has been aborted', AxiosError.ERR_BAD_RESPONSE, config, lastRequest);
+          const err = new AxiosError('stream has been aborted', AxiosError.ERR_BAD_RESPONSE, config, lastRequest, response);
           responseStream.destroy(err);
           reject(err);
         });
         responseStream.on('error', function handleStreamError(err) {
-          if (req.destroyed) return;
-          reject(AxiosError.from(err, null, config, lastRequest));
+          if (rejected) return;
+          reject(AxiosError.from(err, null, config, lastRequest, response));
         });
         responseStream.on('end', function handleStreamEnd() {
           try {
@@ -132550,39 +137417,59 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     });
 
     // set tcp keep alive to prevent drop connection by peer
+    // Track every socket bound to this outer RedirectableRequest so a single
+    // 'close' listener can release ownership on all of them. follow-redirects
+    // re-emits the 'socket' event for each hop's native request onto the same
+    // outer request, so attaching per-request listeners inside this handler
+    // would accumulate across hops and trigger MaxListenersExceededWarning at
+    // >= 11 redirects. Clearing only the last-bound socket would leave stale
+    // kAxiosCurrentReq refs on earlier hop sockets returned to the keep-alive
+    // pool, causing an idle-pool 'error' to be attributed to a closed req.
+    const boundSockets = new Set();
     req.on('socket', function handleRequestSocket(socket) {
       // default interval of sending ack packet is 1 minute
-      socket.setKeepAlive(true, 1000 * 60);
+      // proxy agents (e.g. agent-base) may return a generic Duplex stream
+      // that doesn't have setKeepAlive, so guard before calling
+      if (typeof socket.setKeepAlive === 'function') {
+        socket.setKeepAlive(true, 1000 * 60);
+      }
 
-      // Install a single 'error' listener per socket (not per request) to avoid
-      // accumulating listeners on pooled keep-alive sockets that get reassigned
-      // to new requests before the previous request's 'close' fires (issue #10780).
-      // The listener is bound to the socket's currently-active request via a
-      // symbol, which is swapped as the socket is reassigned.
+      // Install one shared 'error' listener per socket. The symbol follows the
+      // currently-active request as pooled sockets are reassigned (issue #10780).
       if (!socket[kAxiosSocketListener]) {
-        socket.on('error', function handleSocketError(err) {
-          const current = socket[kAxiosCurrentReq];
-          if (current && !current.destroyed) {
-            current.destroy(err);
-          }
-        });
+        socket.on('error', handleSocketError);
         socket[kAxiosSocketListener] = true;
       }
       socket[kAxiosCurrentReq] = req;
-      req.once('close', function clearCurrentReq() {
+      boundSockets.add(socket);
+    });
+    req.once('close', function clearCurrentReq() {
+      clearConnectPhaseTimer();
+      for (const socket of boundSockets) {
         if (socket[kAxiosCurrentReq] === req) {
           socket[kAxiosCurrentReq] = null;
         }
-      });
+      }
+      boundSockets.clear();
     });
 
     // Handle request timeout
-    if (config.timeout) {
+    if (own('timeout')) {
       // This is forcing a int timeout to avoid problems if the `req` interface doesn't handle other types.
-      const timeout = parseInt(config.timeout, 10);
+      const timeout = parseInt(own('timeout'), 10);
       if (Number.isNaN(timeout)) {
         abort(new AxiosError('error trying to parse `config.timeout` to int', AxiosError.ERR_BAD_OPTION_VALUE, config, req));
         return;
+      }
+      const handleTimeout = function handleTimeout() {
+        if (isDone) return;
+        abort(createTimeoutError());
+      };
+      if (isNativeTransport && timeout > 0) {
+        // Native ClientRequest#setTimeout starts from the socket lifecycle and
+        // may not fire while TCP connect is still pending. Mirror the
+        // follow-redirects wall-clock timer for the maxRedirects === 0 path.
+        connectPhaseTimer = setTimeout(handleTimeout, timeout);
       }
 
       // Sometime, the response will be very slow, and does not respond, the connect event will be block by event loop system.
@@ -132590,15 +137477,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       // At this time, if we have a large number of request, nodejs will hang up some socket on background. and the number will up and up.
       // And then these socket which be hang up will devouring CPU little by little.
       // ClientRequest.setTimeout will be fired on the specify milliseconds, and can make sure that abort() will be fired after connect.
-      req.setTimeout(timeout, function handleRequestTimeout() {
-        if (isDone) return;
-        let timeoutErrorMessage = config.timeout ? 'timeout of ' + config.timeout + 'ms exceeded' : 'timeout exceeded';
-        const transitional = config.transitional || transitionalDefaults;
-        if (config.timeoutErrorMessage) {
-          timeoutErrorMessage = config.timeoutErrorMessage;
-        }
-        abort(new AxiosError(timeoutErrorMessage, transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED, config, req));
-      });
+      req.setTimeout(timeout, handleTimeout);
     } else {
       // explicitly reset the socket timeout value for a possible `keep-alive` request
       req.setTimeout(0);
@@ -132621,12 +137500,13 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
         }
       });
 
-      // Enforce maxBodyLength for streamed uploads on the native http/https
-      // transport (maxRedirects === 0); follow-redirects enforces it on the
-      // other path. See GHSA-5c9x-8gcm-mpgx.
+      // Enforce maxBodyLength for streamed uploads on every transport that
+      // does not apply options.maxBodyLength itself (native http/https, http2,
+      // and user-supplied custom transports). The follow-redirects transport
+      // enforces it on the redirected HTTP/1 path.
       let uploadStream = data;
-      if (config.maxBodyLength > -1 && config.maxRedirects === 0) {
-        const limit = config.maxBodyLength;
+      if (maxBodyLength > -1 && !transportEnforcesMaxBodyLength) {
+        const limit = maxBodyLength;
         let bytesSent = 0;
         uploadStream = stream.pipeline([data, new stream.Transform({
           transform(chunk, _enc, cb) {
@@ -132679,8 +137559,24 @@ var cookies = platform.hasStandardBrowserEnv ?
   },
   read(name) {
     if (typeof document === 'undefined') return null;
-    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-    return match ? decodeURIComponent(match[1]) : null;
+    // Match name=value by splitting on the semicolon separator instead of building a
+    // RegExp from `name` — interpolating an unescaped string into a RegExp would let
+    // metacharacters (e.g. `.+?` in an attacker-influenced cookie name) cause ReDoS or
+    // match the wrong cookie. Browsers may serialize cookie pairs as either ";" or
+    // "; ", so ignore optional whitespace before each cookie name.
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].replace(/^\s+/, '');
+      const eq = cookie.indexOf('=');
+      if (eq !== -1 && cookie.slice(0, eq) === name) {
+        try {
+          return decodeURIComponent(cookie.slice(eq + 1));
+        } catch (e) {
+          return cookie.slice(eq + 1);
+        }
+      }
+    }
+    return null;
   },
   remove(name) {
     this.write(name, '', Date.now() - 86400000, '/');
@@ -132698,6 +137594,12 @@ var cookies = platform.hasStandardBrowserEnv ?
 const headersToObject = thing => thing instanceof AxiosHeaders ? {
   ...thing
 } : thing;
+const ownEnumerableKeys = thing => {
+  if (Object.getOwnPropertySymbols && Object.getOwnPropertyDescriptor) {
+    return Object.keys(thing).concat(Object.getOwnPropertySymbols(thing).filter(symbol => Object.getOwnPropertyDescriptor(thing, symbol).enumerable));
+  }
+  return Object.keys(thing);
+};
 
 /**
  * Config-specific merge-function which creates a new config-object
@@ -132710,14 +137612,18 @@ const headersToObject = thing => thing instanceof AxiosHeaders ? {
  */
 function mergeConfig(config1, config2) {
   // eslint-disable-next-line no-param-reassign
+  config1 = config1 || {};
   config2 = config2 || {};
 
   // Use a null-prototype object so that downstream reads such as `config.auth`
-  // or `config.baseURL` cannot inherit polluted values from Object.prototype
-  // (see GHSA-q8qp-cvcw-x6jj). `hasOwnProperty` is restored as a non-enumerable
-  // own slot to preserve ergonomics for user code that relies on it.
+  // or `config.baseURL` cannot inherit polluted values from Object.prototype.
+  // `hasOwnProperty` is restored as a non-enumerable own slot to preserve
+  // ergonomics for user code that relies on it.
   const config = Object.create(null);
   Object.defineProperty(config, 'hasOwnProperty', {
+    // Null-proto descriptor so a polluted Object.prototype.get cannot turn
+    // this data descriptor into an accessor descriptor on the way in.
+    __proto__: null,
     value: Object.prototype.hasOwnProperty,
     enumerable: false,
     writable: true,
@@ -132758,6 +137664,23 @@ function mergeConfig(config1, config2) {
       return getMergedValue(undefined, a);
     }
   }
+  function getMergedTransitionalOption(prop) {
+    const transitional2 = utils$1.hasOwnProp(config2, 'transitional') ? config2.transitional : undefined;
+    if (!utils$1.isUndefined(transitional2)) {
+      if (utils$1.isPlainObject(transitional2)) {
+        if (utils$1.hasOwnProp(transitional2, prop)) {
+          return transitional2[prop];
+        }
+      } else {
+        return undefined;
+      }
+    }
+    const transitional1 = utils$1.hasOwnProp(config1, 'transitional') ? config1.transitional : undefined;
+    if (utils$1.isPlainObject(transitional1) && utils$1.hasOwnProp(transitional1, prop)) {
+      return transitional1[prop];
+    }
+    return undefined;
+  }
 
   // eslint-disable-next-line consistent-return
   function mergeDirectKeys(a, b, prop) {
@@ -132776,7 +137699,7 @@ function mergeConfig(config1, config2) {
     transformResponse: defaultToConfig2,
     paramsSerializer: defaultToConfig2,
     timeout: defaultToConfig2,
-    timeoutMessage: defaultToConfig2,
+    timeoutErrorMessage: defaultToConfig2,
     withCredentials: defaultToConfig2,
     withXSRFToken: defaultToConfig2,
     adapter: defaultToConfig2,
@@ -132799,7 +137722,7 @@ function mergeConfig(config1, config2) {
     validateStatus: mergeDirectKeys,
     headers: (a, b, prop) => mergeDeepProperties(headersToObject(a), headersToObject(b), prop, true)
   };
-  utils$1.forEach(Object.keys({
+  utils$1.forEach(ownEnumerableKeys({
     ...config1,
     ...config2
   }), function computeConfigValue(prop) {
@@ -132810,14 +137733,30 @@ function mergeConfig(config1, config2) {
     const configValue = merge(a, b, prop);
     utils$1.isUndefined(configValue) && merge !== mergeDirectKeys || (config[prop] = configValue);
   });
+  if (utils$1.hasOwnProp(config2, 'validateStatus') && utils$1.isUndefined(config2.validateStatus) && getMergedTransitionalOption('validateStatusUndefinedResolves') === false) {
+    if (utils$1.hasOwnProp(config1, 'validateStatus')) {
+      config.validateStatus = getMergedValue(undefined, config1.validateStatus);
+    } else {
+      delete config.validateStatus;
+    }
+  }
   return config;
 }
 
-var resolveConfig = config => {
+/**
+ * Encode a UTF-8 string to a Latin-1 byte string for use with btoa().
+ * This is a modern replacement for the deprecated unescape(encodeURIComponent(str)) pattern.
+ *
+ * @param {string} str The string to encode
+ *
+ * @returns {string} UTF-8 bytes as a Latin-1 string
+ */
+const encodeUTF8$1 = str => encodeURIComponent(str).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+function resolveConfig(config) {
   const newConfig = mergeConfig({}, config);
 
   // Read only own properties to prevent prototype pollution gadgets
-  // (e.g. Object.prototype.baseURL = 'https://evil.com'). See GHSA-q8qp-cvcw-x6jj.
+  // (e.g. Object.prototype.baseURL = 'https://evil.com').
   const own = key => utils$1.hasOwnProp(newConfig, key) ? newConfig[key] : undefined;
   const data = own('data');
   let withXSRFToken = own('withXSRFToken');
@@ -132829,25 +137768,25 @@ var resolveConfig = config => {
   const allowAbsoluteUrls = own('allowAbsoluteUrls');
   const url = own('url');
   newConfig.headers = headers = AxiosHeaders.from(headers);
-  newConfig.url = buildURL(buildFullPath(baseURL, url, allowAbsoluteUrls), config.params, config.paramsSerializer);
+  newConfig.url = buildURL(buildFullPath(baseURL, url, allowAbsoluteUrls, newConfig), own('params'), own('paramsSerializer'));
 
   // HTTP basic authentication
   if (auth) {
-    headers.set('Authorization', 'Basic ' + btoa((auth.username || '') + ':' + (auth.password ? unescape(encodeURIComponent(auth.password)) : '')));
+    const username = utils$1.getSafeProp(auth, 'username') || '';
+    const password = utils$1.getSafeProp(auth, 'password') || '';
+    try {
+      headers.set('Authorization', 'Basic ' + btoa(username + ':' + (password ? encodeUTF8$1(password) : '')));
+    } catch (e) {
+      throw AxiosError.from(e, AxiosError.ERR_BAD_OPTION_VALUE, config);
+    }
   }
   if (utils$1.isFormData(data)) {
-    if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv) {
-      headers.setContentType(undefined); // browser handles it
-    } else if (utils$1.isFunction(data.getHeaders)) {
+    const getHeaders = utils$1.getSafeProp(data, 'getHeaders');
+    if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv || utils$1.isReactNative(data)) {
+      headers.setContentType(undefined); // browser/web worker/RN handles it
+    } else if (utils$1.isFunction(getHeaders)) {
       // Node.js FormData (like form-data package)
-      const formHeaders = data.getHeaders();
-      // Only set safe headers to avoid overwriting security headers
-      const allowedHeaders = ['content-type', 'content-length'];
-      Object.entries(formHeaders).forEach(([key, val]) => {
-        if (allowedHeaders.includes(key.toLowerCase())) {
-          headers.set(key, val);
-        }
-      });
+      setFormDataHeaders(headers, getHeaders.call(data), own('formDataHeaderPolicy'));
     }
   }
 
@@ -132862,7 +137801,7 @@ var resolveConfig = config => {
 
     // Strict boolean check — prevents proto-pollution gadgets (e.g. Object.prototype.withXSRFToken = 1)
     // and misconfigurations (e.g. "false") from short-circuiting the same-origin check and leaking
-    // the XSRF token cross-origin. See GHSA-xx6v-rp6x-q39c.
+    // the XSRF token cross-origin.
     const shouldSendXSRF = withXSRFToken === true || withXSRFToken == null && isURLSameOrigin(newConfig.url);
     if (shouldSendXSRF) {
       const xsrfValue = xsrfHeaderName && xsrfCookieName && cookies.read(xsrfCookieName);
@@ -132872,7 +137811,7 @@ var resolveConfig = config => {
     }
   }
   return newConfig;
-};
+}
 
 const isXHRAdapterSupported = typeof XMLHttpRequest !== 'undefined';
 var xhrAdapter = isXHRAdapterSupported && function (config) {
@@ -132887,7 +137826,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
     } = _config;
     let onCanceled;
     let uploadThrottled, downloadThrottled;
-    let flushUpload, flushDownload;
+    let flushUpload, flushDownload, flushDownloadWithEvent;
     function done() {
       flushUpload && flushUpload(); // flush events
       flushDownload && flushDownload(); // flush events
@@ -132900,10 +137839,50 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
 
     // Set the request timeout in MS
     request.timeout = _config.timeout;
-    function onloadend() {
+    function onloadend(event) {
       if (!request) {
         return;
       }
+
+      // Status 0 means no response was received, which onerror and onabort normally
+      // reject before this runs. Firefox 152 fires only readystatechange and loadend for
+      // navigation-canceled requests (https://bugzilla.mozilla.org/show_bug.cgi?id=1505389),
+      // leaving settle() to resolve them as an empty success. ECONNABORTED is the error
+      // onabort raised on Firefox 151. Reads over file:, which some environments report as
+      // status 0 on success, are excluded by the request URL's scheme after browser-style
+      // preprocessing, by the page origin's scheme for relative URLs (which inherit it), or
+      // by responseURL where implemented.
+      if (request.status === 0 && (parseProtocol(normalizeURLForProtocolCheck(_config.url)) || parseProtocol(platform.origin)) !== 'file' && !(request.responseURL && request.responseURL.startsWith('file:'))) {
+        reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
+        done();
+
+        // Clean up request
+        request = null;
+        return;
+      }
+
+      // When loadend is still dispatching, flushing with it gives progress
+      // listeners a final delivery whose event has a live target. The legacy
+      // ready-state fallback has no event, so replay its pending progress.
+      // A throwing listener must not block settlement; rethrow asynchronously,
+      // matching how listener errors surface on the throttle timer path.
+      try {
+        if (event) {
+          flushDownloadWithEvent && flushDownloadWithEvent(event);
+        } else {
+          flushDownload && flushDownload();
+        }
+      } catch (err) {
+        setTimeout(() => {
+          throw err;
+        });
+      }
+
+      // A final progress callback can cancel the request synchronously.
+      if (!request) {
+        return;
+      }
+
       // Prepare the response
       const responseHeaders = AxiosHeaders.from('getAllResponseHeaders' in request && request.getAllResponseHeaders());
       const responseData = !responseType || responseType === 'text' || responseType === 'json' ? request.responseText : request.response;
@@ -132940,7 +137919,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
         // handled by onerror instead
         // With one exception: request that using file: protocol, most browsers
         // will return status as 0 even though it's a successful request
-        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+        if (request.status === 0 && !(request.responseURL && request.responseURL.startsWith('file:'))) {
           return;
         }
         // readystate handler is calling before onerror or ontimeout handlers,
@@ -132955,6 +137934,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
         return;
       }
       reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
+      done();
 
       // Clean up request
       request = null;
@@ -132970,6 +137950,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
       // attach the underlying event for consumers who want details
       err.event = event || null;
       reject(err);
+      done();
       request = null;
     };
 
@@ -132981,6 +137962,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
         timeoutErrorMessage = _config.timeoutErrorMessage;
       }
       reject(new AxiosError(timeoutErrorMessage, transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED, config, request));
+      done();
 
       // Clean up request
       request = null;
@@ -132991,7 +137973,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
 
     // Add headers to the request
     if ('setRequestHeader' in request) {
-      utils$1.forEach(requestHeaders.toJSON(), function setRequestHeader(val, key) {
+      utils$1.forEach(toByteStringHeaderObject(requestHeaders), function setRequestHeader(val, key) {
         request.setRequestHeader(key, val);
       });
     }
@@ -133008,7 +137990,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
 
     // Handle progress if needed
     if (onDownloadProgress) {
-      [downloadThrottled, flushDownload] = progressEventReducer(onDownloadProgress, true);
+      [downloadThrottled, flushDownload, flushDownloadWithEvent] = progressEventReducer(onDownloadProgress, true);
       request.addEventListener('progress', downloadThrottled);
     }
 
@@ -133027,6 +138009,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
         }
         reject(!cancel || cancel.type ? new CanceledError(null, config, request) : cancel);
         request.abort();
+        done();
         request = null;
       };
       _config.cancelToken && _config.cancelToken.subscribe(onCanceled);
@@ -133035,8 +138018,9 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
       }
     }
     const protocol = parseProtocol(_config.url);
-    if (protocol && platform.protocols.indexOf(protocol) === -1) {
+    if (protocol && !platform.protocols.includes(protocol)) {
       reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
+      done();
       return;
     }
 
@@ -133046,41 +138030,52 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
 };
 
 const composeSignals = (signals, timeout) => {
-  const {
-    length
-  } = signals = signals ? signals.filter(Boolean) : [];
-  if (timeout || length) {
-    let controller = new AbortController();
-    let aborted;
-    const onabort = function (reason) {
-      if (!aborted) {
-        aborted = true;
-        unsubscribe();
-        const err = reason instanceof Error ? reason : this.reason;
-        controller.abort(err instanceof AxiosError ? err : new CanceledError(err instanceof Error ? err.message : err));
-      }
-    };
-    let timer = timeout && setTimeout(() => {
-      timer = null;
-      onabort(new AxiosError(`timeout of ${timeout}ms exceeded`, AxiosError.ETIMEDOUT));
-    }, timeout);
-    const unsubscribe = () => {
-      if (signals) {
-        timer && clearTimeout(timer);
-        timer = null;
-        signals.forEach(signal => {
-          signal.unsubscribe ? signal.unsubscribe(onabort) : signal.removeEventListener('abort', onabort);
-        });
-        signals = null;
-      }
-    };
-    signals.forEach(signal => signal.addEventListener('abort', onabort));
-    const {
-      signal
-    } = controller;
-    signal.unsubscribe = () => utils$1.asap(unsubscribe);
-    return signal;
+  signals = signals ? signals.filter(Boolean) : [];
+  if (!timeout && !signals.length) {
+    return;
   }
+  const controller = new AbortController();
+  let aborted = false;
+  const onabort = function (reason) {
+    if (!aborted) {
+      aborted = true;
+      unsubscribe();
+      const err = reason instanceof Error ? reason : this.reason;
+      controller.abort(err instanceof AxiosError ? err : new CanceledError(err instanceof Error ? err.message : err));
+    }
+  };
+  let timer = timeout && setTimeout(() => {
+    timer = null;
+    onabort(new AxiosError(`timeout of ${timeout}ms exceeded`, AxiosError.ETIMEDOUT));
+  }, timeout);
+  const unsubscribe = () => {
+    if (!signals) {
+      return;
+    }
+    timer && clearTimeout(timer);
+    timer = null;
+    signals.forEach(signal => {
+      signal.unsubscribe ? signal.unsubscribe(onabort) : signal.removeEventListener('abort', onabort);
+    });
+    signals = null;
+  };
+  signals.forEach(signal => {
+    if (aborted) {
+      return;
+    }
+    if (signal.aborted) {
+      onabort.call(signal);
+      return;
+    }
+    signal.addEventListener('abort', onabort, {
+      once: true
+    });
+  });
+  const {
+    signal
+  } = controller;
+  signal.unsubscribe = () => utils$1.asap(unsubscribe);
+  return signal;
 };
 
 const streamChunk = function* (chunk, chunkSize) {
@@ -133166,20 +138161,45 @@ const trackStream = (stream, chunkSize, onProgress, onFinish) => {
 };
 
 const DEFAULT_CHUNK_SIZE = 64 * 1024;
+const DEFAULT_REQUEST_OPTIONS = {
+  cache: 'default',
+  redirect: 'follow',
+  referrer: 'about:client',
+  referrerPolicy: '',
+  mode: 'cors',
+  integrity: '',
+  keepalive: false,
+  priority: 'auto',
+  window: null
+};
 const {
   isFunction
 } = utils$1;
-const globalFetchAPI = (({
-  Request,
-  Response
-}) => ({
-  Request,
-  Response
-}))(utils$1.global);
-const {
-  ReadableStream: ReadableStream$1,
-  TextEncoder: TextEncoder$1
-} = utils$1.global;
+
+/**
+ * Encode a UTF-8 string to a Latin-1 byte string for use with btoa().
+ * This is a modern replacement for the deprecated unescape(encodeURIComponent(str)) pattern.
+ *
+ * @param {string} str The string to encode
+ *
+ * @returns {string} UTF-8 bytes as a Latin-1 string
+ */
+const encodeUTF8 = str => encodeURIComponent(str).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+
+// Node's WHATWG URL parser returns `username` and `password` percent-encoded.
+// Decode before composing the `auth` option so credentials such as
+// `my%40email.com:pass` are sent as `my@email.com:pass`. Falls back to the
+// original value for malformed input so a bad encoding never throws.
+const decodeURIComponentSafe = value => {
+  if (!utils$1.isString(value)) {
+    return value;
+  }
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    return value;
+  }
+};
 const test = (fn, ...args) => {
   try {
     return !!fn(...args);
@@ -133187,10 +138207,26 @@ const test = (fn, ...args) => {
     return false;
   }
 };
+const maybeWithAuthCredentials = url => {
+  const protocolIndex = url.indexOf('://');
+  let urlToCheck = url;
+  if (protocolIndex !== -1) {
+    urlToCheck = urlToCheck.slice(protocolIndex + 3);
+  }
+  return urlToCheck.includes('@') || urlToCheck.includes(':');
+};
 const factory = env => {
+  const globalObject = utils$1.global !== undefined && utils$1.global !== null ? utils$1.global : globalThis;
+  const {
+    ReadableStream,
+    TextEncoder
+  } = globalObject;
   env = utils$1.merge.call({
     skipUndefined: true
-  }, globalFetchAPI, env);
+  }, {
+    Request: globalObject.Request,
+    Response: globalObject.Response
+  }, env);
   const {
     fetch: envFetch,
     Request,
@@ -133202,12 +138238,12 @@ const factory = env => {
   if (!isFetchSupported) {
     return false;
   }
-  const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream$1);
-  const encodeText = isFetchSupported && (typeof TextEncoder$1 === 'function' ? (encoder => str => encoder.encode(str))(new TextEncoder$1()) : async str => new Uint8Array(await new Request(str).arrayBuffer()));
+  const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream);
+  const encodeText = isFetchSupported && (typeof TextEncoder === 'function' ? (encoder => str => encoder.encode(str))(new TextEncoder()) : async str => new Uint8Array(await new Request(str).arrayBuffer()));
   const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
     let duplexAccessed = false;
     const request = new Request(platform.origin, {
-      body: new ReadableStream$1(),
+      body: new ReadableStream(),
       method: 'POST',
       get duplex() {
         duplexAccessed = true;
@@ -133276,8 +138312,14 @@ const factory = env => {
       responseType,
       headers,
       withCredentials = 'same-origin',
-      fetchOptions
+      fetchOptions,
+      maxContentLength,
+      maxBodyLength,
+      maxRedirects
     } = resolveConfig(config);
+    const hasMaxContentLength = utils$1.isNumber(maxContentLength) && maxContentLength > -1;
+    const hasMaxBodyLength = utils$1.isNumber(maxBodyLength) && maxBodyLength > -1;
+    const own = key => utils$1.hasOwnProp(config, key) ? config[key] : undefined;
     let _fetch = envFetch || fetch;
     responseType = responseType ? (responseType + '').toLowerCase() : 'text';
     let composedSignal = composeSignals([signal, cancelToken && cancelToken.toAbortSignal()], timeout);
@@ -133286,21 +138328,104 @@ const factory = env => {
       composedSignal.unsubscribe();
     });
     let requestContentLength;
+
+    // AxiosError we raise while the request body is being streamed. Captured
+    // by identity so the catch block can surface it directly, regardless of
+    // how the runtime wraps the resulting fetch rejection (undici exposes it
+    // as `err.cause`; some browsers drop the original error entirely).
+    let pendingBodyError = null;
+    const maxBodyLengthError = () => new AxiosError('Request body larger than maxBodyLength limit', AxiosError.ERR_BAD_REQUEST, config, request);
     try {
-      if (onUploadProgress && supportsRequestStream && method !== 'get' && method !== 'head' && (requestContentLength = await resolveBodyLength(headers, data)) !== 0) {
-        let _request = new Request(url, {
-          method: 'POST',
-          body: data,
-          duplex: 'half'
-        });
-        let contentTypeHeader;
-        if (utils$1.isFormData(data) && (contentTypeHeader = _request.headers.get('content-type'))) {
-          headers.setContentType(contentTypeHeader);
+      // HTTP basic authentication
+      let auth = undefined;
+      const configAuth = own('auth');
+      if (configAuth) {
+        const username = utils$1.getSafeProp(configAuth, 'username') || '';
+        const password = utils$1.getSafeProp(configAuth, 'password') || '';
+        auth = {
+          username,
+          password
+        };
+      }
+      if (maybeWithAuthCredentials(url)) {
+        const parsedURL = new URL(url, platform.origin);
+        if (!auth && (parsedURL.username || parsedURL.password)) {
+          const urlUsername = decodeURIComponentSafe(parsedURL.username);
+          const urlPassword = decodeURIComponentSafe(parsedURL.password);
+          auth = {
+            username: urlUsername,
+            password: urlPassword
+          };
         }
-        if (_request.body) {
-          const [onProgress, flush] = progressEventDecorator(requestContentLength, progressEventReducer(asyncDecorator(onUploadProgress)));
-          data = trackStream(_request.body, DEFAULT_CHUNK_SIZE, onProgress, flush);
+        if (parsedURL.username || parsedURL.password) {
+          parsedURL.username = '';
+          parsedURL.password = '';
+          url = parsedURL.href;
         }
+      }
+      if (auth) {
+        headers.delete('authorization');
+        headers.set('Authorization', 'Basic ' + btoa(encodeUTF8((auth.username || '') + ':' + (auth.password || ''))));
+      }
+
+      // Enforce maxContentLength for data: URLs up-front so we never materialize
+      // an oversized payload. The HTTP adapter applies the same check (see http.js
+      // "if (protocol === 'data:')" branch).
+      if (hasMaxContentLength && typeof url === 'string' && url.startsWith('data:')) {
+        const estimated = estimateDataURLDecodedBytes(url);
+        if (estimated > maxContentLength) {
+          throw new AxiosError('maxContentLength size of ' + maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config, request);
+        }
+      }
+
+      // Enforce maxBodyLength against known-size bodies before dispatch using
+      // the body's *actual* size — never a caller-declared Content-Length,
+      // which could under-report to slip an oversized body past the check.
+      // Unknown-size streams return undefined here and are counted per-chunk
+      // below as fetch consumes them.
+      if (hasMaxBodyLength && method !== 'get' && method !== 'head') {
+        const outboundLength = await getBodyLength(data);
+        if (typeof outboundLength === 'number' && isFinite(outboundLength)) {
+          requestContentLength = outboundLength;
+          if (outboundLength > maxBodyLength) {
+            throw maxBodyLengthError();
+          }
+        }
+      }
+
+      // A streamed body under maxBodyLength must be counted as fetch consumes
+      // it; its size is never trusted from a caller-declared Content-Length.
+      const mustEnforceStreamBody = hasMaxBodyLength && (utils$1.isReadableStream(data) || utils$1.isStream(data));
+      const trackRequestStream = (stream, onProgress, flush) => trackStream(stream, DEFAULT_CHUNK_SIZE, loadedBytes => {
+        if (hasMaxBodyLength && loadedBytes > maxBodyLength) {
+          throw pendingBodyError = maxBodyLengthError();
+        }
+        onProgress && onProgress(loadedBytes);
+      }, flush);
+      if (supportsRequestStream && method !== 'get' && method !== 'head' && (onUploadProgress || mustEnforceStreamBody)) {
+        requestContentLength = requestContentLength == null ? await resolveBodyLength(headers, data) : requestContentLength;
+
+        // A declared length of 0 is only trusted to skip the wrap when we are
+        // not enforcing a stream limit (which must not rely on that header).
+        if (requestContentLength !== 0 || mustEnforceStreamBody) {
+          let _request = new Request(url, {
+            method: 'POST',
+            body: data,
+            duplex: 'half'
+          });
+          let contentTypeHeader;
+          if (utils$1.isFormData(data) && (contentTypeHeader = _request.headers.get('content-type'))) {
+            headers.setContentType(contentTypeHeader);
+          }
+          if (_request.body) {
+            const [onProgress, flush] = onUploadProgress && progressEventDecorator(requestContentLength, progressEventReducer(asyncDecorator(onUploadProgress))) || [];
+            data = trackRequestStream(_request.body, onProgress, flush);
+          }
+        }
+      } else if (mustEnforceStreamBody && !isRequestSupported && isReadableStreamSupported && method !== 'get' && method !== 'head') {
+        data = trackRequestStream(data);
+      } else if (mustEnforceStreamBody && isRequestSupported && !supportsRequestStream && method !== 'get' && method !== 'head') {
+        throw new AxiosError('Stream request bodies are not supported by the current fetch implementation', AxiosError.ERR_NOT_SUPPORT, config, request);
       }
       if (!utils$1.isString(withCredentials)) {
         withCredentials = withCredentials ? 'include' : 'omit';
@@ -133318,32 +138443,103 @@ const factory = env => {
           headers.delete('content-type');
         }
       }
-      const resolvedOptions = {
-        ...fetchOptions,
+
+      // Set User-Agent header if not already set (fetch defaults to 'node' in Node.js)
+      headers.set('User-Agent', 'axios/' + VERSION, false);
+      const safeFetchOptions = fetchOptions == null ? fetchOptions : Object.assign(Object.create(null), fetchOptions);
+      if (safeFetchOptions) {
+        // These options are owned by Axios and are already reflected in the
+        // resolved Request passed to fetch.
+        delete safeFetchOptions.body;
+        delete safeFetchOptions.headers;
+        delete safeFetchOptions.method;
+        delete safeFetchOptions.signal;
+        delete safeFetchOptions.duplex;
+        delete safeFetchOptions.credentials;
+      }
+      const resolvedOptions = Object.assign(Object.create(null), safeFetchOptions, {
         signal: composedSignal,
         method: method.toUpperCase(),
-        headers: headers.normalize().toJSON(),
+        headers: toByteStringHeaderObject(headers.normalize()),
         body: data,
         duplex: 'half',
         credentials: isCredentialsSupported ? withCredentials : undefined
-      };
+      });
+      if (isRequestSupported) {
+        utils$1.forEach(DEFAULT_REQUEST_OPTIONS, (value, key) => {
+          if (resolvedOptions[key] === undefined) {
+            resolvedOptions[key] = value;
+          }
+        });
+        if (resolvedOptions.signal === undefined) {
+          resolvedOptions.signal = null;
+        }
+        if (resolvedOptions.body === undefined) {
+          resolvedOptions.body = null;
+        }
+      }
+      if (maxRedirects === 0) {
+        resolvedOptions.redirect = 'manual';
+        if (safeFetchOptions) {
+          safeFetchOptions.redirect = 'manual';
+        }
+      }
       request = isRequestSupported && new Request(url, resolvedOptions);
-      let response = await (isRequestSupported ? _fetch(request, fetchOptions) : _fetch(url, resolvedOptions));
+      let response = await (isRequestSupported ? _fetch(request, safeFetchOptions) : _fetch(url, resolvedOptions));
+      const responseHeaders = AxiosHeaders.from(response.headers);
+
+      // Cheap pre-check: if the server honestly declares a content-length that
+      // already exceeds the cap, reject before we start streaming.
+      if (hasMaxContentLength) {
+        const declaredLength = utils$1.toFiniteNumber(responseHeaders.getContentLength());
+        if (declaredLength != null && declaredLength > maxContentLength) {
+          throw new AxiosError('maxContentLength size of ' + maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config, request);
+        }
+      }
       const isStreamResponse = supportsResponseStream && (responseType === 'stream' || responseType === 'response');
-      if (supportsResponseStream && (onDownloadProgress || isStreamResponse && unsubscribe)) {
+      if (supportsResponseStream && response.body && (onDownloadProgress || hasMaxContentLength || isStreamResponse && unsubscribe)) {
         const options = {};
         ['status', 'statusText', 'headers'].forEach(prop => {
           options[prop] = response[prop];
         });
-        const responseContentLength = utils$1.toFiniteNumber(response.headers.get('content-length'));
+        const responseContentLength = utils$1.toFiniteNumber(responseHeaders.getContentLength());
         const [onProgress, flush] = onDownloadProgress && progressEventDecorator(responseContentLength, progressEventReducer(asyncDecorator(onDownloadProgress), true)) || [];
-        response = new Response(trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
+        let bytesRead = 0;
+        const onChunkProgress = loadedBytes => {
+          if (hasMaxContentLength) {
+            bytesRead = loadedBytes;
+            if (bytesRead > maxContentLength) {
+              throw new AxiosError('maxContentLength size of ' + maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config, request);
+            }
+          }
+          onProgress && onProgress(loadedBytes);
+        };
+        response = new Response(trackStream(response.body, DEFAULT_CHUNK_SIZE, onChunkProgress, () => {
           flush && flush();
           unsubscribe && unsubscribe();
         }), options);
       }
       responseType = responseType || 'text';
       let responseData = await resolvers[utils$1.findKey(resolvers, responseType) || 'text'](response, config);
+
+      // Fallback enforcement for environments without ReadableStream support
+      // (legacy runtimes). Detect materialized size from typed output; skip
+      // streams/Response passthrough since the user will read those themselves.
+      if (hasMaxContentLength && !supportsResponseStream && !isStreamResponse) {
+        let materializedSize;
+        if (responseData != null) {
+          if (typeof responseData.byteLength === 'number') {
+            materializedSize = responseData.byteLength;
+          } else if (typeof responseData.size === 'number') {
+            materializedSize = responseData.size;
+          } else if (typeof responseData === 'string') {
+            materializedSize = typeof TextEncoder === 'function' ? new TextEncoder().encode(responseData).byteLength : responseData.length;
+          }
+        }
+        if (typeof materializedSize === 'number' && materializedSize > maxContentLength) {
+          throw new AxiosError('maxContentLength size of ' + maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config, request);
+        }
+      }
       !isStreamResponse && unsubscribe && unsubscribe();
       return await new Promise((resolve, reject) => {
         settle(resolve, reject, {
@@ -133357,10 +138553,56 @@ const factory = env => {
       });
     } catch (err) {
       unsubscribe && unsubscribe();
+
+      // Safari can surface fetch aborts as a DOMException-like object whose
+      // branded getters throw. Prefer our composed signal reason before reading
+      // the caught error, preserving timeout vs cancellation semantics.
+      if (composedSignal && composedSignal.aborted && composedSignal.reason instanceof AxiosError) {
+        const canceledError = composedSignal.reason;
+        canceledError.config = config;
+        request && (canceledError.request = request);
+        if (err !== canceledError) {
+          // Non-enumerable to match native Error `cause` semantics so loggers
+          // don't recurse into circular fetch internals (see #7205).
+          Object.defineProperty(canceledError, 'cause', {
+            __proto__: null,
+            value: err,
+            writable: true,
+            enumerable: false,
+            configurable: true
+          });
+        }
+        throw canceledError;
+      }
+
+      // Surface a maxBodyLength violation we raised while the request body was
+      // being streamed. Matching by identity (rather than reading
+      // `err.cause.isAxiosError`) keeps the error deterministic across runtimes
+      // and avoids both prototype-pollution reads and mis-attributing a foreign
+      // AxiosError that merely happened to land in `err.cause`.
+      if (pendingBodyError) {
+        request && !pendingBodyError.request && (pendingBodyError.request = request);
+        throw pendingBodyError;
+      }
+
+      // Re-throw AxiosErrors we raised synchronously (data: URL / content-length
+      // pre-checks, response size enforcement) without re-wrapping them.
+      if (err instanceof AxiosError) {
+        request && !err.request && (err.request = request);
+        throw err;
+      }
       if (err && err.name === 'TypeError' && /Load failed|fetch/i.test(err.message)) {
-        throw Object.assign(new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request, err && err.response), {
-          cause: err.cause || err
+        const networkError = new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request, err && err.response);
+        // Non-enumerable to match native Error `cause` semantics so loggers
+        // don't recurse into circular fetch internals (see #7205).
+        Object.defineProperty(networkError, 'cause', {
+          __proto__: null,
+          value: err.cause || err,
+          writable: true,
+          enumerable: false,
+          configurable: true
         });
+        throw networkError;
       }
       throw AxiosError.from(err, err && err.code, config, request, err && err.response);
     }
@@ -133411,13 +138653,17 @@ const knownAdapters = {
 utils$1.forEach(knownAdapters, (fn, value) => {
   if (fn) {
     try {
+      // Null-proto descriptors so a polluted Object.prototype.get cannot turn
+      // these data descriptors into accessor descriptors on the way in.
       Object.defineProperty(fn, 'name', {
+        __proto__: null,
         value
       });
     } catch (e) {
       // eslint-disable-next-line no-empty
     }
     Object.defineProperty(fn, 'adapterName', {
+      __proto__: null,
       value
     });
   }
@@ -133475,7 +138721,7 @@ function getAdapter(adapters, config) {
   if (!adapter) {
     const reasons = Object.entries(rejectedReasons).map(([id, state]) => `adapter ${id} ` + (state === false ? 'is not supported by the environment' : 'is not available in the build'));
     let s = length ? reasons.length > 1 ? 'since :\n' + reasons.map(renderReason).join('\n') : ' ' + renderReason(reasons[0]) : 'as no adapter specified';
-    throw new AxiosError(`There is no suitable adapter to dispatch the request ` + s, 'ERR_NOT_SUPPORT');
+    throw new AxiosError(`There is no suitable adapter to dispatch the request ` + s, AxiosError.ERR_NOT_SUPPORT);
   }
   return adapter;
 }
@@ -133519,9 +138765,13 @@ function throwIfCancellationRequested(config) {
  *
  * @returns {Promise} The Promise to be fulfilled
  */
-function dispatchRequest(config) {
+function dispatchRequest(_config) {
+  // Interceptors may replace the merged config with an ordinary object. Flatten
+  // it at the dispatch boundary so shared prototype members cannot become
+  // request behavior, while preserving intentional template/class members.
+  const config = utils$1.toSafeFlatObject(_config);
   throwIfCancellationRequested(config);
-  config.headers = AxiosHeaders.from(config.headers);
+  config.headers = AxiosHeaders.from(utils$1.getSafeProp(config, 'headers'));
 
   // Transform request data
   config.data = transformData.call(config, config.transformRequest);
@@ -133532,8 +138782,15 @@ function dispatchRequest(config) {
   return adapter(config).then(function onAdapterResolution(response) {
     throwIfCancellationRequested(config);
 
-    // Transform response data
-    response.data = transformData.call(config, config.transformResponse, response);
+    // Expose the current response on config so that transformResponse can
+    // attach it to any AxiosError it throws (e.g. on JSON parse failure).
+    // We clean it up afterwards to avoid polluting the config object.
+    config.response = response;
+    try {
+      response.data = transformData.call(config, config.transformResponse, response);
+    } finally {
+      delete config.response;
+    }
     response.headers = AxiosHeaders.from(response.headers);
     return response;
   }, function onAdapterRejection(reason) {
@@ -133542,7 +138799,12 @@ function dispatchRequest(config) {
 
       // Transform response data
       if (reason && reason.response) {
-        reason.response.data = transformData.call(config, config.transformResponse, reason.response);
+        config.response = reason.response;
+        try {
+          reason.response.data = transformData.call(config, config.transformResponse, reason.response);
+        } finally {
+          delete config.response;
+        }
         reason.response.headers = AxiosHeaders.from(reason.response.headers);
       }
     }
@@ -133606,7 +138868,7 @@ validators$1.spelling = function spelling(correctSpelling) {
  */
 
 function assertOptions(options, schema, allowUnknown) {
-  if (typeof options !== 'object') {
+  if (typeof options !== 'object' || options === null) {
     throw new AxiosError('options must be an object', AxiosError.ERR_BAD_OPTION_VALUE);
   }
   const keys = Object.keys(options);
@@ -133614,7 +138876,7 @@ function assertOptions(options, schema, allowUnknown) {
   while (i-- > 0) {
     const opt = keys[i];
     // Use hasOwnProperty so a polluted Object.prototype.<opt> cannot supply
-    // a non-function validator and cause a TypeError. See GHSA-q8qp-cvcw-x6jj.
+    // a non-function validator and cause a TypeError.
     const validator = Object.prototype.hasOwnProperty.call(schema, opt) ? schema[opt] : undefined;
     if (validator) {
       const value = options[opt];
@@ -133665,18 +138927,17 @@ class Axios {
       return await this._request(configOrUrl, config);
     } catch (err) {
       if (err instanceof Error) {
-        let dummy = {};
-        Error.captureStackTrace ? Error.captureStackTrace(dummy) : dummy = new Error();
-
-        // slice off the Error: ... line
-        const stack = (() => {
-          if (!dummy.stack) {
-            return '';
-          }
-          const firstNewlineIndex = dummy.stack.indexOf('\n');
-          return firstNewlineIndex === -1 ? '' : dummy.stack.slice(firstNewlineIndex + 1);
-        })();
         try {
+          let dummy = {};
+          Error.captureStackTrace ? Error.captureStackTrace(dummy) : dummy = new Error();
+          const dummyStack = dummy.stack;
+          let stack = '';
+
+          // slice off the Error: ... line
+          if (typeof dummyStack === 'string') {
+            const firstNewlineIndex = dummyStack.indexOf('\n');
+            stack = firstNewlineIndex === -1 ? '' : dummyStack.slice(firstNewlineIndex + 1);
+          }
           if (!err.stack) {
             err.stack = stack;
             // match without the 2 top stack lines
@@ -133689,7 +138950,7 @@ class Axios {
             }
           }
         } catch (e) {
-          // ignore the case where "stack" is an un-writable property
+          // Ignore failures from custom stack hooks or un-writable stack properties.
         }
       }
       throw err;
@@ -133715,7 +138976,9 @@ class Axios {
         silentJSONParsing: validators.transitional(validators.boolean),
         forcedJSONParsing: validators.transitional(validators.boolean),
         clarifyTimeoutError: validators.transitional(validators.boolean),
-        legacyInterceptorReqResOrdering: validators.transitional(validators.boolean)
+        legacyInterceptorReqResOrdering: validators.transitional(validators.boolean),
+        advertiseZstdAcceptEncoding: validators.transitional(validators.boolean),
+        validateStatusUndefinedResolves: validators.transitional(validators.boolean)
       }, false);
     }
     if (paramsSerializer != null) {
@@ -133743,11 +139006,11 @@ class Axios {
     }, true);
 
     // Set config.method
-    config.method = (config.method || this.defaults.method || 'get').toLowerCase();
+    config.method = (utils$1.getSafeProp(config, 'method') || utils$1.getSafeProp(this.defaults, 'method') || 'get').toLowerCase();
 
     // Flatten headers
     let contextHeaders = headers && utils$1.merge(headers.common, headers[config.method]);
-    headers && utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch', 'common'], method => {
+    headers && utils$1.forEach(methodList.concat('common'), method => {
       delete headers[method];
     });
     config.headers = AxiosHeaders.concat(contextHeaders, headers);
@@ -133792,16 +139055,29 @@ class Axios {
       const onFulfilled = requestInterceptorChain[i++];
       const onRejected = requestInterceptorChain[i++];
       try {
-        newConfig = onFulfilled(newConfig);
+        newConfig = onFulfilled ? onFulfilled(newConfig) : newConfig;
       } catch (error) {
-        onRejected.call(this, error);
+        if (!onRejected) {
+          promise = Promise.reject(error);
+          break;
+        }
+        try {
+          const rejectedResult = onRejected.call(this, error);
+          if (utils$1.isThenable(rejectedResult)) {
+            promise = Promise.resolve(rejectedResult).then(() => dispatchRequest.call(this, newConfig));
+          }
+        } catch (rejectedError) {
+          promise = Promise.reject(rejectedError);
+        }
         break;
       }
     }
-    try {
-      promise = dispatchRequest.call(this, newConfig);
-    } catch (error) {
-      return Promise.reject(error);
+    if (!promise) {
+      try {
+        promise = dispatchRequest.call(this, newConfig);
+      } catch (error) {
+        promise = Promise.reject(error);
+      }
     }
     i = 0;
     len = responseInterceptorChain.length;
@@ -133812,7 +139088,7 @@ class Axios {
   }
   getUri(config) {
     config = mergeConfig(this.defaults, config);
-    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
+    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls, config);
     return buildURL(fullPath, config.params, config.paramsSerializer);
   }
 }
@@ -133824,11 +139100,11 @@ utils$1.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoDa
     return this.request(mergeConfig(config || {}, {
       method,
       url,
-      data: (config || {}).data
+      data: config && utils$1.hasOwnProp(config, 'data') ? config.data : undefined
     }));
   };
 });
-utils$1.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+utils$1.forEach(['post', 'put', 'patch', 'query'], function forEachMethodWithData(method) {
   function generateHTTPMethod(isForm) {
     return function httpMethod(url, data, config) {
       return this.request(mergeConfig(config || {}, {
@@ -133842,7 +139118,12 @@ utils$1.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method)
     };
   }
   Axios.prototype[method] = generateHTTPMethod();
-  Axios.prototype[method + 'Form'] = generateHTTPMethod(true);
+
+  // QUERY is a safe/idempotent read method; multipart form bodies don't fit
+  // its semantics, so no queryForm shorthand is generated.
+  if (method !== 'query') {
+    Axios.prototype[method + 'Form'] = generateHTTPMethod(true);
+  }
 });
 
 /**
@@ -134035,14 +139316,22 @@ const HttpStatusCode = {
   Gone: 410,
   LengthRequired: 411,
   PreconditionFailed: 412,
+  /**
+   * @deprecated Use `ContentTooLarge` instead.
+   */
   PayloadTooLarge: 413,
+  ContentTooLarge: 413,
   UriTooLong: 414,
   UnsupportedMediaType: 415,
   RangeNotSatisfiable: 416,
   ExpectationFailed: 417,
   ImATeapot: 418,
   MisdirectedRequest: 421,
+  /**
+   * @deprecated Use `UnprocessableContent` instead.
+   */
   UnprocessableEntity: 422,
+  UnprocessableContent: 422,
   Locked: 423,
   FailedDependency: 424,
   TooEarly: 425,
@@ -134062,6 +139351,7 @@ const HttpStatusCode = {
   LoopDetected: 508,
   NotExtended: 510,
   NetworkAuthenticationRequired: 511,
+  WebServerReturnsAnUnknownError: 520,
   WebServerIsDown: 521,
   ConnectionTimedOut: 522,
   OriginIsUnreachable: 523,
@@ -134070,7 +139360,9 @@ const HttpStatusCode = {
   InvalidSslCertificate: 526
 };
 Object.entries(HttpStatusCode).forEach(([key, value]) => {
-  HttpStatusCode[value] = key;
+  if (HttpStatusCode[value] === undefined) {
+    HttpStatusCode[value] = key;
+  }
 });
 
 /**
@@ -134138,7 +139430,6 @@ axios.HttpStatusCode = HttpStatusCode;
 axios.default = axios;
 
 module.exports = axios;
-//# sourceMappingURL=axios.cjs.map
 
 
 /***/ }),
@@ -134146,7 +139437,7 @@ module.exports = axios;
 /***/ 50591:
 /***/ ((module) => {
 
-(()=>{"use strict";var t={d:(e,n)=>{for(var i in n)t.o(n,i)&&!t.o(e,i)&&Object.defineProperty(e,i,{enumerable:!0,get:n[i]})},o:(t,e)=>Object.prototype.hasOwnProperty.call(t,e),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},e={};t.r(e),t.d(e,{XMLBuilder:()=>Bt,XMLParser:()=>Tt,XMLValidator:()=>Ut});const n=":A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD",i=new RegExp("^["+n+"]["+n+"\\-.\\d\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$");function s(t,e){const n=[];let i=e.exec(t);for(;i;){const s=[];s.startIndex=e.lastIndex-i[0].length;const r=i.length;for(let t=0;t<r;t++)s.push(i[t]);n.push(s),i=e.exec(t)}return n}const r=function(t){return!(null==i.exec(t))},o=["hasOwnProperty","toString","valueOf","__defineGetter__","__defineSetter__","__lookupGetter__","__lookupSetter__"],a=["__proto__","constructor","prototype"],h={allowBooleanAttributes:!1,unpairedTags:[]};function l(t,e){e=Object.assign({},h,e);const n=[];let i=!1,s=!1;"\ufeff"===t[0]&&(t=t.substr(1));for(let r=0;r<t.length;r++)if("<"===t[r]&&"?"===t[r+1]){if(r+=2,r=p(t,r),r.err)return r}else{if("<"!==t[r]){if(u(t[r]))continue;return b("InvalidChar","char '"+t[r]+"' is not expected.",w(t,r))}{let o=r;if(r++,"!"===t[r]){r=c(t,r);continue}{let a=!1;"/"===t[r]&&(a=!0,r++);let h="";for(;r<t.length&&">"!==t[r]&&" "!==t[r]&&"\t"!==t[r]&&"\n"!==t[r]&&"\r"!==t[r];r++)h+=t[r];if(h=h.trim(),"/"===h[h.length-1]&&(h=h.substring(0,h.length-1),r--),!E(h)){let e;return e=0===h.trim().length?"Invalid space after '<'.":"Tag '"+h+"' is an invalid name.",b("InvalidTag",e,w(t,r))}const l=g(t,r);if(!1===l)return b("InvalidAttr","Attributes for '"+h+"' have open quote.",w(t,r));let d=l.value;if(r=l.index,"/"===d[d.length-1]){const n=r-d.length;d=d.substring(0,d.length-1);const s=x(d,e);if(!0!==s)return b(s.err.code,s.err.msg,w(t,n+s.err.line));i=!0}else if(a){if(!l.tagClosed)return b("InvalidTag","Closing tag '"+h+"' doesn't have proper closing.",w(t,r));if(d.trim().length>0)return b("InvalidTag","Closing tag '"+h+"' can't have attributes or invalid starting.",w(t,o));if(0===n.length)return b("InvalidTag","Closing tag '"+h+"' has not been opened.",w(t,o));{const e=n.pop();if(h!==e.tagName){let n=w(t,e.tagStartPos);return b("InvalidTag","Expected closing tag '"+e.tagName+"' (opened in line "+n.line+", col "+n.col+") instead of closing tag '"+h+"'.",w(t,o))}0==n.length&&(s=!0)}}else{const a=x(d,e);if(!0!==a)return b(a.err.code,a.err.msg,w(t,r-d.length+a.err.line));if(!0===s)return b("InvalidXml","Multiple possible root nodes found.",w(t,r));-1!==e.unpairedTags.indexOf(h)||n.push({tagName:h,tagStartPos:o}),i=!0}for(r++;r<t.length;r++)if("<"===t[r]){if("!"===t[r+1]){r++,r=c(t,r);continue}if("?"!==t[r+1])break;if(r=p(t,++r),r.err)return r}else if("&"===t[r]){const e=N(t,r);if(-1==e)return b("InvalidChar","char '&' is not expected.",w(t,r));r=e}else if(!0===s&&!u(t[r]))return b("InvalidXml","Extra text at the end",w(t,r));"<"===t[r]&&r--}}}return i?1==n.length?b("InvalidTag","Unclosed tag '"+n[0].tagName+"'.",w(t,n[0].tagStartPos)):!(n.length>0)||b("InvalidXml","Invalid '"+JSON.stringify(n.map(t=>t.tagName),null,4).replace(/\r?\n/g,"")+"' found.",{line:1,col:1}):b("InvalidXml","Start tag expected.",1)}function u(t){return" "===t||"\t"===t||"\n"===t||"\r"===t}function p(t,e){const n=e;for(;e<t.length;e++)if("?"==t[e]||" "==t[e]){const i=t.substr(n,e-n);if(e>5&&"xml"===i)return b("InvalidXml","XML declaration allowed only at the start of the document.",w(t,e));if("?"==t[e]&&">"==t[e+1]){e++;break}continue}return e}function c(t,e){if(t.length>e+5&&"-"===t[e+1]&&"-"===t[e+2]){for(e+=3;e<t.length;e++)if("-"===t[e]&&"-"===t[e+1]&&">"===t[e+2]){e+=2;break}}else if(t.length>e+8&&"D"===t[e+1]&&"O"===t[e+2]&&"C"===t[e+3]&&"T"===t[e+4]&&"Y"===t[e+5]&&"P"===t[e+6]&&"E"===t[e+7]){let n=1;for(e+=8;e<t.length;e++)if("<"===t[e])n++;else if(">"===t[e]&&(n--,0===n))break}else if(t.length>e+9&&"["===t[e+1]&&"C"===t[e+2]&&"D"===t[e+3]&&"A"===t[e+4]&&"T"===t[e+5]&&"A"===t[e+6]&&"["===t[e+7])for(e+=8;e<t.length;e++)if("]"===t[e]&&"]"===t[e+1]&&">"===t[e+2]){e+=2;break}return e}const d='"',f="'";function g(t,e){let n="",i="",s=!1;for(;e<t.length;e++){if(t[e]===d||t[e]===f)""===i?i=t[e]:i!==t[e]||(i="");else if(">"===t[e]&&""===i){s=!0;break}n+=t[e]}return""===i&&{value:n,index:e,tagClosed:s}}const m=new RegExp("(\\s*)([^\\s=]+)(\\s*=)?(\\s*(['\"])(([\\s\\S])*?)\\5)?","g");function x(t,e){const n=s(t,m),i={};for(let t=0;t<n.length;t++){if(0===n[t][1].length)return b("InvalidAttr","Attribute '"+n[t][2]+"' has no space in starting.",v(n[t]));if(void 0!==n[t][3]&&void 0===n[t][4])return b("InvalidAttr","Attribute '"+n[t][2]+"' is without value.",v(n[t]));if(void 0===n[t][3]&&!e.allowBooleanAttributes)return b("InvalidAttr","boolean attribute '"+n[t][2]+"' is not allowed.",v(n[t]));const s=n[t][2];if(!y(s))return b("InvalidAttr","Attribute '"+s+"' is an invalid name.",v(n[t]));if(Object.prototype.hasOwnProperty.call(i,s))return b("InvalidAttr","Attribute '"+s+"' is repeated.",v(n[t]));i[s]=1}return!0}function N(t,e){if(";"===t[++e])return-1;if("#"===t[e])return function(t,e){let n=/\d/;for("x"===t[e]&&(e++,n=/[\da-fA-F]/);e<t.length;e++){if(";"===t[e])return e;if(!t[e].match(n))break}return-1}(t,++e);let n=0;for(;e<t.length;e++,n++)if(!(t[e].match(/\w/)&&n<20)){if(";"===t[e])break;return-1}return e}function b(t,e,n){return{err:{code:t,msg:e,line:n.line||n,col:n.col}}}function y(t){return r(t)}function E(t){return r(t)}function w(t,e){const n=t.substring(0,e).split(/\r?\n/);return{line:n.length,col:n[n.length-1].length+1}}function v(t){return t.startIndex+t[1].length}const S=t=>o.includes(t)?"__"+t:t,_={preserveOrder:!1,attributeNamePrefix:"@_",attributesGroupName:!1,textNodeName:"#text",ignoreAttributes:!0,removeNSPrefix:!1,allowBooleanAttributes:!1,parseTagValue:!0,parseAttributeValue:!1,trimValues:!0,cdataPropName:!1,numberParseOptions:{hex:!0,leadingZeros:!0,eNotation:!0},tagValueProcessor:function(t,e){return e},attributeValueProcessor:function(t,e){return e},stopNodes:[],alwaysCreateTextNode:!1,isArray:()=>!1,commentPropName:!1,unpairedTags:[],processEntities:!0,htmlEntities:!1,entityDecoder:null,ignoreDeclaration:!1,ignorePiTags:!1,transformTagName:!1,transformAttributeName:!1,updateTag:function(t,e,n){return t},captureMetaData:!1,maxNestedTags:100,strictReservedNames:!0,jPath:!0,onDangerousProperty:S};function A(t,e){if("string"!=typeof t)return;const n=t.toLowerCase();if(o.some(t=>n===t.toLowerCase()))throw new Error(`[SECURITY] Invalid ${e}: "${t}" is a reserved JavaScript keyword that could cause prototype pollution`);if(a.some(t=>n===t.toLowerCase()))throw new Error(`[SECURITY] Invalid ${e}: "${t}" is a reserved JavaScript keyword that could cause prototype pollution`)}function T(t,e){return"boolean"==typeof t?{enabled:t,maxEntitySize:1e4,maxExpansionDepth:1e4,maxTotalExpansions:1/0,maxExpandedLength:1e5,maxEntityCount:1e3,allowedTags:null,tagFilter:null,appliesTo:"all"}:"object"==typeof t&&null!==t?{enabled:!1!==t.enabled,maxEntitySize:Math.max(1,t.maxEntitySize??1e4),maxExpansionDepth:Math.max(1,t.maxExpansionDepth??1e4),maxTotalExpansions:Math.max(1,t.maxTotalExpansions??1/0),maxExpandedLength:Math.max(1,t.maxExpandedLength??1e5),maxEntityCount:Math.max(1,t.maxEntityCount??1e3),allowedTags:t.allowedTags??null,tagFilter:t.tagFilter??null,appliesTo:t.appliesTo??"all"}:T(!0)}const C=function(t){const e=Object.assign({},_,t),n=[{value:e.attributeNamePrefix,name:"attributeNamePrefix"},{value:e.attributesGroupName,name:"attributesGroupName"},{value:e.textNodeName,name:"textNodeName"},{value:e.cdataPropName,name:"cdataPropName"},{value:e.commentPropName,name:"commentPropName"}];for(const{value:t,name:e}of n)t&&A(t,e);return null===e.onDangerousProperty&&(e.onDangerousProperty=S),e.processEntities=T(e.processEntities,e.htmlEntities),e.unpairedTagsSet=new Set(e.unpairedTags),e.stopNodes&&Array.isArray(e.stopNodes)&&(e.stopNodes=e.stopNodes.map(t=>"string"==typeof t&&t.startsWith("*.")?".."+t.substring(2):t)),e};let P;P="function"!=typeof Symbol?"@@xmlMetadata":Symbol("XML Node Metadata");class O{constructor(t){this.tagname=t,this.child=[],this[":@"]=Object.create(null)}add(t,e){"__proto__"===t&&(t="#__proto__"),this.child.push({[t]:e})}addChild(t,e){"__proto__"===t.tagname&&(t.tagname="#__proto__"),t[":@"]&&Object.keys(t[":@"]).length>0?this.child.push({[t.tagname]:t.child,":@":t[":@"]}):this.child.push({[t.tagname]:t.child}),void 0!==e&&(this.child[this.child.length-1][P]={startIndex:e})}static getMetaDataSymbol(){return P}}class ${constructor(t){this.suppressValidationErr=!t,this.options=t}readDocType(t,e){const n=Object.create(null);let i=0;if("O"!==t[e+3]||"C"!==t[e+4]||"T"!==t[e+5]||"Y"!==t[e+6]||"P"!==t[e+7]||"E"!==t[e+8])throw new Error("Invalid Tag instead of DOCTYPE");{e+=9;let s=1,r=!1,o=!1,a="";for(;e<t.length;e++)if("<"!==t[e]||o)if(">"===t[e]){if(o?"-"===t[e-1]&&"-"===t[e-2]&&(o=!1,s--):s--,0===s)break}else"["===t[e]?r=!0:a+=t[e];else{if(r&&D(t,"!ENTITY",e)){let s,r;if(e+=7,[s,r,e]=this.readEntityExp(t,e+1,this.suppressValidationErr),-1===r.indexOf("&")){if(!1!==this.options.enabled&&null!=this.options.maxEntityCount&&i>=this.options.maxEntityCount)throw new Error(`Entity count (${i+1}) exceeds maximum allowed (${this.options.maxEntityCount})`);n[s]=r,i++}}else if(r&&D(t,"!ELEMENT",e)){e+=8;const{index:n}=this.readElementExp(t,e+1);e=n}else if(r&&D(t,"!ATTLIST",e))e+=8;else if(r&&D(t,"!NOTATION",e)){e+=9;const{index:n}=this.readNotationExp(t,e+1,this.suppressValidationErr);e=n}else{if(!D(t,"!--",e))throw new Error("Invalid DOCTYPE");o=!0}s++,a=""}if(0!==s)throw new Error("Unclosed DOCTYPE")}return{entities:n,i:e}}readEntityExp(t,e){const n=e=I(t,e);for(;e<t.length&&!/\s/.test(t[e])&&'"'!==t[e]&&"'"!==t[e];)e++;let i=t.substring(n,e);if(M(i),e=I(t,e),!this.suppressValidationErr){if("SYSTEM"===t.substring(e,e+6).toUpperCase())throw new Error("External entities are not supported");if("%"===t[e])throw new Error("Parameter entities are not supported")}let s="";if([e,s]=this.readIdentifierVal(t,e,"entity"),!1!==this.options.enabled&&null!=this.options.maxEntitySize&&s.length>this.options.maxEntitySize)throw new Error(`Entity "${i}" size (${s.length}) exceeds maximum allowed size (${this.options.maxEntitySize})`);return[i,s,--e]}readNotationExp(t,e){const n=e=I(t,e);for(;e<t.length&&!/\s/.test(t[e]);)e++;let i=t.substring(n,e);!this.suppressValidationErr&&M(i),e=I(t,e);const s=t.substring(e,e+6).toUpperCase();if(!this.suppressValidationErr&&"SYSTEM"!==s&&"PUBLIC"!==s)throw new Error(`Expected SYSTEM or PUBLIC, found "${s}"`);e+=s.length,e=I(t,e);let r=null,o=null;if("PUBLIC"===s)[e,r]=this.readIdentifierVal(t,e,"publicIdentifier"),'"'!==t[e=I(t,e)]&&"'"!==t[e]||([e,o]=this.readIdentifierVal(t,e,"systemIdentifier"));else if("SYSTEM"===s&&([e,o]=this.readIdentifierVal(t,e,"systemIdentifier"),!this.suppressValidationErr&&!o))throw new Error("Missing mandatory system identifier for SYSTEM notation");return{notationName:i,publicIdentifier:r,systemIdentifier:o,index:--e}}readIdentifierVal(t,e,n){let i="";const s=t[e];if('"'!==s&&"'"!==s)throw new Error(`Expected quoted string, found "${s}"`);const r=++e;for(;e<t.length&&t[e]!==s;)e++;if(i=t.substring(r,e),t[e]!==s)throw new Error(`Unterminated ${n} value`);return[++e,i]}readElementExp(t,e){const n=e=I(t,e);for(;e<t.length&&!/\s/.test(t[e]);)e++;let i=t.substring(n,e);if(!this.suppressValidationErr&&!r(i))throw new Error(`Invalid element name: "${i}"`);let s="";if("E"===t[e=I(t,e)]&&D(t,"MPTY",e))e+=4;else if("A"===t[e]&&D(t,"NY",e))e+=2;else if("("===t[e]){const n=++e;for(;e<t.length&&")"!==t[e];)e++;if(s=t.substring(n,e),")"!==t[e])throw new Error("Unterminated content model")}else if(!this.suppressValidationErr)throw new Error(`Invalid Element Expression, found "${t[e]}"`);return{elementName:i,contentModel:s.trim(),index:e}}readAttlistExp(t,e){let n=e=I(t,e);for(;e<t.length&&!/\s/.test(t[e]);)e++;let i=t.substring(n,e);for(M(i),n=e=I(t,e);e<t.length&&!/\s/.test(t[e]);)e++;let s=t.substring(n,e);if(!M(s))throw new Error(`Invalid attribute name: "${s}"`);e=I(t,e);let r="";if("NOTATION"===t.substring(e,e+8).toUpperCase()){if(r="NOTATION","("!==t[e=I(t,e+=8)])throw new Error(`Expected '(', found "${t[e]}"`);e++;let n=[];for(;e<t.length&&")"!==t[e];){const i=e;for(;e<t.length&&"|"!==t[e]&&")"!==t[e];)e++;let s=t.substring(i,e);if(s=s.trim(),!M(s))throw new Error(`Invalid notation name: "${s}"`);n.push(s),"|"===t[e]&&(e++,e=I(t,e))}if(")"!==t[e])throw new Error("Unterminated list of notations");e++,r+=" ("+n.join("|")+")"}else{const n=e;for(;e<t.length&&!/\s/.test(t[e]);)e++;r+=t.substring(n,e);const i=["CDATA","ID","IDREF","IDREFS","ENTITY","ENTITIES","NMTOKEN","NMTOKENS"];if(!this.suppressValidationErr&&!i.includes(r.toUpperCase()))throw new Error(`Invalid attribute type: "${r}"`)}e=I(t,e);let o="";return"#REQUIRED"===t.substring(e,e+8).toUpperCase()?(o="#REQUIRED",e+=8):"#IMPLIED"===t.substring(e,e+7).toUpperCase()?(o="#IMPLIED",e+=7):[e,o]=this.readIdentifierVal(t,e,"ATTLIST"),{elementName:i,attributeName:s,attributeType:r,defaultValue:o,index:e}}}const I=(t,e)=>{for(;e<t.length&&/\s/.test(t[e]);)e++;return e};function D(t,e,n){for(let i=0;i<e.length;i++)if(e[i]!==t[n+i+1])return!1;return!0}function M(t){if(r(t))return t;throw new Error(`Invalid entity name ${t}`)}const j=/^[-+]?0x[a-fA-F0-9]+$/,V=/^([\-\+])?(0*)([0-9]*(\.[0-9]*)?)$/,L={hex:!0,leadingZeros:!0,decimalPoint:".",eNotation:!0,infinity:"original"};const k=/^([-+])?(0*)(\d*(\.\d*)?[eE][-\+]?\d+)$/;class F{constructor(t){this._matcher=t}get separator(){return this._matcher.separator}getCurrentTag(){const t=this._matcher.path;return t.length>0?t[t.length-1].tag:void 0}getCurrentNamespace(){const t=this._matcher.path;return t.length>0?t[t.length-1].namespace:void 0}getAttrValue(t){const e=this._matcher.path;if(0!==e.length)return e[e.length-1].values?.[t]}hasAttr(t){const e=this._matcher.path;if(0===e.length)return!1;const n=e[e.length-1];return void 0!==n.values&&t in n.values}getPosition(){const t=this._matcher.path;return 0===t.length?-1:t[t.length-1].position??0}getCounter(){const t=this._matcher.path;return 0===t.length?-1:t[t.length-1].counter??0}getIndex(){return this.getPosition()}getDepth(){return this._matcher.path.length}toString(t,e=!0){return this._matcher.toString(t,e)}toArray(){return this._matcher.path.map(t=>t.tag)}matches(t){return this._matcher.matches(t)}matchesAny(t){return t.matchesAny(this._matcher)}}class R{constructor(t={}){this.separator=t.separator||".",this.path=[],this.siblingStacks=[],this._pathStringCache=null,this._view=new F(this)}push(t,e=null,n=null){this._pathStringCache=null,this.path.length>0&&(this.path[this.path.length-1].values=void 0);const i=this.path.length;this.siblingStacks[i]||(this.siblingStacks[i]=new Map);const s=this.siblingStacks[i],r=n?`${n}:${t}`:t,o=s.get(r)||0;let a=0;for(const t of s.values())a+=t;s.set(r,o+1);const h={tag:t,position:a,counter:o};null!=n&&(h.namespace=n),null!=e&&(h.values=e),this.path.push(h)}pop(){if(0===this.path.length)return;this._pathStringCache=null;const t=this.path.pop();return this.siblingStacks.length>this.path.length+1&&(this.siblingStacks.length=this.path.length+1),t}updateCurrent(t){if(this.path.length>0){const e=this.path[this.path.length-1];null!=t&&(e.values=t)}}getCurrentTag(){return this.path.length>0?this.path[this.path.length-1].tag:void 0}getCurrentNamespace(){return this.path.length>0?this.path[this.path.length-1].namespace:void 0}getAttrValue(t){if(0!==this.path.length)return this.path[this.path.length-1].values?.[t]}hasAttr(t){if(0===this.path.length)return!1;const e=this.path[this.path.length-1];return void 0!==e.values&&t in e.values}getPosition(){return 0===this.path.length?-1:this.path[this.path.length-1].position??0}getCounter(){return 0===this.path.length?-1:this.path[this.path.length-1].counter??0}getIndex(){return this.getPosition()}getDepth(){return this.path.length}toString(t,e=!0){const n=t||this.separator;if(n===this.separator&&!0===e){if(null!==this._pathStringCache)return this._pathStringCache;const t=this.path.map(t=>t.namespace?`${t.namespace}:${t.tag}`:t.tag).join(n);return this._pathStringCache=t,t}return this.path.map(t=>e&&t.namespace?`${t.namespace}:${t.tag}`:t.tag).join(n)}toArray(){return this.path.map(t=>t.tag)}reset(){this._pathStringCache=null,this.path=[],this.siblingStacks=[]}matches(t){const e=t.segments;return 0!==e.length&&(t.hasDeepWildcard()?this._matchWithDeepWildcard(e):this._matchSimple(e))}_matchSimple(t){if(this.path.length!==t.length)return!1;for(let e=0;e<t.length;e++)if(!this._matchSegment(t[e],this.path[e],e===this.path.length-1))return!1;return!0}_matchWithDeepWildcard(t){let e=this.path.length-1,n=t.length-1;for(;n>=0&&e>=0;){const i=t[n];if("deep-wildcard"===i.type){if(n--,n<0)return!0;const i=t[n];let s=!1;for(let t=e;t>=0;t--)if(this._matchSegment(i,this.path[t],t===this.path.length-1)){e=t-1,n--,s=!0;break}if(!s)return!1}else{if(!this._matchSegment(i,this.path[e],e===this.path.length-1))return!1;e--,n--}}return n<0}_matchSegment(t,e,n){if("*"!==t.tag&&t.tag!==e.tag)return!1;if(void 0!==t.namespace&&"*"!==t.namespace&&t.namespace!==e.namespace)return!1;if(void 0!==t.attrName){if(!n)return!1;if(!e.values||!(t.attrName in e.values))return!1;if(void 0!==t.attrValue&&String(e.values[t.attrName])!==String(t.attrValue))return!1}if(void 0!==t.position){if(!n)return!1;const i=e.counter??0;if("first"===t.position&&0!==i)return!1;if("odd"===t.position&&i%2!=1)return!1;if("even"===t.position&&i%2!=0)return!1;if("nth"===t.position&&i!==t.positionValue)return!1}return!0}matchesAny(t){return t.matchesAny(this)}snapshot(){return{path:this.path.map(t=>({...t})),siblingStacks:this.siblingStacks.map(t=>new Map(t))}}restore(t){this._pathStringCache=null,this.path=t.path.map(t=>({...t})),this.siblingStacks=t.siblingStacks.map(t=>new Map(t))}readOnly(){return this._view}}class G{constructor(t,e={},n){this.pattern=t,this.separator=e.separator||".",this.segments=this._parse(t),this.data=n,this._hasDeepWildcard=this.segments.some(t=>"deep-wildcard"===t.type),this._hasAttributeCondition=this.segments.some(t=>void 0!==t.attrName),this._hasPositionSelector=this.segments.some(t=>void 0!==t.position)}_parse(t){const e=[];let n=0,i="";for(;n<t.length;)t[n]===this.separator?n+1<t.length&&t[n+1]===this.separator?(i.trim()&&(e.push(this._parseSegment(i.trim())),i=""),e.push({type:"deep-wildcard"}),n+=2):(i.trim()&&e.push(this._parseSegment(i.trim())),i="",n++):(i+=t[n],n++);return i.trim()&&e.push(this._parseSegment(i.trim())),e}_parseSegment(t){const e={type:"tag"};let n=null,i=t;const s=t.match(/^([^\[]+)(\[[^\]]*\])(.*)$/);if(s&&(i=s[1]+s[3],s[2])){const t=s[2].slice(1,-1);t&&(n=t)}let r,o,a=i;if(i.includes("::")){const e=i.indexOf("::");if(r=i.substring(0,e).trim(),a=i.substring(e+2).trim(),!r)throw new Error(`Invalid namespace in pattern: ${t}`)}let h=null;if(a.includes(":")){const t=a.lastIndexOf(":"),e=a.substring(0,t).trim(),n=a.substring(t+1).trim();["first","last","odd","even"].includes(n)||/^nth\(\d+\)$/.test(n)?(o=e,h=n):o=a}else o=a;if(!o)throw new Error(`Invalid segment pattern: ${t}`);if(e.tag=o,r&&(e.namespace=r),n)if(n.includes("=")){const t=n.indexOf("=");e.attrName=n.substring(0,t).trim(),e.attrValue=n.substring(t+1).trim()}else e.attrName=n.trim();if(h){const t=h.match(/^nth\((\d+)\)$/);t?(e.position="nth",e.positionValue=parseInt(t[1],10)):e.position=h}return e}get length(){return this.segments.length}hasDeepWildcard(){return this._hasDeepWildcard}hasAttributeCondition(){return this._hasAttributeCondition}hasPositionSelector(){return this._hasPositionSelector}toString(){return this.pattern}}class B{constructor(){this._byDepthAndTag=new Map,this._wildcardByDepth=new Map,this._deepWildcards=[],this._patterns=new Set,this._sealed=!1}add(t){if(this._sealed)throw new TypeError("ExpressionSet is sealed. Create a new ExpressionSet to add more expressions.");if(this._patterns.has(t.pattern))return this;if(this._patterns.add(t.pattern),t.hasDeepWildcard())return this._deepWildcards.push(t),this;const e=t.length,n=t.segments[t.segments.length-1],i=n?.tag;if(i&&"*"!==i){const n=`${e}:${i}`;this._byDepthAndTag.has(n)||this._byDepthAndTag.set(n,[]),this._byDepthAndTag.get(n).push(t)}else this._wildcardByDepth.has(e)||this._wildcardByDepth.set(e,[]),this._wildcardByDepth.get(e).push(t);return this}addAll(t){for(const e of t)this.add(e);return this}has(t){return this._patterns.has(t.pattern)}get size(){return this._patterns.size}seal(){return this._sealed=!0,this}get isSealed(){return this._sealed}matchesAny(t){return null!==this.findMatch(t)}findMatch(t){const e=t.getDepth(),n=`${e}:${t.getCurrentTag()}`,i=this._byDepthAndTag.get(n);if(i)for(let e=0;e<i.length;e++)if(t.matches(i[e]))return i[e];const s=this._wildcardByDepth.get(e);if(s)for(let e=0;e<s.length;e++)if(t.matches(s[e]))return s[e];for(let e=0;e<this._deepWildcards.length;e++)if(t.matches(this._deepWildcards[e]))return this._deepWildcards[e];return null}}const U={cent:"¢",pound:"£",curren:"¤",yen:"¥",euro:"€",dollar:"$",euro:"€",fnof:"ƒ",inr:"₹",af:"؋",birr:"ብር",peso:"₱",rub:"₽",won:"₩",yuan:"¥",cedil:"¸"},W={amp:"&",apos:"'",gt:">",lt:"<",quot:'"'},X={nbsp:" ",copy:"©",reg:"®",trade:"™",mdash:"—",ndash:"–",hellip:"…",laquo:"«",raquo:"»",lsquo:"‘",rsquo:"’",ldquo:"“",rdquo:"”",bull:"•",para:"¶",sect:"§",deg:"°",frac12:"½",frac14:"¼",frac34:"¾"},Y=new Set("!?\\\\/[]$%{}^&*()<>|+");function z(t){if("#"===t[0])throw new Error(`[EntityReplacer] Invalid character '#' in entity name: "${t}"`);for(const e of t)if(Y.has(e))throw new Error(`[EntityReplacer] Invalid character '${e}' in entity name: "${t}"`);return t}function q(...t){const e=Object.create(null);for(const n of t)if(n)for(const t of Object.keys(n)){const i=n[t];if("string"==typeof i)e[t]=i;else if(i&&"object"==typeof i&&void 0!==i.val){const n=i.val;"string"==typeof n&&(e[t]=n)}}return e}const Z="external",J="base",K="all",Q=Object.freeze({allow:0,leave:1,remove:2,throw:3}),H=new Set([9,10,13]);class tt{constructor(t={}){var e;this._limit=t.limit||{},this._maxTotalExpansions=this._limit.maxTotalExpansions||0,this._maxExpandedLength=this._limit.maxExpandedLength||0,this._postCheck="function"==typeof t.postCheck?t.postCheck:t=>t,this._limitTiers=(e=this._limit.applyLimitsTo??Z)&&e!==Z?e===K?new Set([K]):e===J?new Set([J]):Array.isArray(e)?new Set(e):new Set([Z]):new Set([Z]),this._numericAllowed=t.numericAllowed??!0,this._baseMap=q(W,t.namedEntities||null),this._externalMap=Object.create(null),this._inputMap=Object.create(null),this._totalExpansions=0,this._expandedLength=0,this._removeSet=new Set(t.remove&&Array.isArray(t.remove)?t.remove:[]),this._leaveSet=new Set(t.leave&&Array.isArray(t.leave)?t.leave:[]);const n=function(t){if(!t)return{xmlVersion:1,onLevel:Q.allow,nullLevel:Q.remove};const e=1.1===t.xmlVersion?1.1:1,n=Q[t.onNCR]??Q.allow,i=Q[t.nullNCR]??Q.remove;return{xmlVersion:e,onLevel:n,nullLevel:Math.max(i,Q.remove)}}(t.ncr);this._ncrXmlVersion=n.xmlVersion,this._ncrOnLevel=n.onLevel,this._ncrNullLevel=n.nullLevel}setExternalEntities(t){if(t)for(const e of Object.keys(t))z(e);this._externalMap=q(t)}addExternalEntity(t,e){z(t),"string"==typeof e&&-1===e.indexOf("&")&&(this._externalMap[t]=e)}addInputEntities(t){this._totalExpansions=0,this._expandedLength=0,this._inputMap=q(t)}reset(){return this._inputMap=Object.create(null),this._totalExpansions=0,this._expandedLength=0,this}setXmlVersion(t){this._ncrXmlVersion=1.1===t?1.1:1}decode(t){if("string"!=typeof t||0===t.length)return t;const e=t,n=[],i=t.length;let s=0,r=0;const o=this._maxTotalExpansions>0,a=this._maxExpandedLength>0,h=o||a;for(;r<i;){if(38!==t.charCodeAt(r)){r++;continue}let e=r+1;for(;e<i&&59!==t.charCodeAt(e)&&e-r<=32;)e++;if(e>=i||59!==t.charCodeAt(e)){r++;continue}const l=t.slice(r+1,e);if(0===l.length){r++;continue}let u,p;if(this._removeSet.has(l))u="",void 0===p&&(p=Z);else{if(this._leaveSet.has(l)){r++;continue}if(35===l.charCodeAt(0)){const t=this._resolveNCR(l);if(void 0===t){r++;continue}u=t,p=J}else{const t=this._resolveName(l);u=t?.value,p=t?.tier}}if(void 0!==u){if(r>s&&n.push(t.slice(s,r)),n.push(u),s=e+1,r=s,h&&this._tierCounts(p)){if(o&&(this._totalExpansions++,this._totalExpansions>this._maxTotalExpansions))throw new Error(`[EntityReplacer] Entity expansion count limit exceeded: ${this._totalExpansions} > ${this._maxTotalExpansions}`);if(a){const t=u.length-(l.length+2);if(t>0&&(this._expandedLength+=t,this._expandedLength>this._maxExpandedLength))throw new Error(`[EntityReplacer] Expanded content length limit exceeded: ${this._expandedLength} > ${this._maxExpandedLength}`)}}}else r++}s<i&&n.push(t.slice(s));const l=0===n.length?t:n.join("");return this._postCheck(l,e)}_tierCounts(t){return!!this._limitTiers.has(K)||this._limitTiers.has(t)}_resolveName(t){return t in this._inputMap?{value:this._inputMap[t],tier:Z}:t in this._externalMap?{value:this._externalMap[t],tier:Z}:t in this._baseMap?{value:this._baseMap[t],tier:J}:void 0}_classifyNCR(t){return 0===t?this._ncrNullLevel:t>=55296&&t<=57343||1===this._ncrXmlVersion&&t>=1&&t<=31&&!H.has(t)?Q.remove:-1}_applyNCRAction(t,e,n){switch(t){case Q.allow:return String.fromCodePoint(n);case Q.remove:return"";case Q.leave:return;case Q.throw:throw new Error(`[EntityDecoder] Prohibited numeric character reference &${e}; (U+${n.toString(16).toUpperCase().padStart(4,"0")})`);default:return String.fromCodePoint(n)}}_resolveNCR(t){const e=t.charCodeAt(1);let n;if(n=120===e||88===e?parseInt(t.slice(2),16):parseInt(t.slice(1),10),Number.isNaN(n)||n<0||n>1114111)return;const i=this._classifyNCR(n);if(!this._numericAllowed&&i<Q.remove)return;const s=-1===i?this._ncrOnLevel:Math.max(this._ncrOnLevel,i);return this._applyNCRAction(s,t,n)}}function et(t,e){if(!t)return{};const n=e.attributesGroupName?t[e.attributesGroupName]:t;if(!n)return{};const i={};for(const t in n)t.startsWith(e.attributeNamePrefix)?i[t.substring(e.attributeNamePrefix.length)]=n[t]:i[t]=n[t];return i}function nt(t){if(!t||"string"!=typeof t)return;const e=t.indexOf(":");if(-1!==e&&e>0){const n=t.substring(0,e);if("xmlns"!==n)return n}}class it{constructor(t,e){var n;this.options=t,this.currentNode=null,this.tagsNodeStack=[],this.parseXml=ht,this.parseTextData=st,this.resolveNameSpace=rt,this.buildAttributesMap=at,this.isItStopNode=ct,this.replaceEntitiesValue=ut,this.readStopNodeData=mt,this.saveTextToParentTag=pt,this.addChild=lt,this.ignoreAttributesFn="function"==typeof(n=this.options.ignoreAttributes)?n:Array.isArray(n)?t=>{for(const e of n){if("string"==typeof e&&t===e)return!0;if(e instanceof RegExp&&e.test(t))return!0}}:()=>!1,this.entityExpansionCount=0,this.currentExpandedLength=0;let i={...W};this.options.entityDecoder?this.entityDecoder=this.options.entityDecoder:("object"==typeof this.options.htmlEntities?i=this.options.htmlEntities:!0===this.options.htmlEntities&&(i={...X,...U}),this.entityDecoder=new tt({namedEntities:{...i,...e},numericAllowed:this.options.htmlEntities,limit:{maxTotalExpansions:this.options.processEntities.maxTotalExpansions,maxExpandedLength:this.options.processEntities.maxExpandedLength,applyLimitsTo:this.options.processEntities.appliesTo}})),this.matcher=new R,this.readonlyMatcher=this.matcher.readOnly(),this.isCurrentNodeStopNode=!1,this.stopNodeExpressionsSet=new B;const s=this.options.stopNodes;if(s&&s.length>0){for(let t=0;t<s.length;t++){const e=s[t];"string"==typeof e?this.stopNodeExpressionsSet.add(new G(e)):e instanceof G&&this.stopNodeExpressionsSet.add(e)}this.stopNodeExpressionsSet.seal()}}}function st(t,e,n,i,s,r,o){const a=this.options;if(void 0!==t&&(a.trimValues&&!i&&(t=t.trim()),t.length>0)){o||(t=this.replaceEntitiesValue(t,e,n));const i=a.jPath?n.toString():n,h=a.tagValueProcessor(e,t,i,s,r);return null==h?t:typeof h!=typeof t||h!==t?h:a.trimValues||t.trim()===t?xt(t,a.parseTagValue,a.numberParseOptions):t}}function rt(t){if(this.options.removeNSPrefix){const e=t.split(":"),n="/"===t.charAt(0)?"/":"";if("xmlns"===e[0])return"";2===e.length&&(t=n+e[1])}return t}const ot=new RegExp("([^\\s=]+)\\s*(=\\s*(['\"])([\\s\\S]*?)\\3)?","gm");function at(t,e,n,i=!1){const r=this.options;if(!0===i||!0!==r.ignoreAttributes&&"string"==typeof t){const i=s(t,ot),o=i.length,a={},h=new Array(o);let l=!1;const u={};for(let t=0;t<o;t++){const e=this.resolveNameSpace(i[t][1]),s=i[t][4];if(e.length&&void 0!==s){let i=s;r.trimValues&&(i=i.trim()),i=this.replaceEntitiesValue(i,n,this.readonlyMatcher),h[t]=i,u[e]=i,l=!0}}l&&"object"==typeof e&&e.updateCurrent&&e.updateCurrent(u);const p=r.jPath?e.toString():this.readonlyMatcher;let c=!1;for(let t=0;t<o;t++){const e=this.resolveNameSpace(i[t][1]);if(this.ignoreAttributesFn(e,p))continue;let n=r.attributeNamePrefix+e;if(e.length)if(r.transformAttributeName&&(n=r.transformAttributeName(n)),n=bt(n,r),void 0!==i[t][4]){const i=h[t],s=r.attributeValueProcessor(e,i,p);a[n]=null==s?i:typeof s!=typeof i||s!==i?s:xt(i,r.parseAttributeValue,r.numberParseOptions),c=!0}else r.allowBooleanAttributes&&(a[n]=!0,c=!0)}if(!c)return;if(r.attributesGroupName&&!r.preserveOrder){const t={};return t[r.attributesGroupName]=a,t}return a}}const ht=function(t){t=t.replace(/\r\n?/g,"\n");const e=new O("!xml");let n=e,i="";this.matcher.reset(),this.entityDecoder.reset(),this.entityExpansionCount=0,this.currentExpandedLength=0;const s=this.options,r=new $(s.processEntities),o=t.length;for(let a=0;a<o;a++)if("<"===t[a]){const h=t.charCodeAt(a+1);if(47===h){const e=dt(t,">",a,"Closing Tag is not closed.");let r=t.substring(a+2,e).trim();if(s.removeNSPrefix){const t=r.indexOf(":");-1!==t&&(r=r.substr(t+1))}r=Nt(s.transformTagName,r,"",s).tagName,n&&(i=this.saveTextToParentTag(i,n,this.readonlyMatcher));const o=this.matcher.getCurrentTag();if(r&&s.unpairedTagsSet.has(r))throw new Error(`Unpaired tag can not be used as closing tag: </${r}>`);o&&s.unpairedTagsSet.has(o)&&(this.matcher.pop(),this.tagsNodeStack.pop()),this.matcher.pop(),this.isCurrentNodeStopNode=!1,n=this.tagsNodeStack.pop(),i="",a=e}else if(63===h){let e=gt(t,a,!1,"?>");if(!e)throw new Error("Pi Tag is not closed.");i=this.saveTextToParentTag(i,n,this.readonlyMatcher);const r=this.buildAttributesMap(e.tagExp,this.matcher,e.tagName,!0);if(r){const t=r[this.options.attributeNamePrefix+"version"];this.entityDecoder.setXmlVersion(Number(t)||1)}if(s.ignoreDeclaration&&"?xml"===e.tagName||s.ignorePiTags);else{const t=new O(e.tagName);t.add(s.textNodeName,""),e.tagName!==e.tagExp&&e.attrExpPresent&&!0!==s.ignoreAttributes&&(t[":@"]=r),this.addChild(n,t,this.readonlyMatcher,a)}a=e.closeIndex+1}else if(33===h&&45===t.charCodeAt(a+2)&&45===t.charCodeAt(a+3)){const e=dt(t,"--\x3e",a+4,"Comment is not closed.");if(s.commentPropName){const r=t.substring(a+4,e-2);i=this.saveTextToParentTag(i,n,this.readonlyMatcher),n.add(s.commentPropName,[{[s.textNodeName]:r}])}a=e}else if(33===h&&68===t.charCodeAt(a+2)){const e=r.readDocType(t,a);this.entityDecoder.addInputEntities(e.entities),a=e.i}else if(33===h&&91===t.charCodeAt(a+2)){const e=dt(t,"]]>",a,"CDATA is not closed.")-2,r=t.substring(a+9,e);i=this.saveTextToParentTag(i,n,this.readonlyMatcher);let o=this.parseTextData(r,n.tagname,this.readonlyMatcher,!0,!1,!0,!0);null==o&&(o=""),s.cdataPropName?n.add(s.cdataPropName,[{[s.textNodeName]:r}]):n.add(s.textNodeName,o),a=e+2}else{let r=gt(t,a,s.removeNSPrefix);if(!r){const e=t.substring(Math.max(0,a-50),Math.min(o,a+50));throw new Error(`readTagExp returned undefined at position ${a}. Context: "${e}"`)}let h=r.tagName;const l=r.rawTagName;let u=r.tagExp,p=r.attrExpPresent,c=r.closeIndex;if(({tagName:h,tagExp:u}=Nt(s.transformTagName,h,u,s)),s.strictReservedNames&&(h===s.commentPropName||h===s.cdataPropName||h===s.textNodeName||h===s.attributesGroupName))throw new Error(`Invalid tag name: ${h}`);n&&i&&"!xml"!==n.tagname&&(i=this.saveTextToParentTag(i,n,this.readonlyMatcher,!1));const d=n;d&&s.unpairedTagsSet.has(d.tagname)&&(n=this.tagsNodeStack.pop(),this.matcher.pop());let f=!1;u.length>0&&u.lastIndexOf("/")===u.length-1&&(f=!0,"/"===h[h.length-1]?(h=h.substr(0,h.length-1),u=h):u=u.substr(0,u.length-1),p=h!==u);let g,m=null,x={};g=nt(l),h!==e.tagname&&this.matcher.push(h,{},g),h!==u&&p&&(m=this.buildAttributesMap(u,this.matcher,h),m&&(x=et(m,s))),h!==e.tagname&&(this.isCurrentNodeStopNode=this.isItStopNode());const N=a;if(this.isCurrentNodeStopNode){let e="";if(f)a=r.closeIndex;else if(s.unpairedTagsSet.has(h))a=r.closeIndex;else{const n=this.readStopNodeData(t,l,c+1);if(!n)throw new Error(`Unexpected end of ${l}`);a=n.i,e=n.tagContent}const i=new O(h);m&&(i[":@"]=m),i.add(s.textNodeName,e),this.matcher.pop(),this.isCurrentNodeStopNode=!1,this.addChild(n,i,this.readonlyMatcher,N)}else{if(f){({tagName:h,tagExp:u}=Nt(s.transformTagName,h,u,s));const t=new O(h);m&&(t[":@"]=m),this.addChild(n,t,this.readonlyMatcher,N),this.matcher.pop(),this.isCurrentNodeStopNode=!1}else{if(s.unpairedTagsSet.has(h)){const t=new O(h);m&&(t[":@"]=m),this.addChild(n,t,this.readonlyMatcher,N),this.matcher.pop(),this.isCurrentNodeStopNode=!1,a=r.closeIndex;continue}{const t=new O(h);if(this.tagsNodeStack.length>s.maxNestedTags)throw new Error("Maximum nested tags exceeded");this.tagsNodeStack.push(n),m&&(t[":@"]=m),this.addChild(n,t,this.readonlyMatcher,N),n=t}}i="",a=c}}}else i+=t[a];return e.child};function lt(t,e,n,i){this.options.captureMetaData||(i=void 0);const s=this.options.jPath?n.toString():n,r=this.options.updateTag(e.tagname,s,e[":@"]);!1===r||("string"==typeof r?(e.tagname=r,t.addChild(e,i)):t.addChild(e,i))}function ut(t,e,n){const i=this.options.processEntities;if(!i||!i.enabled)return t;if(i.allowedTags){const s=this.options.jPath?n.toString():n;if(!(Array.isArray(i.allowedTags)?i.allowedTags.includes(e):i.allowedTags(e,s)))return t}if(i.tagFilter){const s=this.options.jPath?n.toString():n;if(!i.tagFilter(e,s))return t}return this.entityDecoder.decode(t)}function pt(t,e,n,i){return t&&(void 0===i&&(i=0===e.child.length),void 0!==(t=this.parseTextData(t,e.tagname,n,!1,!!e[":@"]&&0!==Object.keys(e[":@"]).length,i))&&""!==t&&e.add(this.options.textNodeName,t),t=""),t}function ct(){return 0!==this.stopNodeExpressionsSet.size&&this.matcher.matchesAny(this.stopNodeExpressionsSet)}function dt(t,e,n,i){const s=t.indexOf(e,n);if(-1===s)throw new Error(i);return s+e.length-1}function ft(t,e,n,i){const s=t.indexOf(e,n);if(-1===s)throw new Error(i);return s}function gt(t,e,n,i=">"){const s=function(t,e,n=">"){let i=0;const s=t.length,r=n.charCodeAt(0),o=n.length>1?n.charCodeAt(1):-1;let a="",h=e;for(let n=e;n<s;n++){const e=t.charCodeAt(n);if(i)e===i&&(i=0);else if(34===e||39===e)i=e;else if(e===r){if(-1===o)return a+=t.substring(h,n),{data:a,index:n};if(t.charCodeAt(n+1)===o)return a+=t.substring(h,n),{data:a,index:n}}else 9!==e||i||(a+=t.substring(h,n)+" ",h=n+1)}}(t,e+1,i);if(!s)return;let r=s.data;const o=s.index,a=r.search(/\s/);let h=r,l=!0;-1!==a&&(h=r.substring(0,a),r=r.substring(a+1).trimStart());const u=h;if(n){const t=h.indexOf(":");-1!==t&&(h=h.substr(t+1),l=h!==s.data.substr(t+1))}return{tagName:h,tagExp:r,closeIndex:o,attrExpPresent:l,rawTagName:u}}function mt(t,e,n){const i=n;let s=1;const r=t.length;for(;n<r;n++)if("<"===t[n]){const r=t.charCodeAt(n+1);if(47===r){const r=ft(t,">",n,`${e} is not closed`);if(t.substring(n+2,r).trim()===e&&(s--,0===s))return{tagContent:t.substring(i,n),i:r};n=r}else if(63===r)n=dt(t,"?>",n+1,"StopNode is not closed.");else if(33===r&&45===t.charCodeAt(n+2)&&45===t.charCodeAt(n+3))n=dt(t,"--\x3e",n+3,"StopNode is not closed.");else if(33===r&&91===t.charCodeAt(n+2))n=dt(t,"]]>",n,"StopNode is not closed.")-2;else{const i=gt(t,n,">");i&&((i&&i.tagName)===e&&"/"!==i.tagExp[i.tagExp.length-1]&&s++,n=i.closeIndex)}}}function xt(t,e,n){if(e&&"string"==typeof t){const e=t.trim();return"true"===e||"false"!==e&&function(t,e={}){if(e=Object.assign({},L,e),!t||"string"!=typeof t)return t;let n=t.trim();if(0===n.length)return t;if(void 0!==e.skipLike&&e.skipLike.test(n))return t;if("0"===n)return 0;if(e.hex&&j.test(n))return function(t){if(parseInt)return parseInt(t,16);if(Number.parseInt)return Number.parseInt(t,16);if(window&&window.parseInt)return window.parseInt(t,16);throw new Error("parseInt, Number.parseInt, window.parseInt are not supported")}(n);if(isFinite(n)){if(n.includes("e")||n.includes("E"))return function(t,e,n){if(!n.eNotation)return t;const i=e.match(k);if(i){let s=i[1]||"";const r=-1===i[3].indexOf("e")?"E":"e",o=i[2],a=s?t[o.length+1]===r:t[o.length]===r;return o.length>1&&a?t:(1!==o.length||!i[3].startsWith(`.${r}`)&&i[3][0]!==r)&&o.length>0?n.leadingZeros&&!a?(e=(i[1]||"")+i[3],Number(e)):t:Number(e)}return t}(t,n,e);{const s=V.exec(n);if(s){const r=s[1]||"",o=s[2];let a=(i=s[3])&&-1!==i.indexOf(".")?("."===(i=i.replace(/0+$/,""))?i="0":"."===i[0]?i="0"+i:"."===i[i.length-1]&&(i=i.substring(0,i.length-1)),i):i;const h=r?"."===t[o.length+1]:"."===t[o.length];if(!e.leadingZeros&&(o.length>1||1===o.length&&!h))return t;{const i=Number(n),s=String(i);if(0===i)return i;if(-1!==s.search(/[eE]/))return e.eNotation?i:t;if(-1!==n.indexOf("."))return"0"===s||s===a||s===`${r}${a}`?i:t;let h=o?a:n;return o?h===s||r+h===s?i:t:h===s||h===r+s?i:t}}return t}}var i;return function(t,e,n){const i=e===1/0;switch(n.infinity.toLowerCase()){case"null":return null;case"infinity":return e;case"string":return i?"Infinity":"-Infinity";default:return t}}(t,Number(n),e)}(t,n)}return void 0!==t?t:""}function Nt(t,e,n,i){if(t){const i=t(e);n===e&&(n=i),e=i}return{tagName:e=bt(e,i),tagExp:n}}function bt(t,e){if(a.includes(t))throw new Error(`[SECURITY] Invalid name: "${t}" is a reserved JavaScript keyword that could cause prototype pollution`);return o.includes(t)?e.onDangerousProperty(t):t}const yt=O.getMetaDataSymbol();function Et(t,e){if(!t||"object"!=typeof t)return{};if(!e)return t;const n={};for(const i in t)i.startsWith(e)?n[i.substring(e.length)]=t[i]:n[i]=t[i];return n}function wt(t,e,n,i){return vt(t,e,n,i)}function vt(t,e,n,i){let s;const r={};for(let o=0;o<t.length;o++){const a=t[o],h=St(a);if(void 0!==h&&h!==e.textNodeName){const t=Et(a[":@"]||{},e.attributeNamePrefix);n.push(h,t)}if(h===e.textNodeName)void 0===s?s=a[h]:s+=""+a[h];else{if(void 0===h)continue;if(a[h]){let t=vt(a[h],e,n,i);const s=At(t,e);if(a[":@"]?_t(t,a[":@"],i,e):1!==Object.keys(t).length||void 0===t[e.textNodeName]||e.alwaysCreateTextNode?0===Object.keys(t).length&&(e.alwaysCreateTextNode?t[e.textNodeName]="":t=""):t=t[e.textNodeName],void 0!==a[yt]&&"object"==typeof t&&null!==t&&(t[yt]=a[yt]),void 0!==r[h]&&Object.prototype.hasOwnProperty.call(r,h))Array.isArray(r[h])||(r[h]=[r[h]]),r[h].push(t);else{const n=e.jPath?i.toString():i;e.isArray(h,n,s)?r[h]=[t]:r[h]=t}void 0!==h&&h!==e.textNodeName&&n.pop()}}}return"string"==typeof s?s.length>0&&(r[e.textNodeName]=s):void 0!==s&&(r[e.textNodeName]=s),r}function St(t){const e=Object.keys(t);for(let t=0;t<e.length;t++){const n=e[t];if(":@"!==n)return n}}function _t(t,e,n,i){if(e){const s=Object.keys(e),r=s.length;for(let o=0;o<r;o++){const r=s[o],a=r.startsWith(i.attributeNamePrefix)?r.substring(i.attributeNamePrefix.length):r,h=i.jPath?n.toString()+"."+a:n;i.isArray(r,h,!0,!0)?t[r]=[e[r]]:t[r]=e[r]}}}function At(t,e){const{textNodeName:n}=e,i=Object.keys(t).length;return 0===i||!(1!==i||!t[n]&&"boolean"!=typeof t[n]&&0!==t[n])}class Tt{constructor(t){this.externalEntities={},this.options=C(t)}parse(t,e){if("string"!=typeof t&&t.toString)t=t.toString();else if("string"!=typeof t)throw new Error("XML data is accepted in String or Bytes[] form.");if(e){!0===e&&(e={});const n=l(t,e);if(!0!==n)throw Error(`${n.err.msg}:${n.err.line}:${n.err.col}`)}const n=new it(this.options,this.externalEntities),i=n.parseXml(t);return this.options.preserveOrder||void 0===i?i:wt(i,this.options,n.matcher,n.readonlyMatcher)}addEntity(t,e){if(-1!==e.indexOf("&"))throw new Error("Entity value can't have '&'");if(-1!==t.indexOf("&")||-1!==t.indexOf(";"))throw new Error("An entity must be set without '&' and ';'. Eg. use '#xD' for '&#xD;'");if("&"===e)throw new Error("An entity with value '&' is not permitted");this.externalEntities[t]=e}static getMetaDataSymbol(){return O.getMetaDataSymbol()}}function Ct(t,e){let n="";e.format&&e.indentBy.length>0&&(n="\n");const i=[];if(e.stopNodes&&Array.isArray(e.stopNodes))for(let t=0;t<e.stopNodes.length;t++){const n=e.stopNodes[t];"string"==typeof n?i.push(new G(n)):n instanceof G&&i.push(n)}return Pt(t,e,n,new R,i)}function Pt(t,e,n,i,s){let r="",o=!1;if(e.maxNestedTags&&i.getDepth()>e.maxNestedTags)throw new Error("Maximum nested tags exceeded");if(!Array.isArray(t)){if(null!=t){let n=t.toString();return n=Vt(n,e),n}return""}for(let a=0;a<t.length;a++){const h=t[a],l=Dt(h);if(void 0===l)continue;const u=Ot(h[":@"],e);i.push(l,u);const p=jt(i,s);if(l===e.textNodeName){let t=h[l];p||(t=e.tagValueProcessor(l,t),t=Vt(t,e)),o&&(r+=n),r+=t,o=!1,i.pop();continue}if(l===e.cdataPropName){o&&(r+=n);const t=h[l][0][e.textNodeName];r+=`<![CDATA[${String(t).replace(/\]\]>/g,"]]]]><![CDATA[>")}]]>`,o=!1,i.pop();continue}if(l===e.commentPropName){const t=h[l][0][e.textNodeName];r+=n+`\x3c!--${String(t).replace(/--/g,"- -").replace(/-$/,"- ")}--\x3e`,o=!0,i.pop();continue}if("?"===l[0]){const t=Mt(h[":@"],e,p),s="?xml"===l?"":n;let a=h[l][0][e.textNodeName];a=0!==a.length?" "+a:"",r+=s+`<${l}${a}${t}?>`,o=!0,i.pop();continue}let c=n;""!==c&&(c+=e.indentBy);const d=n+`<${l}${Mt(h[":@"],e,p)}`;let f;f=p?$t(h[l],e):Pt(h[l],e,c,i,s),-1!==e.unpairedTags.indexOf(l)?e.suppressUnpairedNode?r+=d+">":r+=d+"/>":f&&0!==f.length||!e.suppressEmptyNode?f&&f.endsWith(">")?r+=d+`>${f}${n}</${l}>`:(r+=d+">",f&&""!==n&&(f.includes("/>")||f.includes("</"))?r+=n+e.indentBy+f+n:r+=f,r+=`</${l}>`):r+=d+"/>",o=!0,i.pop()}return r}function Ot(t,e){if(!t||e.ignoreAttributes)return null;const n={};let i=!1;for(let s in t)Object.prototype.hasOwnProperty.call(t,s)&&(n[s.startsWith(e.attributeNamePrefix)?s.substr(e.attributeNamePrefix.length):s]=t[s],i=!0);return i?n:null}function $t(t,e){if(!Array.isArray(t))return null!=t?t.toString():"";let n="";for(let i=0;i<t.length;i++){const s=t[i],r=Dt(s);if(r===e.textNodeName)n+=s[r];else if(r===e.cdataPropName)n+=s[r][0][e.textNodeName];else if(r===e.commentPropName)n+=s[r][0][e.textNodeName];else{if(r&&"?"===r[0])continue;if(r){const t=It(s[":@"],e),i=$t(s[r],e);i&&0!==i.length?n+=`<${r}${t}>${i}</${r}>`:n+=`<${r}${t}/>`}}}return n}function It(t,e){let n="";if(t&&!e.ignoreAttributes)for(let i in t){if(!Object.prototype.hasOwnProperty.call(t,i))continue;let s=t[i];!0===s&&e.suppressBooleanAttributes?n+=` ${i.substr(e.attributeNamePrefix.length)}`:n+=` ${i.substr(e.attributeNamePrefix.length)}="${s}"`}return n}function Dt(t){const e=Object.keys(t);for(let n=0;n<e.length;n++){const i=e[n];if(Object.prototype.hasOwnProperty.call(t,i)&&":@"!==i)return i}}function Mt(t,e,n){let i="";if(t&&!e.ignoreAttributes)for(let s in t){if(!Object.prototype.hasOwnProperty.call(t,s))continue;let r;n?r=t[s]:(r=e.attributeValueProcessor(s,t[s]),r=Vt(r,e)),!0===r&&e.suppressBooleanAttributes?i+=` ${s.substr(e.attributeNamePrefix.length)}`:i+=` ${s.substr(e.attributeNamePrefix.length)}="${r}"`}return i}function jt(t,e){if(!e||0===e.length)return!1;for(let n=0;n<e.length;n++)if(t.matches(e[n]))return!0;return!1}function Vt(t,e){if(t&&t.length>0&&e.processEntities)for(let n=0;n<e.entities.length;n++){const i=e.entities[n];t=t.replace(i.regex,i.val)}return t}const Lt={attributeNamePrefix:"@_",attributesGroupName:!1,textNodeName:"#text",ignoreAttributes:!0,cdataPropName:!1,format:!1,indentBy:"  ",suppressEmptyNode:!1,suppressUnpairedNode:!0,suppressBooleanAttributes:!0,tagValueProcessor:function(t,e){return e},attributeValueProcessor:function(t,e){return e},preserveOrder:!1,commentPropName:!1,unpairedTags:[],entities:[{regex:new RegExp("&","g"),val:"&amp;"},{regex:new RegExp(">","g"),val:"&gt;"},{regex:new RegExp("<","g"),val:"&lt;"},{regex:new RegExp("'","g"),val:"&apos;"},{regex:new RegExp('"',"g"),val:"&quot;"}],processEntities:!0,stopNodes:[],oneListGroup:!1,maxNestedTags:100,jPath:!0};function kt(t){if(this.options=Object.assign({},Lt,t),this.options.stopNodes&&Array.isArray(this.options.stopNodes)&&(this.options.stopNodes=this.options.stopNodes.map(t=>"string"==typeof t&&t.startsWith("*.")?".."+t.substring(2):t)),this.stopNodeExpressions=[],this.options.stopNodes&&Array.isArray(this.options.stopNodes))for(let t=0;t<this.options.stopNodes.length;t++){const e=this.options.stopNodes[t];"string"==typeof e?this.stopNodeExpressions.push(new G(e)):e instanceof G&&this.stopNodeExpressions.push(e)}var e;!0===this.options.ignoreAttributes||this.options.attributesGroupName?this.isAttribute=function(){return!1}:(this.ignoreAttributesFn="function"==typeof(e=this.options.ignoreAttributes)?e:Array.isArray(e)?t=>{for(const n of e){if("string"==typeof n&&t===n)return!0;if(n instanceof RegExp&&n.test(t))return!0}}:()=>!1,this.attrPrefixLen=this.options.attributeNamePrefix.length,this.isAttribute=Gt),this.processTextOrObjNode=Ft,this.options.format?(this.indentate=Rt,this.tagEndChar=">\n",this.newLine="\n"):(this.indentate=function(){return""},this.tagEndChar=">",this.newLine="")}function Ft(t,e,n,i){const s=this.extractAttributes(t);if(i.push(e,s),this.checkStopNode(i)){const s=this.buildRawContent(t),r=this.buildAttributesForStopNode(t);return i.pop(),this.buildObjectNode(s,e,r,n)}const r=this.j2x(t,n+1,i);return i.pop(),void 0!==t[this.options.textNodeName]&&1===Object.keys(t).length?this.buildTextValNode(t[this.options.textNodeName],e,r.attrStr,n,i):this.buildObjectNode(r.val,e,r.attrStr,n)}function Rt(t){return this.options.indentBy.repeat(t)}function Gt(t){return!(!t.startsWith(this.options.attributeNamePrefix)||t===this.options.textNodeName)&&t.substr(this.attrPrefixLen)}kt.prototype.build=function(t){if(this.options.preserveOrder)return Ct(t,this.options);{Array.isArray(t)&&this.options.arrayNodeName&&this.options.arrayNodeName.length>1&&(t={[this.options.arrayNodeName]:t});const e=new R;return this.j2x(t,0,e).val}},kt.prototype.j2x=function(t,e,n){let i="",s="";if(this.options.maxNestedTags&&n.getDepth()>=this.options.maxNestedTags)throw new Error("Maximum nested tags exceeded");const r=this.options.jPath?n.toString():n,o=this.checkStopNode(n);for(let a in t)if(Object.prototype.hasOwnProperty.call(t,a))if(void 0===t[a])this.isAttribute(a)&&(s+="");else if(null===t[a])this.isAttribute(a)||a===this.options.cdataPropName?s+="":"?"===a[0]?s+=this.indentate(e)+"<"+a+"?"+this.tagEndChar:s+=this.indentate(e)+"<"+a+"/"+this.tagEndChar;else if(t[a]instanceof Date)s+=this.buildTextValNode(t[a],a,"",e,n);else if("object"!=typeof t[a]){const h=this.isAttribute(a);if(h&&!this.ignoreAttributesFn(h,r))i+=this.buildAttrPairStr(h,""+t[a],o);else if(!h)if(a===this.options.textNodeName){let e=this.options.tagValueProcessor(a,""+t[a]);s+=this.replaceEntitiesValue(e)}else{n.push(a);const i=this.checkStopNode(n);if(n.pop(),i){const n=""+t[a];s+=""===n?this.indentate(e)+"<"+a+this.closeTag(a)+this.tagEndChar:this.indentate(e)+"<"+a+">"+n+"</"+a+this.tagEndChar}else s+=this.buildTextValNode(t[a],a,"",e,n)}}else if(Array.isArray(t[a])){const i=t[a].length;let r="",o="";for(let h=0;h<i;h++){const i=t[a][h];if(void 0===i);else if(null===i)"?"===a[0]?s+=this.indentate(e)+"<"+a+"?"+this.tagEndChar:s+=this.indentate(e)+"<"+a+"/"+this.tagEndChar;else if("object"==typeof i)if(this.options.oneListGroup){n.push(a);const t=this.j2x(i,e+1,n);n.pop(),r+=t.val,this.options.attributesGroupName&&i.hasOwnProperty(this.options.attributesGroupName)&&(o+=t.attrStr)}else r+=this.processTextOrObjNode(i,a,e,n);else if(this.options.oneListGroup){let t=this.options.tagValueProcessor(a,i);t=this.replaceEntitiesValue(t),r+=t}else{n.push(a);const t=this.checkStopNode(n);if(n.pop(),t){const t=""+i;r+=""===t?this.indentate(e)+"<"+a+this.closeTag(a)+this.tagEndChar:this.indentate(e)+"<"+a+">"+t+"</"+a+this.tagEndChar}else r+=this.buildTextValNode(i,a,"",e,n)}}this.options.oneListGroup&&(r=this.buildObjectNode(r,a,o,e)),s+=r}else if(this.options.attributesGroupName&&a===this.options.attributesGroupName){const e=Object.keys(t[a]),n=e.length;for(let s=0;s<n;s++)i+=this.buildAttrPairStr(e[s],""+t[a][e[s]],o)}else s+=this.processTextOrObjNode(t[a],a,e,n);return{attrStr:i,val:s}},kt.prototype.buildAttrPairStr=function(t,e,n){return n||(e=this.options.attributeValueProcessor(t,""+e),e=this.replaceEntitiesValue(e)),this.options.suppressBooleanAttributes&&"true"===e?" "+t:" "+t+'="'+e+'"'},kt.prototype.extractAttributes=function(t){if(!t||"object"!=typeof t)return null;const e={};let n=!1;if(this.options.attributesGroupName&&t[this.options.attributesGroupName]){const i=t[this.options.attributesGroupName];for(let t in i)Object.prototype.hasOwnProperty.call(i,t)&&(e[t.startsWith(this.options.attributeNamePrefix)?t.substring(this.options.attributeNamePrefix.length):t]=i[t],n=!0)}else for(let i in t){if(!Object.prototype.hasOwnProperty.call(t,i))continue;const s=this.isAttribute(i);s&&(e[s]=t[i],n=!0)}return n?e:null},kt.prototype.buildRawContent=function(t){if("string"==typeof t)return t;if("object"!=typeof t||null===t)return String(t);if(void 0!==t[this.options.textNodeName])return t[this.options.textNodeName];let e="";for(let n in t){if(!Object.prototype.hasOwnProperty.call(t,n))continue;if(this.isAttribute(n))continue;if(this.options.attributesGroupName&&n===this.options.attributesGroupName)continue;const i=t[n];if(n===this.options.textNodeName)e+=i;else if(Array.isArray(i)){for(let t of i)if("string"==typeof t||"number"==typeof t)e+=`<${n}>${t}</${n}>`;else if("object"==typeof t&&null!==t){const i=this.buildRawContent(t),s=this.buildAttributesForStopNode(t);e+=""===i?`<${n}${s}/>`:`<${n}${s}>${i}</${n}>`}}else if("object"==typeof i&&null!==i){const t=this.buildRawContent(i),s=this.buildAttributesForStopNode(i);e+=""===t?`<${n}${s}/>`:`<${n}${s}>${t}</${n}>`}else e+=`<${n}>${i}</${n}>`}return e},kt.prototype.buildAttributesForStopNode=function(t){if(!t||"object"!=typeof t)return"";let e="";if(this.options.attributesGroupName&&t[this.options.attributesGroupName]){const n=t[this.options.attributesGroupName];for(let t in n){if(!Object.prototype.hasOwnProperty.call(n,t))continue;const i=t.startsWith(this.options.attributeNamePrefix)?t.substring(this.options.attributeNamePrefix.length):t,s=n[t];!0===s&&this.options.suppressBooleanAttributes?e+=" "+i:e+=" "+i+'="'+s+'"'}}else for(let n in t){if(!Object.prototype.hasOwnProperty.call(t,n))continue;const i=this.isAttribute(n);if(i){const s=t[n];!0===s&&this.options.suppressBooleanAttributes?e+=" "+i:e+=" "+i+'="'+s+'"'}}return e},kt.prototype.buildObjectNode=function(t,e,n,i){if(""===t)return"?"===e[0]?this.indentate(i)+"<"+e+n+"?"+this.tagEndChar:this.indentate(i)+"<"+e+n+this.closeTag(e)+this.tagEndChar;{let s="</"+e+this.tagEndChar,r="";return"?"===e[0]&&(r="?",s=""),!n&&""!==n||-1!==t.indexOf("<")?!1!==this.options.commentPropName&&e===this.options.commentPropName&&0===r.length?this.indentate(i)+`\x3c!--${t}--\x3e`+this.newLine:this.indentate(i)+"<"+e+n+r+this.tagEndChar+t+this.indentate(i)+s:this.indentate(i)+"<"+e+n+r+">"+t+s}},kt.prototype.closeTag=function(t){let e="";return-1!==this.options.unpairedTags.indexOf(t)?this.options.suppressUnpairedNode||(e="/"):e=this.options.suppressEmptyNode?"/":`></${t}`,e},kt.prototype.checkStopNode=function(t){if(!this.stopNodeExpressions||0===this.stopNodeExpressions.length)return!1;for(let e=0;e<this.stopNodeExpressions.length;e++)if(t.matches(this.stopNodeExpressions[e]))return!0;return!1},kt.prototype.buildTextValNode=function(t,e,n,i,s){if(!1!==this.options.cdataPropName&&e===this.options.cdataPropName){const e=String(t).replace(/\]\]>/g,"]]]]><![CDATA[>");return this.indentate(i)+`<![CDATA[${e}]]>`+this.newLine}if(!1!==this.options.commentPropName&&e===this.options.commentPropName){const e=String(t).replace(/--/g,"- -").replace(/-$/,"- ");return this.indentate(i)+`\x3c!--${e}--\x3e`+this.newLine}if("?"===e[0])return this.indentate(i)+"<"+e+n+"?"+this.tagEndChar;{let s=this.options.tagValueProcessor(e,t);return s=this.replaceEntitiesValue(s),""===s?this.indentate(i)+"<"+e+n+this.closeTag(e)+this.tagEndChar:this.indentate(i)+"<"+e+n+">"+s+"</"+e+this.tagEndChar}},kt.prototype.replaceEntitiesValue=function(t){if(t&&t.length>0&&this.options.processEntities)for(let e=0;e<this.options.entities.length;e++){const n=this.options.entities[e];t=t.replace(n.regex,n.val)}return t};const Bt=kt,Ut={validate:l};module.exports=e})();
+(()=>{"use strict";var t={d:(e,i)=>{for(var n in i)t.o(i,n)&&!t.o(e,n)&&Object.defineProperty(e,n,{enumerable:!0,get:i[n]})},o:(t,e)=>Object.prototype.hasOwnProperty.call(t,e),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},e={};t.r(e),t.d(e,{XMLBuilder:()=>$e,XMLParser:()=>ie,XMLValidator:()=>Pe});const i=":A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD",n=new RegExp("^["+i+"]["+i+"\\-.\\d\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$"),r=function(t){return!(null==n.exec(t))},s=["hasOwnProperty","toString","valueOf","__defineGetter__","__defineSetter__","__lookupGetter__","__lookupSetter__"],o=["__proto__","constructor","prototype"],a={allowBooleanAttributes:!1,unpairedTags:[]};function l(t,e){e=Object.assign({},a,e);const i=[];let n=!1,r=!1;"\ufeff"===t[0]&&(t=t.substr(1));for(let s=0;s<t.length;s++)if("<"===t[s]&&"?"===t[s+1]){if(s+=2,s=c(t,s),s.err)return s}else{if("<"!==t[s]){if(p(t[s]))continue;return x("InvalidChar","char '"+t[s]+"' is not expected.",N(t,s))}{let o=s;if(s++,"!"===t[s]){s=h(t,s);continue}{let a=!1;"/"===t[s]&&(a=!0,s++);let l="";for(;s<t.length&&">"!==t[s]&&" "!==t[s]&&"\t"!==t[s]&&"\n"!==t[s]&&"\r"!==t[s];s++)l+=t[s];if(l=l.trim(),"/"===l[l.length-1]&&(l=l.substring(0,l.length-1),s--),!y(l)){let e;return e=0===l.trim().length?"Invalid space after '<'.":"Tag '"+l+"' is an invalid name.",x("InvalidTag",e,N(t,s))}const d=f(t,s);if(!1===d)return x("InvalidAttr","Attributes for '"+l+"' have open quote.",N(t,s));let u=d.value;if(s=d.index,"/"===u[u.length-1]){const i=s-u.length;u=u.substring(0,u.length-1);const r=g(u,e);if(!0!==r)return x(r.err.code,r.err.msg,N(t,i+r.err.line));n=!0}else if(a){if(!d.tagClosed)return x("InvalidTag","Closing tag '"+l+"' doesn't have proper closing.",N(t,s));if(u.trim().length>0)return x("InvalidTag","Closing tag '"+l+"' can't have attributes or invalid starting.",N(t,o));if(0===i.length)return x("InvalidTag","Closing tag '"+l+"' has not been opened.",N(t,o));{const e=i.pop();if(l!==e.tagName){let i=N(t,e.tagStartPos);return x("InvalidTag","Expected closing tag '"+e.tagName+"' (opened in line "+i.line+", col "+i.col+") instead of closing tag '"+l+"'.",N(t,o))}0==i.length&&(r=!0)}}else{const a=g(u,e);if(!0!==a)return x(a.err.code,a.err.msg,N(t,s-u.length+a.err.line));if(!0===r)return x("InvalidXml","Multiple possible root nodes found.",N(t,s));-1!==e.unpairedTags.indexOf(l)||i.push({tagName:l,tagStartPos:o}),n=!0}for(s++;s<t.length;s++)if("<"===t[s]){if("!"===t[s+1]){s++,s=h(t,s);continue}if("?"!==t[s+1])break;if(s=c(t,++s),s.err)return s}else if("&"===t[s]){const e=m(t,s);if(-1==e)return x("InvalidChar","char '&' is not expected.",N(t,s));s=e}else if(!0===r&&!p(t[s]))return x("InvalidXml","Extra text at the end",N(t,s));"<"===t[s]&&s--}}}return n?1==i.length?x("InvalidTag","Unclosed tag '"+i[0].tagName+"'.",N(t,i[0].tagStartPos)):!(i.length>0)||x("InvalidXml","Invalid '"+JSON.stringify(i.map(t=>t.tagName),null,4).replace(/\r?\n/g,"")+"' found.",{line:1,col:1}):x("InvalidXml","Start tag expected.",1)}function p(t){return" "===t||"\t"===t||"\n"===t||"\r"===t}function c(t,e){const i=e;for(;e<t.length;e++)if("?"==t[e]||" "==t[e]){const n=t.substr(i,e-i);if(e>5&&"xml"===n)return x("InvalidXml","XML declaration allowed only at the start of the document.",N(t,e));if("?"==t[e]&&">"==t[e+1]){e++;break}continue}return e}function h(t,e){if(t.length>e+5&&"-"===t[e+1]&&"-"===t[e+2]){for(e+=3;e<t.length;e++)if("-"===t[e]&&"-"===t[e+1]&&">"===t[e+2]){e+=2;break}}else if(t.length>e+8&&"D"===t[e+1]&&"O"===t[e+2]&&"C"===t[e+3]&&"T"===t[e+4]&&"Y"===t[e+5]&&"P"===t[e+6]&&"E"===t[e+7]){let i=1;for(e+=8;e<t.length;e++)if("<"===t[e])i++;else if(">"===t[e]&&(i--,0===i))break}else if(t.length>e+9&&"["===t[e+1]&&"C"===t[e+2]&&"D"===t[e+3]&&"A"===t[e+4]&&"T"===t[e+5]&&"A"===t[e+6]&&"["===t[e+7])for(e+=8;e<t.length;e++)if("]"===t[e]&&"]"===t[e+1]&&">"===t[e+2]){e+=2;break}return e}const d='"',u="'";function f(t,e){let i="",n="",r=!1;for(;e<t.length;e++){if(t[e]===d||t[e]===u)""===n?n=t[e]:n!==t[e]||(n="");else if(">"===t[e]&&""===n){r=!0;break}i+=t[e]}return""===n&&{value:i,index:e,tagClosed:r}}function g(t,e){const i=function(t){const e=[],i=t.length;let n=0;for(;n<i;){const r=n;for(;n<i&&p(t[n]);)n++;if(n>=i)break;if("="===t[n]){n=r+1;continue}const s=t.slice(r,n),o=n;for(;n<i&&!p(t[n])&&"="!==t[n];)n++;const a=t.slice(o,n);let l,c,h,d=n;for(;d<i&&p(t[d]);)d++;d<i&&"="===t[d]&&(l=t.slice(n,d+1),n=d+1);let u=n;for(;u<i&&p(t[u]);)u++;if(u<i&&('"'===t[u]||"'"===t[u])){const e=u+1,i=t.indexOf(t[u],e);-1!==i&&(c=t[u],h=t.slice(e,i),n=i+1)}const f={startIndex:r};f[1]=s,f[2]=a,f[3]=l,f[4]=void 0!==c||void 0,f[5]=c,f[6]=h,e.push(f)}return e}(t),n={};for(let t=0;t<i.length;t++){if(0===i[t][1].length)return x("InvalidAttr","Attribute '"+i[t][2]+"' has no space in starting.",E(i[t]));if(void 0!==i[t][3]&&void 0===i[t][4])return x("InvalidAttr","Attribute '"+i[t][2]+"' is without value.",E(i[t]));if(void 0===i[t][3]&&!e.allowBooleanAttributes)return x("InvalidAttr","boolean attribute '"+i[t][2]+"' is not allowed.",E(i[t]));const r=i[t][2];if(!b(r))return x("InvalidAttr","Attribute '"+r+"' is an invalid name.",E(i[t]));if(Object.prototype.hasOwnProperty.call(n,r))return x("InvalidAttr","Attribute '"+r+"' is repeated.",E(i[t]));n[r]=1}return!0}function m(t,e){if(";"===t[++e])return-1;if("#"===t[e])return function(t,e){let i=/\d/;for("x"===t[e]&&(e++,i=/[\da-fA-F]/);e<t.length;e++){if(";"===t[e])return e;if(!t[e].match(i))break}return-1}(t,++e);let i=0;for(;e<t.length;e++,i++)if(!(t[e].match(/\w/)&&i<20)){if(";"===t[e])break;return-1}return e}function x(t,e,i){return{err:{code:t,msg:e,line:i.line||i,col:i.col}}}function b(t){return r(t)}function y(t){return r(t)}function N(t,e){const i=t.substring(0,e).split(/\r?\n/);return{line:i.length,col:i[i.length-1].length+1}}function E(t){return t.startIndex+t[1].length}const w=t=>s.includes(t)?"__"+t:t,v={preserveOrder:!1,attributeNamePrefix:"@_",attributesGroupName:!1,textNodeName:"#text",ignoreAttributes:!0,removeNSPrefix:!1,allowBooleanAttributes:!1,parseTagValue:!0,parseAttributeValue:!1,trimValues:!0,cdataPropName:!1,numberParseOptions:{hex:!0,leadingZeros:!0,eNotation:!0,unicode:!1},tagValueProcessor:function(t,e){return e},attributeValueProcessor:function(t,e){return e},stopNodes:[],alwaysCreateTextNode:!1,isArray:()=>!1,commentPropName:!1,unpairedTags:[],processEntities:!0,htmlEntities:!1,entityDecoder:null,ignoreDeclaration:!1,ignorePiTags:!1,transformTagName:!1,transformAttributeName:!1,updateTag:function(t,e,i){return t},captureMetaData:!1,maxNestedTags:100,strictReservedNames:!0,jPath:!0,onDangerousProperty:w};function S(t,e){if("string"!=typeof t)return;const i=t.toLowerCase();if(s.some(t=>i===t.toLowerCase()))throw new Error(`[SECURITY] Invalid ${e}: "${t}" is a reserved JavaScript keyword that could cause prototype pollution`);if(o.some(t=>i===t.toLowerCase()))throw new Error(`[SECURITY] Invalid ${e}: "${t}" is a reserved JavaScript keyword that could cause prototype pollution`)}function A(t,e){return"boolean"==typeof t?{enabled:t,maxEntitySize:1e4,maxExpansionDepth:1e4,maxTotalExpansions:1/0,maxExpandedLength:1e5,maxEntityCount:1e3,allowedTags:null,tagFilter:null,appliesTo:"all"}:"object"==typeof t&&null!==t?{enabled:!1!==t.enabled,maxEntitySize:Math.max(1,t.maxEntitySize??1e4),maxExpansionDepth:Math.max(1,t.maxExpansionDepth??1e4),maxTotalExpansions:Math.max(1,t.maxTotalExpansions??1/0),maxExpandedLength:Math.max(1,t.maxExpandedLength??1e5),maxEntityCount:Math.max(1,t.maxEntityCount??1e3),allowedTags:t.allowedTags??null,tagFilter:t.tagFilter??null,appliesTo:t.appliesTo??"all"}:A(!0)}const T=function(t){const e=Object.assign({},v,t),i=[{value:e.attributeNamePrefix,name:"attributeNamePrefix"},{value:e.attributesGroupName,name:"attributesGroupName"},{value:e.textNodeName,name:"textNodeName"},{value:e.cdataPropName,name:"cdataPropName"},{value:e.commentPropName,name:"commentPropName"}];for(const{value:t,name:e}of i)t&&S(t,e);return null===e.onDangerousProperty&&(e.onDangerousProperty=w),e.processEntities=A(e.processEntities,e.htmlEntities),e.unpairedTagsSet=new Set(e.unpairedTags),e.stopNodes&&Array.isArray(e.stopNodes)&&(e.stopNodes=e.stopNodes.map(t=>"string"==typeof t&&t.startsWith("*.")?".."+t.substring(2):t)),e};let _;_="function"!=typeof Symbol?"@@xmlMetadata":Symbol("XML Node Metadata");class C{constructor(t){this.tagname=t,this.child=[],this[":@"]=Object.create(null)}add(t,e){"__proto__"===t&&(t="#__proto__"),this.child.push({[t]:e})}addChild(t,e){"__proto__"===t.tagname&&(t.tagname="#__proto__"),t[":@"]&&Object.keys(t[":@"]).length>0?this.child.push({[t.tagname]:t.child,":@":t[":@"]}):this.child.push({[t.tagname]:t.child}),this.addStartIndex(e)}addStartIndex(t){void 0!==t&&(this.child[this.child.length-1][_]={startIndex:t})}addEndIndex(t){const e=this.child[this.child.length-1];void 0!==e&&void 0!==e[_]&&void 0===e[_].endIndex&&(e[_].endIndex=t)}static getMetaDataSymbol(){return _}}const $=":A-Za-z_À-ÖØ-öø-˿Ͱ-ͽͿ-҆҈-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-�",P=":A-Za-z_À-˿Ͱ-ͽͿ-҆҈-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-�𐀀-󯿿",O=P+"\\-\\.\\d·̀-ͯ҇‿-⁀",I=(t,e,i="")=>{const n=`[${t.replace(":","")}][${e.replace(":","")}]*`;return{name:new RegExp(`^[${t}][${e}]*$`,i),ncName:new RegExp(`^${n}$`,i),qName:new RegExp(`^${n}(?::${n})?$`,i),nmToken:new RegExp(`^[${e}]+$`,i),nmTokens:new RegExp(`^[${e}]+(?:\\s+[${e}]+)*$`,i)}},j=I($,$+"\\-\\.\\d·̀-ͯ‿-⁀"),k=I(P,O,"u"),L=":A-Za-z_",D=I(L,L+"\\-\\.\\d"),R=(t,{xmlVersion:e="1.0",asciiOnly:i=!1}={})=>((t="1.0",e=!1)=>e?D:"1.1"===t?k:j)(e,i).qName.test(t);class M{constructor(t,e){this.suppressValidationErr=!t,this.options=t,this.xmlVersion=e||1}setXmlVersion(t=1){this.xmlVersion=t}readDocType(t,e){const i=Object.create(null);let n=0;if("O"!==t[e+3]||"C"!==t[e+4]||"T"!==t[e+5]||"Y"!==t[e+6]||"P"!==t[e+7]||"E"!==t[e+8])throw new Error("Invalid Tag instead of DOCTYPE");{e+=9;let r=1,s=!1,o=!1,a=null,l="";for(;e<t.length;e++)if(null===a)if(s||o||'"'!==t[e]&&"'"!==t[e])if("<"!==t[e]||o)if(">"===t[e]){if(o?"-"===t[e-1]&&"-"===t[e-2]&&(o=!1,r--):r--,0===r)break}else"["===t[e]?s=!0:l+=t[e];else{if(s&&q(t,"!ENTITY",e)){let r,s;if(e+=7,[r,s,e]=this.readEntityExp(t,e+1,this.suppressValidationErr),-1===s.indexOf("&")){if(!1!==this.options.enabled&&null!=this.options.maxEntityCount&&n>=this.options.maxEntityCount)throw new Error(`Entity count (${n+1}) exceeds maximum allowed (${this.options.maxEntityCount})`);i[r]=s,n++}}else if(s&&q(t,"!ELEMENT",e)){e+=8;const{index:i}=this.readElementExp(t,e+1);e=i}else if(s&&q(t,"!ATTLIST",e))e+=8;else if(s&&q(t,"!NOTATION",e)){e+=9;const{index:i}=this.readNotationExp(t,e+1,this.suppressValidationErr);e=i}else{if(!q(t,"!--",e))throw new Error("Invalid DOCTYPE");o=!0}r++,l=""}else a=t[e],l+=t[e];else t[e]===a&&(a=null),l+=t[e];if(null!==a||0!==r)throw new Error("Unclosed DOCTYPE")}return{entities:i,i:e}}readEntityExp(t,e){const i=e=V(t,e);for(;e<t.length&&!/\s/.test(t[e])&&'"'!==t[e]&&"'"!==t[e];)e++;let n=t.substring(i,e);if(F(n,{xmlVersion:this.xmlVersion}),e=V(t,e),!this.suppressValidationErr){if("SYSTEM"===t.substring(e,e+6).toUpperCase())throw new Error("External entities are not supported");if("%"===t[e])throw new Error("Parameter entities are not supported")}let r="";if([e,r]=this.readIdentifierVal(t,e,"entity"),!1!==this.options.enabled&&null!=this.options.maxEntitySize&&r.length>this.options.maxEntitySize)throw new Error(`Entity "${n}" size (${r.length}) exceeds maximum allowed size (${this.options.maxEntitySize})`);return[n,r,--e]}readNotationExp(t,e){const i=e=V(t,e);for(;e<t.length&&!/\s/.test(t[e]);)e++;let n=t.substring(i,e);!this.suppressValidationErr&&F(n,{xmlVersion:this.xmlVersion}),e=V(t,e);const r=t.substring(e,e+6).toUpperCase();if(!this.suppressValidationErr&&"SYSTEM"!==r&&"PUBLIC"!==r)throw new Error(`Expected SYSTEM or PUBLIC, found "${r}"`);e+=r.length,e=V(t,e);let s=null,o=null;if("PUBLIC"===r)[e,s]=this.readIdentifierVal(t,e,"publicIdentifier"),'"'!==t[e=V(t,e)]&&"'"!==t[e]||([e,o]=this.readIdentifierVal(t,e,"systemIdentifier"));else if("SYSTEM"===r&&([e,o]=this.readIdentifierVal(t,e,"systemIdentifier"),!this.suppressValidationErr&&!o))throw new Error("Missing mandatory system identifier for SYSTEM notation");return{notationName:n,publicIdentifier:s,systemIdentifier:o,index:--e}}readIdentifierVal(t,e,i){let n="";const r=t[e];if('"'!==r&&"'"!==r)throw new Error(`Expected quoted string, found "${r}"`);const s=++e;for(;e<t.length&&t[e]!==r;)e++;if(n=t.substring(s,e),t[e]!==r)throw new Error(`Unterminated ${i} value`);return[++e,n]}readElementExp(t,e){const i=e=V(t,e);for(;e<t.length&&!/\s/.test(t[e]);)e++;let n=t.substring(i,e);if(!this.suppressValidationErr&&!R(n,{xmlVersion:this.xmlVersion}))throw new Error(`Invalid element name: "${n}"`);let r="";if("E"===t[e=V(t,e)]&&q(t,"MPTY",e))e+=4;else if("A"===t[e]&&q(t,"NY",e))e+=2;else if("("===t[e]){const i=++e;for(;e<t.length&&")"!==t[e];)e++;if(r=t.substring(i,e),")"!==t[e])throw new Error("Unterminated content model")}else if(!this.suppressValidationErr)throw new Error(`Invalid Element Expression, found "${t[e]}"`);return{elementName:n,contentModel:r.trim(),index:e}}readAttlistExp(t,e){let i=e=V(t,e);for(;e<t.length&&!/\s/.test(t[e]);)e++;let n=t.substring(i,e);for(F(n,{xmlVersion:this.xmlVersion}),i=e=V(t,e);e<t.length&&!/\s/.test(t[e]);)e++;let r=t.substring(i,e);if(!F(r,{xmlVersion:this.xmlVersion}))throw new Error(`Invalid attribute name: "${r}"`);e=V(t,e);let s="";if("NOTATION"===t.substring(e,e+8).toUpperCase()){if(s="NOTATION","("!==t[e=V(t,e+=8)])throw new Error(`Expected '(', found "${t[e]}"`);e++;let i=[];for(;e<t.length&&")"!==t[e];){const n=e;for(;e<t.length&&"|"!==t[e]&&")"!==t[e];)e++;let r=t.substring(n,e);if(r=r.trim(),!F(r,{xmlVersion:this.xmlVersion}))throw new Error(`Invalid notation name: "${r}"`);i.push(r),"|"===t[e]&&(e++,e=V(t,e))}if(")"!==t[e])throw new Error("Unterminated list of notations");e++,s+=" ("+i.join("|")+")"}else{const i=e;for(;e<t.length&&!/\s/.test(t[e]);)e++;s+=t.substring(i,e);const n=["CDATA","ID","IDREF","IDREFS","ENTITY","ENTITIES","NMTOKEN","NMTOKENS"];if(!this.suppressValidationErr&&!n.includes(s.toUpperCase()))throw new Error(`Invalid attribute type: "${s}"`)}e=V(t,e);let o="";return"#REQUIRED"===t.substring(e,e+8).toUpperCase()?(o="#REQUIRED",e+=8):"#IMPLIED"===t.substring(e,e+7).toUpperCase()?(o="#IMPLIED",e+=7):[e,o]=this.readIdentifierVal(t,e,"ATTLIST"),{elementName:n,attributeName:r,attributeType:s,defaultValue:o,index:e}}}const V=(t,e)=>{for(;e<t.length&&/\s/.test(t[e]);)e++;return e};function q(t,e,i){for(let n=0;n<e.length;n++)if(e[n]!==t[i+n+1])return!1;return!0}function F(t,e){if(R(t,{xmlVersion:e}))return t;throw new Error(`Invalid entity name ${t}`)}const U=[48,1632,1776,2406,2534,2662,2790,2918,3046,3174,3302,3430,3558,3664,3792,3872,4160,4240,6112,6160,6470,6608,6784,6800,6992,7088,7232,7248,65296,120782,120792,120802,120812,120822,66720,68912,69734,69872,69942,70096,70384,70736,70864,71248,71360,71472,71904,72016,72688,72784,73040,73120,73552,92768,92864,93008,123200,123632,124144,125264,130032],B=new Map,G=1632,X=new Uint8Array(63904).fill(255);for(const t of U)for(let e=0;e<10;e++){const i=t+e;i<=65535?X[i-G]=e:B.set(i,e)}const W=new Set([8722,65293,65123]),z=/^[-+]?0x[a-fA-F0-9]+$/,Y=/^0b[01]+$/,H=/^0o[0-7]+$/,Q=/^([\-\+])?(0*)([0-9]*(\.[0-9]*)?)$/,J={hex:!0,binary:!1,octal:!1,leadingZeros:!0,decimalPoint:".",eNotation:!0,infinity:"original",unicode:!1};function Z(t,e={}){if(e=Object.assign({},J,e),!t||"string"!=typeof t)return t;let i=t.trim();if(0===i.length)return t;if(void 0!==e.skipLike&&e.skipLike.test(i))return t;if("0"===i)return 0;if(e.unicode&&(i=function(t){if("string"!=typeof t)return t;const e=t.length;if(0===e)return t;let i=-1;for(let n=0;n<e;n++){const r=t.charCodeAt(n);if(!(r>=48&&r<=57||45===r))if(r<G){if(W.has(r)){i=n;break}}else if(r>=55296&&r<=56319){if(n+1<e){const e=t.charCodeAt(n+1);if(e>=56320&&e<=57343){const t=65536+(r-55296<<10)+(e-56320);if(B.has(t)){i=n;break}}}}else if(255!==X[r-G]||W.has(r)){i=n;break}}if(-1===i)return t;const n=[];i>0&&n.push(t.slice(0,i));for(let r=i;r<e;r++){const i=t.charCodeAt(r);if(i>=48&&i<=57||45===i){n.push(t[r]);continue}if(i<G){n.push(W.has(i)?"-":t[r]);continue}if(i>=55296&&i<=56319){if(r+1<e){const e=t.charCodeAt(r+1);if(e>=56320&&e<=57343){const t=65536+(i-55296<<10)+(e-56320),s=B.get(t);if(void 0!==s){n.push(String.fromCharCode(s+48)),r++;continue}}}n.push(t[r]);continue}if(W.has(i)){n.push("-");continue}const s=X[i-G];n.push(255!==s?String.fromCharCode(s+48):t[r])}return n.join("")}(i),"0"===i))return 0;if(e.hex&&z.test(i))return tt(i,16);if(e.binary&&Y.test(i))return tt(i,2);if(e.octal&&H.test(i))return tt(i,8);if(isFinite(i)){if(i.includes("e")||i.includes("E"))return function(t,e,i){if(!i.eNotation)return t;const n=e.match(K);if(n){let r=n[1]||"";const s=-1===n[3].indexOf("e")?"E":"e",o=n[2],a=r?t[o.length+1]===s:t[o.length]===s;return o.length>1&&a?t:(1!==o.length||!n[3].startsWith(`.${s}`)&&n[3][0]!==s)&&o.length>0?i.leadingZeros&&!a?(e=(n[1]||"")+n[3],Number(e)):t:Number(e)}return t}(t,i,e);{const n=Q.exec(i);if(n){const r=n[1]||"",s=n[2];let o=function(t){if(t&&-1!==t.indexOf(".")){let e=t.length;for(;e>0&&48===t.charCodeAt(e-1);)e--;return"."===(t=t.slice(0,e))?t="0":"."===t[0]?t="0"+t:"."===t[t.length-1]&&(t=t.substring(0,t.length-1)),t}return t}(n[3]);const a=r?"."===t[s.length+1]:"."===t[s.length];if(!e.leadingZeros&&(s.length>1||1===s.length&&!a))return t;{const n=Number(i),a=String(n);if(0===n)return n;if(-1!==a.search(/[eE]/))return e.eNotation?n:t;if(-1!==i.indexOf("."))return"0"===a||a===o||a===`${r}${o}`?n:t;let l=s?o:i;return s?l===a||r+l===a?n:t:l===a||l===r+a?n:t}}return t}}return function(t,e,i){const n=e===1/0;switch(i.infinity.toLowerCase()){case"null":return null;case"infinity":return e;case"string":return n?"Infinity":"-Infinity";default:return t}}(t,Number(i),e)}const K=/^([-+])?(0*)(\d*(\.\d*)?[eE][-\+]?\d+)$/;function tt(t,e){const i=t.trim();if(2!==e&&8!==e||(t=i.substring(2)),parseInt)return parseInt(t,e);if(Number.parseInt)return Number.parseInt(t,e);if(window&&window.parseInt)return window.parseInt(t,e);throw new Error("parseInt, Number.parseInt, window.parseInt are not supported")}class et{constructor(t){this._matcher=t}get separator(){return this._matcher.separator}getCurrentTag(){const t=this._matcher.path;return t.length>0?t[t.length-1].tag:void 0}getCurrentNamespace(){const t=this._matcher.path;return t.length>0?t[t.length-1].namespace:void 0}getAttrValue(t){const e=this._matcher.path;if(0!==e.length)return e[e.length-1].values?.[t]}hasAttr(t){const e=this._matcher.path;if(0===e.length)return!1;const i=e[e.length-1];return void 0!==i.values&&t in i.values}getAnyParentAttr(t){return this._matcher.getAnyParentAttr(t)}hasAnyParentAttr(t){return this._matcher.hasAnyParentAttr(t)}getPosition(){const t=this._matcher.path;return 0===t.length?-1:t[t.length-1].position??0}getCounter(){const t=this._matcher.path;return 0===t.length?-1:t[t.length-1].counter??0}getIndex(){return this.getPosition()}getDepth(){return this._matcher.path.length}toString(t,e=!0){return this._matcher.toString(t,e)}toArray(){return this._matcher.path.map(t=>t.tag)}matches(t){return this._matcher.matches(t)}matchesAny(t){return t.matchesAny(this._matcher)}}class it{constructor(t={}){this.separator=t.separator||".",this.path=[],this.siblingStacks=[],this._pathStringCache=null,this._view=new et(this),this._keptAttrs=[]}push(t,e=null,i=null,n=null){this._pathStringCache=null,this.path.length>0&&(this.path[this.path.length-1].values=void 0);const r=this.path.length;let s=this.siblingStacks[r];s||(s={counts:new Map,total:0},this.siblingStacks[r]=s);const o=i?`${i}:${t}`:t,a=s.counts.get(o)||0,l=s.total;s.counts.set(o,a+1),s.total++;const p={tag:t,position:l,counter:a};null!=i&&(p.namespace=i),null!=e&&(p.values=e),this.path.push(p);const c=this.path.length,h=null!==n?n.keep:null;if(null!=h&&h.length>0&&e)for(let t=0;t<h.length;t++){const i=h[t];void 0!==e[i]&&this._keptAttrs.push({depth:c,name:i,value:e[i]})}}pop(){if(0===this.path.length)return;this._pathStringCache=null;const t=this.path.pop();this.siblingStacks.length>this.path.length+1&&(this.siblingStacks.length=this.path.length+1);const e=this.path.length+1;for(;this._keptAttrs.length>0&&this._keptAttrs[this._keptAttrs.length-1].depth>=e;)this._keptAttrs.pop();return t}updateCurrent(t){if(this.path.length>0){const e=this.path[this.path.length-1];null!=t&&(e.values=t)}}getCurrentTag(){return this.path.length>0?this.path[this.path.length-1].tag:void 0}getCurrentNamespace(){return this.path.length>0?this.path[this.path.length-1].namespace:void 0}getAttrValue(t){if(0!==this.path.length)return this.path[this.path.length-1].values?.[t]}hasAttr(t){if(0===this.path.length)return!1;const e=this.path[this.path.length-1];return void 0!==e.values&&t in e.values}getAnyParentAttr(t){const e=this._keptAttrs;for(let i=e.length-1;i>=0;i--)if(e[i].name===t)return e[i].value}hasAnyParentAttr(t){const e=this._keptAttrs;for(let i=e.length-1;i>=0;i--)if(e[i].name===t)return!0;return!1}getPosition(){return 0===this.path.length?-1:this.path[this.path.length-1].position??0}getCounter(){return 0===this.path.length?-1:this.path[this.path.length-1].counter??0}getIndex(){return this.getPosition()}getDepth(){return this.path.length}toString(t,e=!0){const i=t||this.separator;if(i===this.separator&&!0===e){if(null!==this._pathStringCache)return this._pathStringCache;const t=this.path.map(t=>t.namespace?`${t.namespace}:${t.tag}`:t.tag).join(i);return this._pathStringCache=t,t}return this.path.map(t=>e&&t.namespace?`${t.namespace}:${t.tag}`:t.tag).join(i)}toArray(){return this.path.map(t=>t.tag)}reset(){this._pathStringCache=null,this.path=[],this.siblingStacks=[],this._keptAttrs=[]}matches(t){const e=t.segments;return 0!==e.length&&(t.hasDeepWildcard()?this._matchWithDeepWildcard(e):this._matchSimple(e))}_matchSimple(t){if(this.path.length!==t.length)return!1;for(let e=0;e<t.length;e++)if(!this._matchSegment(t[e],this.path[e],e===this.path.length-1))return!1;return!0}_matchWithDeepWildcard(t){let e=this.path.length-1,i=t.length-1;for(;i>=0&&e>=0;){const n=t[i];if("deep-wildcard"===n.type){if(i--,i<0)return!0;const n=t[i];let r=!1;for(let t=e;t>=0;t--)if(this._matchSegment(n,this.path[t],t===this.path.length-1)){e=t-1,i--,r=!0;break}if(!r)return!1}else{if(!this._matchSegment(n,this.path[e],e===this.path.length-1))return!1;e--,i--}}return i<0}_matchSegment(t,e,i){if("*"!==t.tag&&t.tag!==e.tag)return!1;if(void 0!==t.namespace&&"*"!==t.namespace&&t.namespace!==e.namespace)return!1;if(void 0!==t.attrName){if(!i)return!1;if(!e.values||!(t.attrName in e.values))return!1;if(void 0!==t.attrValue&&String(e.values[t.attrName])!==String(t.attrValue))return!1}if(void 0!==t.position){if(!i)return!1;const n=e.counter??0;if("first"===t.position&&0!==n)return!1;if("odd"===t.position&&n%2!=1)return!1;if("even"===t.position&&n%2!=0)return!1;if("nth"===t.position&&n!==t.positionValue)return!1}return!0}matchesAny(t){return t.matchesAny(this)}snapshot(){return{path:this.path.map(t=>({...t})),siblingStacks:this.siblingStacks.map(t=>t?{counts:new Map(t.counts),total:t.total}:t),keptAttrs:this._keptAttrs.map(t=>({...t}))}}restore(t){this._pathStringCache=null,this.path=t.path.map(t=>({...t})),this.siblingStacks=t.siblingStacks.map(t=>t?{counts:new Map(t.counts),total:t.total}:t),this._keptAttrs=(t.keptAttrs||[]).map(t=>({...t}))}readOnly(){return this._view}}class nt{constructor(t,e={},i){this.pattern=t,this.separator=e.separator||".",this.segments=this._parse(t),this.data=i,this._hasDeepWildcard=this.segments.some(t=>"deep-wildcard"===t.type),this._hasAttributeCondition=this.segments.some(t=>void 0!==t.attrName),this._hasPositionSelector=this.segments.some(t=>void 0!==t.position)}_parse(t){const e=[];let i=0,n="";for(;i<t.length;)t[i]===this.separator?i+1<t.length&&t[i+1]===this.separator?(n.trim()&&(e.push(this._parseSegment(n.trim())),n=""),e.push({type:"deep-wildcard"}),i+=2):(n.trim()&&e.push(this._parseSegment(n.trim())),n="",i++):(n+=t[i],i++);return n.trim()&&e.push(this._parseSegment(n.trim())),e}_parseSegment(t){const e={type:"tag"};let i=null,n=t;const r=t.match(/^([^\[]+)(\[[^\]]*\])(.*)$/);if(r&&(n=r[1]+r[3],r[2])){const t=r[2].slice(1,-1);t&&(i=t)}let s,o,a=n;if(n.includes("::")){const e=n.indexOf("::");if(s=n.substring(0,e).trim(),a=n.substring(e+2).trim(),!s)throw new Error(`Invalid namespace in pattern: ${t}`)}let l=null;if(a.includes(":")){const t=a.lastIndexOf(":"),e=a.substring(0,t).trim(),i=a.substring(t+1).trim();["first","last","odd","even"].includes(i)||/^nth\(\d+\)$/.test(i)?(o=e,l=i):o=a}else o=a;if(!o)throw new Error(`Invalid segment pattern: ${t}`);if(e.tag=o,s&&(e.namespace=s),i)if(i.includes("=")){const t=i.indexOf("=");e.attrName=i.substring(0,t).trim(),e.attrValue=i.substring(t+1).trim()}else e.attrName=i.trim();if(l){const t=l.match(/^nth\((\d+)\)$/);t?(e.position="nth",e.positionValue=parseInt(t[1],10)):e.position=l}return e}get length(){return this.segments.length}hasDeepWildcard(){return this._hasDeepWildcard}hasAttributeCondition(){return this._hasAttributeCondition}hasPositionSelector(){return this._hasPositionSelector}toString(){return this.pattern}}class rt{constructor(){this._byDepthAndTag=new Map,this._wildcardByDepth=new Map,this._deepWildcards=[],this._deepByTerminalTag=new Map,this._patterns=new Set,this._sealed=!1}add(t){if(this._sealed)throw new TypeError("ExpressionSet is sealed. Create a new ExpressionSet to add more expressions.");if(this._patterns.has(t.pattern))return this;if(this._patterns.add(t.pattern),t.hasDeepWildcard()){const e=t.segments[t.segments.length-1];if(e&&"deep-wildcard"!==e.type&&"*"!==e.tag){const i=e.tag;this._deepByTerminalTag.has(i)||this._deepByTerminalTag.set(i,[]),this._deepByTerminalTag.get(i).push(t)}else this._deepWildcards.push(t);return this}const e=t.length,i=t.segments[t.segments.length-1],n=i?.tag;if(n&&"*"!==n){const i=`${e}:${n}`;this._byDepthAndTag.has(i)||this._byDepthAndTag.set(i,[]),this._byDepthAndTag.get(i).push(t)}else this._wildcardByDepth.has(e)||this._wildcardByDepth.set(e,[]),this._wildcardByDepth.get(e).push(t);return this}addAll(t){for(const e of t)this.add(e);return this}has(t){return this._patterns.has(t.pattern)}get size(){return this._patterns.size}seal(){return this._sealed=!0,this}get isSealed(){return this._sealed}matchesAny(t){return null!==this.findMatch(t)}findMatch(t){const e=t.getDepth(),i=t.getCurrentTag(),n=`${e}:${i}`,r=this._byDepthAndTag.get(n);if(r)for(let e=0;e<r.length;e++)if(t.matches(r[e]))return r[e];const s=this._wildcardByDepth.get(e);if(s)for(let e=0;e<s.length;e++)if(t.matches(s[e]))return s[e];const o=this._deepByTerminalTag.get(i);if(o)for(let e=0;e<o.length;e++)if(t.matches(o[e]))return o[e];for(let e=0;e<this._deepWildcards.length;e++)if(t.matches(this._deepWildcards[e]))return this._deepWildcards[e];return null}}const st={cent:"¢",pound:"£",curren:"¤",yen:"¥",euro:"€",dollar:"$",fnof:"ƒ",inr:"₹",af:"؋",birr:"ብር",peso:"₱",rub:"₽",won:"₩",yuan:"¥",cedil:"¸"},ot={amp:"&",apos:"'",gt:">",lt:"<",quot:'"'},at={nbsp:" ",copy:"©",reg:"®",trade:"™",mdash:"—",ndash:"–",hellip:"…",laquo:"«",raquo:"»",lsquo:"‘",rsquo:"’",ldquo:"“",rdquo:"”",bull:"•",para:"¶",sect:"§",deg:"°",frac12:"½",frac14:"¼",frac34:"¾"},lt=Object.freeze({ALLOW:"allow",BLOCK:"block",THROW:"throw"}),pt=new Set("!?\\\\/[]$%{}^&*()<>|+");function ct(t){if("#"===t[0])throw new Error(`[EntityReplacer] Invalid character '#' in entity name: "${t}"`);for(const e of t)if(pt.has(e))throw new Error(`[EntityReplacer] Invalid character '${e}' in entity name: "${t}"`);return t}function ht(...t){const e=Object.create(null);for(const i of t)if(i)for(const t of Object.keys(i)){const n=i[t];if("string"==typeof n)e[t]=n;else if(n&&"object"==typeof n&&void 0!==n.val){const i=n.val;"string"==typeof i&&(e[t]=i)}}return e}const dt="external",ut="base",ft="all",gt=Object.freeze({allow:0,leave:1,remove:2,throw:3}),mt=new Set([9,10,13]);class xt{constructor(t={}){var e;this._limit=t.limit||{},this._maxTotalExpansions=this._limit.maxTotalExpansions||0,this._maxExpandedLength=this._limit.maxExpandedLength||0,this._postCheck="function"==typeof t.postCheck?t.postCheck:t=>t,this._limitTiers=(e=this._limit.applyLimitsTo??dt)&&e!==dt?e===ft?new Set([ft]):e===ut?new Set([ut]):Array.isArray(e)?new Set(e):new Set([dt]):new Set([dt]),this._numericAllowed=t.numericAllowed??!0,this._baseMap=ht(ot,t.namedEntities||null),this._externalMap=Object.create(null),this._inputMap=Object.create(null),this._totalExpansions=0,this._expandedLength=0,this._removeSet=new Set(t.remove&&Array.isArray(t.remove)?t.remove:[]),this._leaveSet=new Set(t.leave&&Array.isArray(t.leave)?t.leave:[]);const i=function(t){if(!t)return{xmlVersion:1,onLevel:gt.allow,nullLevel:gt.remove};const e=1.1===t.xmlVersion?1.1:1,i=gt[t.onNCR]??gt.allow,n=gt[t.nullNCR]??gt.remove;return{xmlVersion:e,onLevel:i,nullLevel:Math.max(n,gt.remove)}}(t.ncr);this._ncrXmlVersion=i.xmlVersion,this._ncrOnLevel=i.onLevel,this._ncrNullLevel=i.nullLevel,this._onExternalEntity="function"==typeof t.onExternalEntity?t.onExternalEntity:null,this._onInputEntity="function"==typeof t.onInputEntity?t.onInputEntity:null}_applyRegistrationHook(t,e,i,n){if(!t)return!0;const r=t(e,i);if(r===lt.BLOCK)return!1;if(r===lt.THROW)throw new Error(`[EntityDecoder] Registration of ${n} entity "&${e};" was rejected by hook`);return!0}setExternalEntities(t){if(t)for(const e of Object.keys(t))ct(e);if(!this._onExternalEntity)return void(this._externalMap=ht(t));const e=ht(t),i=Object.create(null);for(const[t,n]of Object.entries(e))this._applyRegistrationHook(this._onExternalEntity,t,n,"external")&&(i[t]=n);this._externalMap=i}addExternalEntity(t,e){ct(t),"string"==typeof e&&-1===e.indexOf("&")&&this._applyRegistrationHook(this._onExternalEntity,t,e,"external")&&(this._externalMap[t]=e)}addInputEntities(t){if(this._totalExpansions=0,this._expandedLength=0,!this._onInputEntity)return void(this._inputMap=ht(t));const e=ht(t),i=Object.create(null);for(const[t,n]of Object.entries(e))this._applyRegistrationHook(this._onInputEntity,t,n,"input")&&(i[t]=n);this._inputMap=i}reset(){return this._inputMap=Object.create(null),this._totalExpansions=0,this._expandedLength=0,this}setXmlVersion(t){this._ncrXmlVersion=1.1===t?1.1:1}decode(t){if("string"!=typeof t||0===t.length)return t;if(-1===t.indexOf("&"))return t;const e=t,i=[],n=t.length;let r=0,s=0;const o=this._maxTotalExpansions>0,a=this._maxExpandedLength>0,l=o||a;for(;s<n;){if(38!==t.charCodeAt(s)){s++;continue}let e=s+1;for(;e<n&&59!==t.charCodeAt(e)&&e-s<=32;)e++;if(e>=n||59!==t.charCodeAt(e)){s++;continue}const p=t.slice(s+1,e);if(0===p.length){s++;continue}let c,h;if(this._removeSet.has(p))c="",void 0===h&&(h=dt);else{if(this._leaveSet.has(p)){s++;continue}if(35===p.charCodeAt(0)){const t=this._resolveNCR(p);if(void 0===t){s++;continue}c=t,h=ut}else{const t=this._resolveName(p);c=t?.value,h=t?.tier}}if(void 0!==c){if(s>r&&i.push(t.slice(r,s)),i.push(c),r=e+1,s=r,l&&this._tierCounts(h)){if(o&&(this._totalExpansions++,this._totalExpansions>this._maxTotalExpansions))throw new Error(`[EntityReplacer] Entity expansion count limit exceeded: ${this._totalExpansions} > ${this._maxTotalExpansions}`);if(a){const t=c.length-(p.length+2);if(t>0&&(this._expandedLength+=t,this._expandedLength>this._maxExpandedLength))throw new Error(`[EntityReplacer] Expanded content length limit exceeded: ${this._expandedLength} > ${this._maxExpandedLength}`)}}}else s++}r<n&&i.push(t.slice(r));const p=0===i.length?t:i.join("");return this._postCheck(p,e)}_tierCounts(t){return!!this._limitTiers.has(ft)||this._limitTiers.has(t)}_resolveName(t){return t in this._inputMap?{value:this._inputMap[t],tier:dt}:t in this._externalMap?{value:this._externalMap[t],tier:dt}:t in this._baseMap?{value:this._baseMap[t],tier:ut}:void 0}_classifyNCR(t){return 0===t?this._ncrNullLevel:t>=55296&&t<=57343||1===this._ncrXmlVersion&&t>=1&&t<=31&&!mt.has(t)?gt.remove:-1}_applyNCRAction(t,e,i){switch(t){case gt.allow:return String.fromCodePoint(i);case gt.remove:return"";case gt.leave:return;case gt.throw:throw new Error(`[EntityDecoder] Prohibited numeric character reference &${e}; (U+${i.toString(16).toUpperCase().padStart(4,"0")})`);default:return String.fromCodePoint(i)}}_resolveNCR(t){const e=t.charCodeAt(1);let i;if(i=120===e||88===e?parseInt(t.slice(2),16):parseInt(t.slice(1),10),Number.isNaN(i)||i<0||i>1114111)return;const n=this._classifyNCR(i);if(!this._numericAllowed&&n<gt.remove)return;const r=-1===n?this._ncrOnLevel:Math.max(this._ncrOnLevel,n);return this._applyNCRAction(r,t,i)}}const bt=[{id:"sql-block-comment-open",description:"SQL block comment open: /* ... */ — unusual in legitimate user text",pattern:/\/\*/},{id:"sql-union-select",description:"UNION SELECT — most common SQL injection aggregation attack",pattern:/\bUNION\s{1,20}(?:ALL\s{1,20})?SELECT\b/i},{id:"sql-drop-table",description:"DROP TABLE — destructive DDL injection",pattern:/\bDROP\s{1,20}TABLE\b/i},{id:"sql-drop-database",description:"DROP DATABASE — destructive DDL injection",pattern:/\bDROP\s{1,20}DATABASE\b/i},{id:"sql-insert-into",description:"INSERT INTO — data injection",pattern:/\bINSERT\s{1,20}INTO\b/i},{id:"sql-delete-from",description:"DELETE FROM — data deletion injection",pattern:/\bDELETE\s{1,20}FROM\b/i},{id:"sql-update-set",description:"UPDATE ... SET — data modification injection",pattern:/\bUPDATE\b[\s\S]{1,60}\bSET\b/i},{id:"sql-exec-xp",description:"EXEC xp_ — MSSQL extended stored procedure execution",pattern:/\bEXEC(?:UTE)?\s{1,20}xp_/i},{id:"sql-tautology-string",description:'Classic string tautology: \' OR \'1\'=\'1 or " OR "1"="1"',pattern:/'\s{0,10}OR\s{0,10}'[^']{0,20}'\s*=\s*'[^']{0,20}/i},{id:"sql-tautology-numeric",description:"Numeric tautology: OR 1=1",pattern:/\bOR\s{1,10}1\s*=\s*1\b/i},{id:"sql-always-true-zero",description:"Numeric tautology: OR 0=0",pattern:/\bOR\s{1,10}0\s*=\s*0\b/i},{id:"sql-sleep-benchmark",description:"Time-based blind injection: SLEEP() or BENCHMARK()",pattern:/\b(?:SLEEP|BENCHMARK)\s*\(/i},{id:"sql-waitfor-delay",description:"MSSQL time-based blind injection: WAITFOR DELAY",pattern:/\bWAITFOR\s{1,20}DELAY\b/i},{id:"sql-char-function",description:"CHAR() function — used to obfuscate injected strings",pattern:/\bCHAR\s*\(\s*\d{1,3}/i},{id:"sql-information-schema",description:"INFORMATION_SCHEMA — reconnaissance query for table/column enumeration",pattern:/\bINFORMATION_SCHEMA\b/i}],yt=[...bt,{id:"sql-line-comment",description:"SQL line comment: -- followed by whitespace or end of string",pattern:/--(?:\s|$)/},{id:"sql-stacked-query",description:"Stacked queries: semicolon immediately followed by a SQL keyword",pattern:/;\s{0,10}(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC)\b/i},{id:"sql-hex-encoding",description:"Hex-encoded string injection: 0x41414141 style (MySQL)",pattern:/\b0x[0-9a-f]{4,}/i}],Nt=[{id:"html-script-open",description:"<script opening tag",pattern:/<script[\s>/]/i},{id:"html-script-close",description:"<\/script closing tag",pattern:/<\/script[\s>]/i},{id:"html-javascript-protocol",description:"javascript: URI scheme (with optional whitespace/encoding)",pattern:/j[\t\n\r ]*a[\t\n\r ]*v[\t\n\r ]*a[\t\n\r ]*s[\t\n\r ]*c[\t\n\r ]*r[\t\n\r ]*i[\t\n\r ]*p[\t\n\r ]*t[\t\n\r ]*:/i},{id:"html-vbscript-protocol",description:"vbscript: URI scheme",pattern:/vbscript[\t\n\r ]*:/i},{id:"html-data-html",description:"data:text/html URI — can execute scripts in browsers",pattern:/data[\t\n\r ]*:[\t\n\r ]*text\/html/i},{id:"html-data-xhtml",description:"data:application/xhtml+xml URI",pattern:/data[\t\n\r ]*:[\t\n\r ]*application\/xhtml/i},{id:"html-data-svg",description:"data:image/svg+xml URI — can execute scripts",pattern:/data[\t\n\r ]*:[\t\n\r ]*image\/svg\+xml/i},{id:"html-inline-event-handler",description:"Inline event handler attributes: onclick=, onerror=, onload=, etc.",pattern:/\bon\w{1,30}\s*=/i},{id:"html-entity-obfuscated-script",description:"HTML-entity-encoded <script (e.g. &#x3C;script or &lt;script)",pattern:/(?:&#x0*3[Cc];?|&#0*60;?|&lt;)\s*script/i},{id:"html-entity-obfuscated-javascript",description:'HTML-entity-encoded javascript: (partial — catches common &#106; or &#x6a; for "j")',pattern:/(?:&#x0*6[Aa];?|&#0*106;?)\s*(?:&#x0*61;?|a)[\s\S]{0,80}script\s*:/i},{id:"html-style-expression",description:"CSS expression() — IE-era code execution in style attributes",pattern:/style[\s\S]{0,20}expression\s*\(/i},{id:"html-object-embed",description:"<object or <embed tags that can load active content",pattern:/<(?:object|embed)[\s>/]/i},{id:"html-base-tag",description:"<base href= — can hijack all relative URLs on a page",pattern:/<base[\s>]/i},{id:"html-meta-refresh",description:'<meta http-equiv="refresh" — can redirect users',pattern:/<meta[\s\S]{0,40}http-equiv[\s\S]{0,20}refresh/i},{id:"html-srcdoc",description:"srcdoc= attribute on iframes — embeds HTML that can run scripts",pattern:/srcdoc\s*=/i},{id:"html-iframe",description:"<iframe tag",pattern:/<iframe[\s>/]/i},{id:"html-form",description:"<form tag — can be used for phishing / credential harvesting injection",pattern:/<form[\s>/]/i}],Et=[{id:"xml-cdata-injection",description:"CDATA section injection: <![CDATA[ breaks out of text node context",pattern:/<!\[CDATA\[/i},{id:"xml-cdata-close",description:"CDATA close sequence: ]]> can terminate an enclosing CDATA section",pattern:/\]\]>/},{id:"xml-processing-instruction",description:"XML processing instruction: <?xml-stylesheet or <?php etc.",pattern:/<\?(?:xml[\- ]|php|asp)/i},{id:"xml-doctype-injection",description:"DOCTYPE declaration embedded in content — can define entities",pattern:/<!DOCTYPE(?:[\s[]|$)/i},{id:"xml-entity-system",description:"SYSTEM keyword — used in external entity declarations (XXE)",pattern:/\bSYSTEM\s+["']/i},{id:"xml-entity-public",description:"PUBLIC keyword — used in external entity declarations (XXE)",pattern:/\bPUBLIC\s+["']/i},{id:"xml-entity-declaration",description:"<!ENTITY declaration — defines entities, potential XXE or entity expansion",pattern:/<!ENTITY[\s%]/i},{id:"xml-billion-laughs",description:"Entity reference chaining / billion laughs: repeated &eX; style references",pattern:/(?:&\w{1,20};){3,}/},{id:"xml-namespace-confusion",description:"xmlns: attribute injection — can redefine namespaces to confuse parsers",pattern:/\bxmlns\s*(?::\w{1,40})?\s*=/i},{id:"xml-comment-injection",description:"\x3c!-- comment injection — can hide content from some parsers",pattern:/<!--/},{id:"xml-comment-close",description:"--\x3e closes an enclosing XML comment",pattern:/-->/},{id:"xml-pi-close",description:"?> closes an enclosing processing instruction",pattern:/\?>/}],wt=[{id:"svg-script-element",description:"<script element inside SVG executes JavaScript",pattern:/<script[\s>/]/i},{id:"svg-xlink-href-javascript",description:"xlink:href with javascript: — classic SVG XSS via <a> or <use>",pattern:/xlink\s*:\s*href\s*=\s*["']?\s*javascript\s*:/i},{id:"svg-href-javascript",description:"href= with javascript: in SVG context (<a>, <animate>, etc.)",pattern:/href\s*=\s*["']?\s*javascript\s*:/i},{id:"svg-foreignobject",description:"<foreignObject embeds HTML inside SVG — can execute scripts",pattern:/<foreignObject[\s>/]/i},{id:"svg-use-external",description:"<use xlink:href or href pointing to external resource (non-fragment URL)",pattern:/<use[\s\S]{0,60}(?:xlink\s*:\s*)?href\s*=\s*(?:["'][^#]|[^"'#\s>])/i},{id:"svg-animate-href",description:'<animate attributeName="href" — can dynamically change href to javascript:',pattern:/<animate[\s\S]{0,80}attributeName\s*=\s*["'][\s]*href["']/i},{id:"svg-animate-xlinkhref",description:'<animate attributeName="xlink:href"',pattern:/<animate[\s\S]{0,80}attributeName\s*=\s*["'][\s]*xlink\s*:\s*href["']/i},{id:"svg-set-javascript",description:'<set to="javascript:..." — sets an attribute to a javascript: URI',pattern:/<set[\s\S]{0,80}to\s*=\s*["']?\s*javascript\s*:/i},{id:"svg-event-handler",description:"SVG-specific event handler attributes: onload=, onerror=, onactivate=, etc.",pattern:/\bon(?:load|error|activate|begin|end|repeat|focus|blur|click|mouse\w{1,20}|key\w{1,20})\s*=/i},{id:"svg-handler-generic",description:"Generic on* handler catch-all for SVG attributes",pattern:/\bon\w{1,30}\s*=/i},{id:"svg-filter-feimage",description:"<feImage href= — filter primitive that can load external resources",pattern:/<feImage[\s\S]{0,80}(?:xlink\s*:\s*)?href\s*=/i},{id:"svg-image-external",description:"<image xlink:href with http/https or javascript protocol",pattern:/<image[\s\S]{0,80}(?:xlink\s*:\s*)?href\s*=\s*["']?\s*(?:https?|javascript)\s*:/i},{id:"svg-style-javascript",description:"style= attribute containing javascript: (e.g. background:url(javascript:...))",pattern:/style\s*=[\s\S]{0,60}javascript\s*:/i}],vt=[{id:"shell-path-traversal-unix",description:"Unix path traversal: ../  — climbing the directory tree",pattern:/\.\.\//},{id:"shell-path-traversal-windows",description:"Windows path traversal: ..\\ — climbing the directory tree",pattern:/\.\.\\/},{id:"shell-path-traversal-encoded",description:"URL-encoded path traversal: %2e%2e or %2f variants",pattern:/%2e%2e|%2f\.\.|\.\.%2f/i},{id:"shell-null-byte",description:"Null byte injection: \\x00 or %00 — truncates strings in C-backed functions",pattern:/\x00|%00/},{id:"shell-semicolon",description:"Semicolon command separator: cmd1; cmd2",pattern:/;/},{id:"shell-pipe",description:"Pipe operator: cmd1 | cmd2",pattern:/\|/},{id:"shell-and-operator",description:"AND operator: cmd1 && cmd2",pattern:/&&/},{id:"shell-or-operator",description:"OR operator: cmd1 || cmd2",pattern:/\|\|/},{id:"shell-backtick",description:"Backtick command substitution: `cmd`",pattern:/`/},{id:"shell-dollar-paren",description:"Dollar-paren command substitution: $(cmd)",pattern:/\$\(/},{id:"shell-dollar-brace",description:"Dollar-brace variable expansion: ${var} — can be abused for injection",pattern:/\$\{/},{id:"shell-redirect-out",description:"Output redirection: cmd > file or cmd >> file",pattern:/>{1,2}/},{id:"shell-redirect-in",description:"Input redirection: cmd < file",pattern:/</},{id:"shell-newline-injection",description:"Newline injection: \\n or \\r — can inject new shell commands",pattern:/[\n\r]/},{id:"shell-glob-star",description:"Glob expansion: * or ? — can expand to unintended files",pattern:/[/\\][*?]/},{id:"shell-absolute-root",description:"Absolute root path injection: string starting with / or \\ (Windows UNC)",pattern:/^(?:\/|\\\\)/},{id:"shell-windows-drive",description:"Windows drive letter path injection: C:\\ or D:/",pattern:/^[a-zA-Z]:[/\\]/},{id:"shell-curl-wget",description:"curl/wget with URL or flags — can exfiltrate data or download payloads",pattern:/\b(?:curl|wget)\s+(?:https?:\/\/|ftp:\/\/|-)/i}],St=[{id:"redos-nested-quantifier-plus",description:"Nested + quantifier inside a group with outer quantifier: (a+)+, (.+b)*, etc.",pattern:/\([^)]*\+[^)]*\)[+*]/},{id:"redos-nested-quantifier-star",description:"Nested * quantifier: (a*)* or (a*)+ — catastrophic backtracking",pattern:/\([^)]*\*[^)]*\)[*+]/},{id:"redos-nested-groups",description:"Doubly nested quantified groups: ((a+)+) — guaranteed catastrophic",pattern:/\(\([^)]{0,40}\)[+*]\)[+*]/},{id:"redos-alternation-overlap",description:"Overlapping alternation under quantifier: (a|a)+ — ambiguous NFA paths",pattern:/\(([^|()]{1,20})\|(?:\1)(?:\|[^|()]{1,20}){0,5}\)[+*?]{1,2}/},{id:"redos-star-plus-concat",description:"(x*x)+ pattern — triggers super-linear backtracking",pattern:/\([^)]{0,10}\*[^)]{0,10}\)[+*]/},{id:"redos-dot-star-greedy",description:"(.*){n,} or (.+){n,} — repeated greedy dot quantifiers",pattern:/\(\.[*+]\)\{?\d/},{id:"redos-large-repetition",description:"Very large fixed or range repetition count {1000,} or {1000,n} — denial of service via backtracking",pattern:/\{\d{4,}(?:,\d*)?\}/},{id:"redos-catastrophic-alternation",description:"Long alternation with many similar branches — polynomial backtracking risk",pattern:/\([^)]{0,200}(?:\|[^|)]{0,50}){9,}\)/}],At="[\"'\\s]*:",Tt=[{id:"nosql-where-operator",description:"$where — executes arbitrary JavaScript server-side in MongoDB",pattern:new RegExp(`\\$where${At}`,"i")},{id:"nosql-ne-operator",description:'$ne — "not equal" operator used to bypass equality checks',pattern:new RegExp(`\\$ne${At}`,"i")},{id:"nosql-gt-operator",description:'$gt — "greater than" used to bypass password/value checks',pattern:new RegExp(`\\$gte?${At}`,"i")},{id:"nosql-lt-operator",description:'$lt / $lte — "less than" bypass variants',pattern:new RegExp(`\\$lte?${At}`,"i")},{id:"nosql-regex-operator",description:"$regex — can be used to extract data character by character (blind injection)",pattern:new RegExp(`\\$regex${At}`,"i")},{id:"nosql-or-operator",description:"$or — logical OR; used to create always-true conditions",pattern:new RegExp(`\\$or${At}\\s*\\[`,"i")},{id:"nosql-and-operator",description:"$and — logical AND operator injection",pattern:new RegExp(`\\$and${At}\\s*\\[`,"i")},{id:"nosql-nor-operator",description:"$nor — logical NOR operator injection",pattern:new RegExp(`\\$nor${At}\\s*\\[`,"i")},{id:"nosql-exists-operator",description:"$exists — can enumerate fields to determine schema",pattern:new RegExp(`\\$exists${At}`,"i")},{id:"nosql-in-operator",description:"$in — matches any value in a list; can enumerate values",pattern:new RegExp(`\\$in${At}\\s*\\[`,"i")},{id:"nosql-expr-operator",description:"$expr — allows aggregation expressions in queries (MongoDB 3.6+)",pattern:new RegExp(`\\$expr${At}`,"i")},{id:"nosql-function-operator",description:"$function — executes arbitrary JavaScript in MongoDB 4.4+",pattern:new RegExp(`\\$function${At}`,"i")},{id:"nosql-accumulator-operator",description:"$accumulator — custom aggregation with arbitrary JS execution",pattern:new RegExp(`\\$accumulator${At}`,"i")},{id:"nosql-proto-pollution",description:"__proto__ — prototype pollution via object key injection",pattern:/__proto__/},{id:"nosql-constructor-prototype",description:"constructor.prototype — alternative prototype pollution vector (dot notation or JSON key)",pattern:/constructor[\s"':.,{\[]*prototype/i},{id:"nosql-proto-bracket",description:'["__proto__"] — bracket-notation prototype pollution',pattern:/\[["']__proto__["']\]/}],_t=[{id:"log-crlf-injection",description:"CRLF injection: literal \\r or \\n embeds fake log lines",pattern:/[\r\n]/},{id:"log-url-encoded-crlf",description:"URL-encoded CRLF: %0d, %0a, %0D, %0A — decoded by some log parsers",pattern:/%0[dDaA]/},{id:"log-unicode-newline",description:"Unicode newline variants: U+2028 (line separator), U+2029 (paragraph separator)",pattern:/[\u2028\u2029]/},{id:"log-log4shell-jndi",description:"Log4Shell: ${jndi:...} triggers remote code execution in Apache Log4j",pattern:/\$\{jndi\s*:/i},{id:"log-log4shell-obfuscated",description:"Obfuscated Log4Shell: ${::-j}... lookup-bypass prefix used to evade WAF detection",pattern:/\$\{::-/},{id:"log-log4j-lookup",description:"Log4j lookup syntax: ${env:...}, ${sys:...}, ${ctx:...} — data exfiltration",pattern:/\$\{(?:env|sys|ctx|main|map|sd|web|docker|k8s|spring)\s*:/i},{id:"log-ssti-double-brace",description:"SSTI double-brace: {{expression}} — Jinja2, Twig, Handlebars, etc.",pattern:/\{\{[\s\S]{0,80}\}\}/},{id:"log-ssti-hash-brace",description:"SSTI hash-brace: #{expression} — Thymeleaf, Velocity, Ruby ERB",pattern:/#\{[\s\S]{0,80}\}/},{id:"log-ssti-dollar-brace",description:"SSTI/EL injection: ${expression with operators or method calls} — JSP EL, Freemarker, SpEL",pattern:/\$\{[^}]*(?:\.|\(|\*|\+|\bclass\b|\bruntime\b|\bprocess\b|\bexec\b)[^}]{0,80}\}/i},{id:"log-ssti-percent-tag",description:"SSTI ERB/ASP tag: <%= expression %> — Ruby ERB, ASP",pattern:/<%=[\s\S]{0,80}%>/},{id:"log-null-byte",description:"Null byte: \\x00 or %00 — can truncate log entries in C-backed loggers",pattern:/\x00|%00/},{id:"log-ansi-escape",description:"ANSI escape sequence: ESC[ — can manipulate terminal output when logs are tailed",pattern:/\x1b\[/}];function Ct(t,e){const i=e.label??"CUSTOM";for(const n of e)if(n.pattern.test(t))return{context:i,id:n.id,description:n.description,pattern:n.pattern};return null}function $t(t,e){(function(t){if("string"!=typeof t)throw new TypeError("is-unsafe: first argument must be a string, got "+typeof t)})(t),function(t){if(!(t instanceof RegExp)){if(!Array.isArray(t))throw new TypeError("is-unsafe: second argument must be a PatternList (e.g. HTML), an array of PatternLists (e.g. [HTML, XML]), or a RegExp. Got: "+typeof t);if(0===t.length)throw new TypeError("is-unsafe: context must not be an empty array");if(Array.isArray(t[0]))for(const e of t)if(!Array.isArray(e)||0===e.length)throw new TypeError("is-unsafe: each context in the array must be a non-empty pattern array (PatternList)")}}(e);const{lists:i,regex:n}=function(t){return t instanceof RegExp?{lists:null,regex:t}:Array.isArray(t[0])?{lists:t,regex:null}:{lists:[t],regex:null}}(e);if(n)return n.test(t);for(const e of i)if(null!==Ct(t,e))return!0;return!1}function Pt(t,e){if(!t)return{};const i=e.attributesGroupName?t[e.attributesGroupName]:t;if(!i)return{};const n={};for(const t in i)t.startsWith(e.attributeNamePrefix)?n[t.substring(e.attributeNamePrefix.length)]=i[t]:n[t]=i[t];return n}function Ot(t){if(!t||"string"!=typeof t)return;const e=t.indexOf(":");if(-1!==e&&e>0){const i=t.substring(0,e);if("xmlns"!==i)return i}}Nt.label="HTML",Et.label="XML",wt.label="SVG",bt.label="SQL",yt.label="SQL-STRICT",vt.label="SHELL",St.label="REDOS",Tt.label="NOSQL",_t.label="LOG",Object.freeze({HTML:Nt,XML:Et,SVG:wt,SQL:bt,"SQL-STRICT":yt,SHELL:vt,REDOS:St,NOSQL:Tt,LOG:_t});class It{constructor(t,e){var i;this.options=t,this.currentNode=null,this.tagsNodeStack=[],this.parseXml=Rt,this.parseTextData=jt,this.resolveNameSpace=kt,this.buildAttributesMap=Dt,this.isItStopNode=Ft,this.replaceEntitiesValue=Vt,this.readStopNodeData=Xt,this.saveTextToParentTag=qt,this.addChild=Mt,this.ignoreAttributesFn="function"==typeof(i=this.options.ignoreAttributes)?i:Array.isArray(i)?t=>{for(const e of i){if("string"==typeof e&&t===e)return!0;if(e instanceof RegExp&&e.test(t))return!0}}:()=>!1,this.entityExpansionCount=0,this.currentExpandedLength=0,this.doctypefound=!1;let n={...ot};this.options.entityDecoder?this.entityDecoder=this.options.entityDecoder:("object"==typeof this.options.htmlEntities?n=this.options.htmlEntities:!0===this.options.htmlEntities&&(n={...at,...st}),this.entityDecoder=new xt({namedEntities:{...n,...e},numericAllowed:this.options.htmlEntities,limit:{maxTotalExpansions:this.options.processEntities.maxTotalExpansions,maxExpandedLength:this.options.processEntities.maxExpandedLength,applyLimitsTo:this.options.processEntities.appliesTo},onInputEntity:(t,e)=>$t(e,[Nt,Et])?lt.BLOCK:lt.ALLOW})),this.matcher=new it,this.readonlyMatcher=this.matcher.readOnly(),this.isCurrentNodeStopNode=!1,this.stopNodeExpressionsSet=new rt;const r=this.options.stopNodes;if(r&&r.length>0){for(let t=0;t<r.length;t++){const e=r[t];"string"==typeof e?this.stopNodeExpressionsSet.add(new nt(e)):e instanceof nt&&this.stopNodeExpressionsSet.add(e)}this.stopNodeExpressionsSet.seal()}}}function jt(t,e,i,n,r,s,o){const a=this.options;if(void 0!==t&&(a.trimValues&&!n&&(t=t.trim()),t.length>0)){o||(t=this.replaceEntitiesValue(t,e,i));const n=a.jPath?i.toString():i,l=a.tagValueProcessor(e,t,n,r,s);return null==l?t:typeof l!=typeof t||l!==t?l:a.trimValues||t.trim()===t?Wt(t,a.parseTagValue,a.numberParseOptions):t}}function kt(t){if(this.options.removeNSPrefix){const e=t.split(":"),i="/"===t.charAt(0)?"/":"";if("xmlns"===e[0])return"";2===e.length&&(t=i+e[1])}return t}const Lt=new RegExp("([^\\s=]+)\\s*(=\\s*(['\"])([\\s\\S]*?)\\3)?","gm");function Dt(t,e,i,n=!1){const r=this.options;if(!0===n||!0!==r.ignoreAttributes&&"string"==typeof t){const n=function(t,e){const i=[];let n=e.exec(t);for(;n;){const r=[];r.startIndex=e.lastIndex-n[0].length;const s=n.length;for(let t=0;t<s;t++)r.push(n[t]);i.push(r),n=e.exec(t)}return i}(t,Lt),s=n.length,o={},a=new Array(s);let l=!1;const p={};for(let t=0;t<s;t++){const e=this.resolveNameSpace(n[t][1]),s=n[t][4];if(e.length&&void 0!==s){let n=s;r.trimValues&&(n=n.trim()),n=this.replaceEntitiesValue(n,i,this.readonlyMatcher),a[t]=n,p[e]=n,l=!0}}l&&"object"==typeof e&&e.updateCurrent&&e.updateCurrent(p);const c=r.jPath?e.toString():this.readonlyMatcher;let h=!1;for(let t=0;t<s;t++){const e=this.resolveNameSpace(n[t][1]);if(this.ignoreAttributesFn(e,c))continue;let i=r.attributeNamePrefix+e;if(e.length)if(r.transformAttributeName&&(i=r.transformAttributeName(i)),i=Yt(i,r),void 0!==n[t][4]){const n=a[t],s=r.attributeValueProcessor(e,n,c);o[i]=null==s?n:typeof s!=typeof n||s!==n?s:Wt(n,r.parseAttributeValue,r.numberParseOptions),h=!0}else r.allowBooleanAttributes&&(o[i]=!0,h=!0)}if(!h)return;if(r.attributesGroupName&&!r.preserveOrder){const t={};return t[r.attributesGroupName]=o,t}return o}}const Rt=function(t){t=t.replace(/\r\n?/g,"\n");const e=new C("!xml");let i=e,n="";this.matcher.reset(),this.entityDecoder.reset(),this.entityExpansionCount=0,this.currentExpandedLength=0,this.doctypefound=!1;const r=this.options,s=new M(r.processEntities),o=t.length;for(let a=0;a<o;a++)if("<"===t[a]){const l=t.charCodeAt(a+1);if(47===l){const s=Ut(t,">",a,"Closing Tag is not closed.");let o=t.substring(a+2,s).trim();if(r.removeNSPrefix){const t=o.indexOf(":");-1!==t&&(o=o.substr(t+1))}o=zt(r.transformTagName,o,"",r).tagName,i&&(n=this.saveTextToParentTag(n,i,this.readonlyMatcher));const l=this.matcher.getCurrentTag();if(o&&r.unpairedTagsSet.has(o))throw new Error(`Unpaired tag can not be used as closing tag: </${o}>`);l&&r.unpairedTagsSet.has(l)&&(this.matcher.pop(),this.tagsNodeStack.pop()),this.matcher.pop(),this.isCurrentNodeStopNode=!1,i=this.tagsNodeStack.pop()||e,r.captureMetaData&&i&&i.addEndIndex(s+1),n="",a=s}else if(63===l){let e=Gt(t,a,!1,"?>");if(!e)throw new Error("Pi Tag is not closed.");n=this.saveTextToParentTag(n,i,this.readonlyMatcher);const o=this.buildAttributesMap(e.tagExp,this.matcher,e.tagName,!0);if(o){const t=o[this.options.attributeNamePrefix+"version"];this.entityDecoder.setXmlVersion(Number(t)||1),s.setXmlVersion(Number(t)||1)}if(r.ignoreDeclaration&&"?xml"===e.tagName||r.ignorePiTags);else{const t=new C(e.tagName);t.add(r.textNodeName,""),e.tagName!==e.tagExp&&e.attrExpPresent&&!0!==r.ignoreAttributes&&(t[":@"]=o),this.addChild(i,t,this.readonlyMatcher,a),r.captureMetaData&&i.addEndIndex(e.closeIndex+2)}a=e.closeIndex+1}else if(33===l&&45===t.charCodeAt(a+2)&&45===t.charCodeAt(a+3)){const e=Ut(t,"--\x3e",a+4,"Comment is not closed.");if(r.commentPropName){const s=t.substring(a+4,e-2);n=this.saveTextToParentTag(n,i,this.readonlyMatcher),i.add(r.commentPropName,[{[r.textNodeName]:s}])}a=e}else if(33===l&&68===t.charCodeAt(a+2)){if(this.doctypefound)throw new Error("Multiple DOCTYPE declarations found.");this.doctypefound=!0;const e=s.readDocType(t,a);this.entityDecoder.addInputEntities(e.entities),a=e.i}else if(33===l&&91===t.charCodeAt(a+2)){const e=Ut(t,"]]>",a,"CDATA is not closed.")-2,s=t.substring(a+9,e);n=this.saveTextToParentTag(n,i,this.readonlyMatcher);let o=this.parseTextData(s,i.tagname,this.readonlyMatcher,!0,!1,!0,!0);null==o&&(o=""),r.cdataPropName?i.add(r.cdataPropName,[{[r.textNodeName]:s}]):i.add(r.textNodeName,o),a=e+2}else{let s=Gt(t,a,r.removeNSPrefix);if(!s){const e=t.substring(Math.max(0,a-50),Math.min(o,a+50));throw new Error(`readTagExp returned undefined at position ${a}. Context: "${e}"`)}let l=s.tagName;const p=s.rawTagName;let c=s.tagExp,h=s.attrExpPresent,d=s.closeIndex;if(({tagName:l,tagExp:c}=zt(r.transformTagName,l,c,r)),r.strictReservedNames&&(l===r.commentPropName||l===r.cdataPropName||l===r.textNodeName||l===r.attributesGroupName))throw new Error(`Invalid tag name: ${l}`);i&&n&&"!xml"!==i.tagname&&(n=this.saveTextToParentTag(n,i,this.readonlyMatcher,!1));const u=i;u&&r.unpairedTagsSet.has(u.tagname)&&(i=this.tagsNodeStack.pop(),this.matcher.pop());let f=!1;c.length>0&&c.lastIndexOf("/")===c.length-1&&(f=!0,"/"===l[l.length-1]?(l=l.substr(0,l.length-1),c=l):c=c.substr(0,c.length-1),h=l!==c);let g,m=null,x={};g=Ot(p),l!==e.tagname&&this.matcher.push(l,{},g),l!==c&&h&&(m=this.buildAttributesMap(c,this.matcher,l),m&&(x=Pt(m,r))),l!==e.tagname&&(this.isCurrentNodeStopNode=this.isItStopNode());const b=a;if(this.isCurrentNodeStopNode){let e="";if(f)a=s.closeIndex;else if(r.unpairedTagsSet.has(l))a=s.closeIndex;else{const i=this.readStopNodeData(t,p,d+1);if(!i)throw new Error(`Unexpected end of ${p}`);a=i.i,e=i.tagContent}const n=new C(l);m&&(n[":@"]=m),n.add(r.textNodeName,e),this.matcher.pop(),this.isCurrentNodeStopNode=!1,this.addChild(i,n,this.readonlyMatcher,b),r.captureMetaData&&i.addEndIndex(a+1)}else{if(f){({tagName:l,tagExp:c}=zt(r.transformTagName,l,c,r));const t=new C(l);m&&(t[":@"]=m),this.addChild(i,t,this.readonlyMatcher,b),r.captureMetaData&&i.addEndIndex(d+1),this.matcher.pop(),this.isCurrentNodeStopNode=!1}else{if(r.unpairedTagsSet.has(l)){const t=new C(l);m&&(t[":@"]=m),this.addChild(i,t,this.readonlyMatcher,b),r.captureMetaData&&i.addEndIndex(s.closeIndex+1),this.matcher.pop(),this.isCurrentNodeStopNode=!1,a=s.closeIndex;continue}{const t=new C(l);if(this.tagsNodeStack.length>r.maxNestedTags)throw new Error("Maximum nested tags exceeded");this.tagsNodeStack.push(i),m&&(t[":@"]=m),this.addChild(i,t,this.readonlyMatcher,b),i=t}}n="",a=d}}}else n+=t[a];return e.child};function Mt(t,e,i,n){this.options.captureMetaData||(n=void 0);const r=this.options.jPath?i.toString():i,s=this.options.updateTag(e.tagname,r,e[":@"]);!1===s||("string"==typeof s?(e.tagname=s,t.addChild(e,n)):t.addChild(e,n))}function Vt(t,e,i){const n=this.options.processEntities;if(!n||!n.enabled)return t;if(n.allowedTags){const r=this.options.jPath?i.toString():i;if(!(Array.isArray(n.allowedTags)?n.allowedTags.includes(e):n.allowedTags(e,r)))return t}if(n.tagFilter){const r=this.options.jPath?i.toString():i;if(!n.tagFilter(e,r))return t}return this.entityDecoder.decode(t)}function qt(t,e,i,n){return t&&(void 0===n&&(n=0===e.child.length),void 0!==(t=this.parseTextData(t,e.tagname,i,!1,!!e[":@"]&&0!==Object.keys(e[":@"]).length,n))&&""!==t&&e.add(this.options.textNodeName,t),t=""),t}function Ft(){return 0!==this.stopNodeExpressionsSet.size&&this.matcher.matchesAny(this.stopNodeExpressionsSet)}function Ut(t,e,i,n){const r=t.indexOf(e,i);if(-1===r)throw new Error(n);return r+e.length-1}function Bt(t,e,i,n){const r=t.indexOf(e,i);if(-1===r)throw new Error(n);return r}function Gt(t,e,i,n=">"){const r=function(t,e,i=">"){let n=0;const r=t.length,s=i.charCodeAt(0),o=i.length>1?i.charCodeAt(1):-1;let a="",l=e;for(let i=e;i<r;i++){const e=t.charCodeAt(i);if(n)e===n&&(n=0);else if(34===e||39===e)n=e;else if(e===s){if(-1===o)return a+=t.substring(l,i),{data:a,index:i};if(t.charCodeAt(i+1)===o)return a+=t.substring(l,i),{data:a,index:i}}else 9!==e||n||(a+=t.substring(l,i)+" ",l=i+1)}}(t,e+1,n);if(!r)return;let s=r.data;const o=r.index,a=s.search(/\s/);let l=s,p=!0;-1!==a&&(l=s.substring(0,a),s=s.substring(a+1).trimStart());const c=l;if(i){const t=l.indexOf(":");-1!==t&&(l=l.substr(t+1),p=l!==r.data.substr(t+1))}return{tagName:l,tagExp:s,closeIndex:o,attrExpPresent:p,rawTagName:c}}function Xt(t,e,i){const n=i;let r=1;const s=t.length;for(;i<s;i++)if("<"===t[i]){const s=t.charCodeAt(i+1);if(47===s){const s=Bt(t,">",i,`${e} is not closed`);if(t.substring(i+2,s).trim()===e&&(r--,0===r))return{tagContent:t.substring(n,i),i:s};i=s}else if(63===s)i=Ut(t,"?>",i+1,"StopNode is not closed.");else if(33===s&&45===t.charCodeAt(i+2)&&45===t.charCodeAt(i+3))i=Ut(t,"--\x3e",i+3,"StopNode is not closed.");else if(33===s&&91===t.charCodeAt(i+2))i=Ut(t,"]]>",i,"StopNode is not closed.")-2;else{const n=Gt(t,i,!1);n&&((n&&n.tagName)===e&&"/"!==n.tagExp[n.tagExp.length-1]&&r++,i=n.closeIndex)}}}function Wt(t,e,i){if(e&&"string"==typeof t){const e=t.trim();return"true"===e||"false"!==e&&Z(t,i)}return void 0!==t?t:""}function zt(t,e,i,n){if(t){const n=t(e);i===e&&(i=n),e=n}return{tagName:e=Yt(e,n),tagExp:i}}function Yt(t,e){if(o.includes(t))throw new Error(`[SECURITY] Invalid name: "${t}" is a reserved JavaScript keyword that could cause prototype pollution`);return s.includes(t)?e.onDangerousProperty(t):t}const Ht=C.getMetaDataSymbol();function Qt(t,e){if(!t||"object"!=typeof t)return{};if(!e)return t;const i={};for(const n in t)n.startsWith(e)?i[n.substring(e.length)]=t[n]:i[n]=t[n];return i}function Jt(t,e,i,n){return Zt(t,e,i,n)}function Zt(t,e,i,n){let r;const s={};for(let o=0;o<t.length;o++){const a=t[o],l=Kt(a);if(void 0!==l&&l!==e.textNodeName){const t=Qt(a[":@"]||{},e.attributeNamePrefix);i.push(l,t)}if(l===e.textNodeName)void 0===r?r=a[l]:r+=""+a[l];else{if(void 0===l)continue;if(a[l]){let t=Zt(a[l],e,i,n);const r=ee(t,e);if(0===Object.keys(t).length&&e.alwaysCreateTextNode&&(t[e.textNodeName]=""),a[":@"]?te(t,a[":@"],n,e):1!==Object.keys(t).length||void 0===t[e.textNodeName]||e.alwaysCreateTextNode?0===Object.keys(t).length&&(e.alwaysCreateTextNode?t[e.textNodeName]="":t=""):t=t[e.textNodeName],void 0!==a[Ht]&&"object"==typeof t&&null!==t&&(t[Ht]=a[Ht]),void 0!==s[l]&&Object.prototype.hasOwnProperty.call(s,l))Array.isArray(s[l])||(s[l]=[s[l]]),s[l].push(t);else{const i=e.jPath?n.toString():n;e.isArray(l,i,r)?s[l]=[t]:s[l]=t}void 0!==l&&l!==e.textNodeName&&i.pop()}}}return"string"==typeof r?r.length>0&&(s[e.textNodeName]=r):void 0!==r&&(s[e.textNodeName]=r),s}function Kt(t){const e=Object.keys(t);for(let t=0;t<e.length;t++){const i=e[t];if(":@"!==i)return i}}function te(t,e,i,n){if(e){const r=Object.keys(e),s=r.length;for(let o=0;o<s;o++){const s=r[o],a=s.startsWith(n.attributeNamePrefix)?s.substring(n.attributeNamePrefix.length):s,l=n.jPath?i.toString()+"."+a:i;n.isArray(s,l,!0,!0)?t[s]=[e[s]]:t[s]=e[s]}}}function ee(t,e){const{textNodeName:i}=e,n=Object.keys(t).length;return 0===n||!(1!==n||!t[i]&&"boolean"!=typeof t[i]&&0!==t[i])}class ie{constructor(t){this.externalEntities={},this.options=T(t)}parse(t,e){if("string"!=typeof t&&t.toString)t=t.toString();else if("string"!=typeof t)throw new Error("XML data is accepted in String or Bytes[] form.");if(e){!0===e&&(e={});const i=l(t,e);if(!0!==i)throw Error(`${i.err.msg}:${i.err.line}:${i.err.col}`)}const i=new It(this.options,this.externalEntities),n=i.parseXml(t);return this.options.preserveOrder||void 0===n?n:Jt(n,this.options,i.matcher,i.readonlyMatcher)}addEntity(t,e){if(-1!==e.indexOf("&"))throw new Error("Entity value can't have '&'");if(-1!==t.indexOf("&")||-1!==t.indexOf(";"))throw new Error("An entity must be set without '&' and ';'. Eg. use '#xD' for '&#xD;'");if("&"===e)throw new Error("An entity with value '&' is not permitted");this.externalEntities[t]=e}static getMetaDataSymbol(){return C.getMetaDataSymbol()}}function ne(t){return String(t).replace(/--/g,"- -").replace(/--/g,"- -").replace(/-$/,"- ")}function re(t){return String(t).replace(/\]\]>/g,"]]]]><![CDATA[>")}function se(t){return String(t).replace(/"/g,"&quot;").replace(/'/g,"&apos;")}const oe=":A-Za-z_À-ÖØ-öø-˿Ͱ-ͽͿ-҆҈-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-�",ae=":A-Za-z_À-˿Ͱ-ͽͿ-҆҈-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-�𐀀-󯿿",le=ae+"\\-\\.\\d·̀-ͯ҇‿-⁀",pe=(t,e,i="")=>{const n=`[${t.replace(":","")}][${e.replace(":","")}]*`;return{name:new RegExp(`^[${t}][${e}]*$`,i),ncName:new RegExp(`^${n}$`,i),qName:new RegExp(`^${n}(?::${n})?$`,i),nmToken:new RegExp(`^[${e}]+$`,i),nmTokens:new RegExp(`^[${e}]+(?:\\s+[${e}]+)*$`,i)}},ce=pe(oe,oe+"\\-\\.\\d·̀-ͯ‿-⁀"),he=pe(ae,le,"u"),de=(t,{xmlVersion:e="1.0"}={})=>((t="1.0")=>"1.1"===t?he:ce)(e).qName.test(t);function ue(t,e,i,n,r){return i.sanitizeName?de(t,{xmlVersion:r})?t:i.sanitizeName(t,{isAttribute:e,matcher:n.readOnly()}):t}function fe(t,e){let i="";e.format&&(i="\n");const n=[];if(e.stopNodes&&Array.isArray(e.stopNodes))for(let t=0;t<e.stopNodes.length;t++){const i=e.stopNodes[t];"string"==typeof i?n.push(new nt(i)):i instanceof nt&&n.push(i)}const r=function(t,e){if(!Array.isArray(t)||0===t.length)return"1.0";const i=t[0];if("?xml"===ye(i)){const t=i[":@"];if(t){const i=e.attributeNamePrefix+"version";if(t[i])return t[i]}}return"1.0"}(t,e);return ge(t,e,i,new it,n,r)}function ge(t,e,i,n,r,s){let o="",a=!1;if(e.maxNestedTags&&n.getDepth()>e.maxNestedTags)throw new Error("Maximum nested tags exceeded");if(!Array.isArray(t)){if(null!=t){let i=t.toString();return i=we(i,e),i}return""}for(let l=0;l<t.length;l++){const p=t[l],c=ye(p);if(void 0===c)continue;const h=c===e.textNodeName||c===e.cdataPropName||c===e.commentPropName||"?"===c[0]?c:ue(c,!1,e,n,s),d=me(p[":@"],e);n.push(h,d);const u=Ee(n,r);if(h===e.textNodeName){let t=p[c];u||(t=e.tagValueProcessor(h,t),t=we(t,e)),a&&(o+=i),o+=t,a=!1,n.pop();continue}if(h===e.cdataPropName){a&&(o+=i),o+=`<![CDATA[${re(p[c][0][e.textNodeName])}]]>`,a=!1,n.pop();continue}if(h===e.commentPropName){o+=i+`\x3c!--${ne(p[c][0][e.textNodeName])}--\x3e`,a=!0,n.pop();continue}if("?"===h[0]){o+=("?xml"===h?"":i)+`<${h}${Ne(p[":@"],e,u,n,s)}?>`,a=!0,n.pop();continue}let f=i;""!==f&&(f+=e.indentBy);const g=i+`<${h}${Ne(p[":@"],e,u,n,s)}`;let m;m=u?xe(p[c],e):ge(p[c],e,f,n,r,s),-1!==e.unpairedTags.indexOf(h)?e.suppressUnpairedNode?o+=g+">":o+=g+"/>":m&&0!==m.length||!e.suppressEmptyNode?m&&m.endsWith(">")?o+=g+`>${m}${i}</${h}>`:(o+=g+">",m&&""!==i&&(m.includes("/>")||m.includes("</"))?o+=i+e.indentBy+m+i:o+=m,o+=`</${h}>`):o+=g+"/>",a=!0,n.pop()}return o}function me(t,e){if(!t||e.ignoreAttributes)return null;const i={};let n=!1;for(let r in t)Object.prototype.hasOwnProperty.call(t,r)&&(i[r.startsWith(e.attributeNamePrefix)?r.substr(e.attributeNamePrefix.length):r]=se(t[r]),n=!0);return n?i:null}function xe(t,e){if(!Array.isArray(t))return null!=t?t.toString():"";let i="";for(let n=0;n<t.length;n++){const r=t[n],s=ye(r);if(s===e.textNodeName)i+=r[s];else if(s===e.cdataPropName)i+=r[s][0][e.textNodeName];else if(s===e.commentPropName)i+=r[s][0][e.textNodeName];else{if(s&&"?"===s[0])continue;if(s){const t=be(r[":@"],e),n=xe(r[s],e);n&&0!==n.length?i+=`<${s}${t}>${n}</${s}>`:i+=`<${s}${t}/>`}}}return i}function be(t,e){let i="";if(t&&!e.ignoreAttributes)for(let n in t){if(!Object.prototype.hasOwnProperty.call(t,n))continue;let r=t[n];!0===r&&e.suppressBooleanAttributes?i+=` ${n.substr(e.attributeNamePrefix.length)}`:i+=` ${n.substr(e.attributeNamePrefix.length)}="${se(r)}"`}return i}function ye(t){const e=Object.keys(t);for(let i=0;i<e.length;i++){const n=e[i];if(Object.prototype.hasOwnProperty.call(t,n)&&":@"!==n)return n}}function Ne(t,e,i,n,r){let s="";if(t&&!e.ignoreAttributes)for(let o in t){if(!Object.prototype.hasOwnProperty.call(t,o))continue;const a=o.substr(e.attributeNamePrefix.length),l=i?a:ue(a,!0,e,n,r);let p;i?p=t[o]:(p=e.attributeValueProcessor(o,t[o]),p=we(p,e)),!0===p&&e.suppressBooleanAttributes?s+=` ${l}`:s+=` ${l}="${se(p)}"`}return s}function Ee(t,e){if(!e||0===e.length)return!1;for(let i=0;i<e.length;i++)if(t.matches(e[i]))return!0;return!1}function we(t,e){if(t&&t.length>0&&e.processEntities)for(let i=0;i<e.entities.length;i++){const n=e.entities[i];t=t.replace(n.regex,n.val)}return t}const ve={attributeNamePrefix:"@_",attributesGroupName:!1,textNodeName:"#text",ignoreAttributes:!0,cdataPropName:!1,format:!1,indentBy:"  ",suppressEmptyNode:!1,suppressUnpairedNode:!0,suppressBooleanAttributes:!0,tagValueProcessor:function(t,e){return e},attributeValueProcessor:function(t,e){return e},preserveOrder:!1,commentPropName:!1,unpairedTags:[],entities:[{regex:new RegExp("&","g"),val:"&amp;"},{regex:new RegExp(">","g"),val:"&gt;"},{regex:new RegExp("<","g"),val:"&lt;"},{regex:new RegExp("'","g"),val:"&apos;"},{regex:new RegExp('"',"g"),val:"&quot;"}],processEntities:!0,stopNodes:[],oneListGroup:!1,maxNestedTags:100,jPath:!0,sanitizeName:!1};function Se(t){if(this.options=Object.assign({},ve,t),this.options.stopNodes&&Array.isArray(this.options.stopNodes)&&(this.options.stopNodes=this.options.stopNodes.map(t=>"string"==typeof t&&t.startsWith("*.")?".."+t.substring(2):t)),this.stopNodeExpressions=[],this.options.stopNodes&&Array.isArray(this.options.stopNodes))for(let t=0;t<this.options.stopNodes.length;t++){const e=this.options.stopNodes[t];"string"==typeof e?this.stopNodeExpressions.push(new nt(e)):e instanceof nt&&this.stopNodeExpressions.push(e)}var e;!0===this.options.ignoreAttributes||this.options.attributesGroupName?this.isAttribute=function(){return!1}:(this.ignoreAttributesFn="function"==typeof(e=this.options.ignoreAttributes)?e:Array.isArray(e)?t=>{for(const i of e){if("string"==typeof i&&t===i)return!0;if(i instanceof RegExp&&i.test(t))return!0}}:()=>!1,this.attrPrefixLen=this.options.attributeNamePrefix.length,this.isAttribute=Ce),this.processTextOrObjNode=Te,this.options.format?(this.indentate=_e,this.tagEndChar=">\n",this.newLine="\n"):(this.indentate=function(){return""},this.tagEndChar=">",this.newLine="")}function Ae(t,e,i,n,r){return i.sanitizeName?de(t,{xmlVersion:r})?t:i.sanitizeName(t,{isAttribute:e,matcher:n.readOnly()}):t}function Te(t,e,i,n,r){const s=this.extractAttributes(t);if(n.push(e,s),this.checkStopNode(n)){const r=this.buildRawContent(t),s=this.buildAttributesForStopNode(t);return n.pop(),this.buildObjectNode(r,e,s,i)}const o=this.j2x(t,i+1,n,r);return n.pop(),"?"===e[0]?this.buildTextValNode("",e,o.attrStr,i,n):void 0!==t[this.options.textNodeName]&&1===Object.keys(t).length?this.buildTextValNode(t[this.options.textNodeName],e,o.attrStr,i,n):this.buildObjectNode(o.val,e,o.attrStr,i)}function _e(t){return this.options.indentBy.repeat(t)}function Ce(t){return!(!t.startsWith(this.options.attributeNamePrefix)||t===this.options.textNodeName)&&t.substr(this.attrPrefixLen)}Se.prototype.build=function(t){if(this.options.preserveOrder)return fe(t,this.options);{Array.isArray(t)&&this.options.arrayNodeName&&this.options.arrayNodeName.length>1&&(t={[this.options.arrayNodeName]:t});const e=new it,i=function(t,e){const i=t["?xml"];if(i&&"object"==typeof i){if(e.attributesGroupName&&i[e.attributesGroupName]){const t=i[e.attributesGroupName][e.attributeNamePrefix+"version"];if(t)return t}const t=i[e.attributeNamePrefix+"version"];if(t)return t}return"1.0"}(t,this.options);return this.j2x(t,0,e,i).val}},Se.prototype.j2x=function(t,e,i,n){let r="",s="";if(this.options.maxNestedTags&&i.getDepth()>=this.options.maxNestedTags)throw new Error("Maximum nested tags exceeded");const o=this.options.jPath?i.toString():i,a=this.checkStopNode(i);for(let l in t){if(!Object.prototype.hasOwnProperty.call(t,l))continue;const p=l===this.options.textNodeName||l===this.options.cdataPropName||l===this.options.commentPropName||this.options.attributesGroupName&&l===this.options.attributesGroupName||this.isAttribute(l)||"?"===l[0]?l:Ae(l,!1,this.options,i,n);if(void 0===t[l])this.isAttribute(l)&&(s+="");else if(null===t[l])this.isAttribute(l)||p===this.options.cdataPropName||p===this.options.commentPropName?s+="":"?"===p[0]?s+=this.indentate(e)+"<"+p+"?"+this.tagEndChar:s+=this.indentate(e)+"<"+p+"/"+this.tagEndChar;else if(t[l]instanceof Date)s+=this.buildTextValNode(t[l],p,"",e,i);else if("object"!=typeof t[l]){const c=this.isAttribute(l);if(c&&!this.ignoreAttributesFn(c,o)){const e=Ae(c,!0,this.options,i,n);r+=this.buildAttrPairStr(e,""+t[l],a)}else if(!c)if(l===this.options.textNodeName){let e=this.options.tagValueProcessor(l,""+t[l]);s+=this.replaceEntitiesValue(e)}else{i.push(p);const n=this.checkStopNode(i);if(i.pop(),n){const i=""+t[l];s+=""===i?this.indentate(e)+"<"+p+this.closeTag(p)+this.tagEndChar:this.indentate(e)+"<"+p+">"+i+"</"+p+this.tagEndChar}else s+=this.buildTextValNode(t[l],p,"",e,i)}}else if(Array.isArray(t[l])){const r=t[l].length;let o="",a="";for(let c=0;c<r;c++){const r=t[l][c];if(void 0===r);else if(null===r)"?"===p[0]?s+=this.indentate(e)+"<"+p+"?"+this.tagEndChar:s+=this.indentate(e)+"<"+p+"/"+this.tagEndChar;else if("object"==typeof r)if(this.options.oneListGroup){i.push(p);const t=this.j2x(r,e+1,i,n);i.pop(),o+=t.val,this.options.attributesGroupName&&r.hasOwnProperty(this.options.attributesGroupName)&&(a+=t.attrStr)}else o+=this.processTextOrObjNode(r,p,e,i,n);else if(this.options.oneListGroup){let t=this.options.tagValueProcessor(p,r);t=this.replaceEntitiesValue(t),o+=t}else{i.push(p);const t=this.checkStopNode(i);if(i.pop(),t){const t=""+r;o+=""===t?this.indentate(e)+"<"+p+this.closeTag(p)+this.tagEndChar:this.indentate(e)+"<"+p+">"+t+"</"+p+this.tagEndChar}else o+=this.buildTextValNode(r,p,"",e,i)}}this.options.oneListGroup&&(o=this.buildObjectNode(o,p,a,e)),s+=o}else if(this.options.attributesGroupName&&l===this.options.attributesGroupName){const e=Object.keys(t[l]),s=e.length;for(let o=0;o<s;o++){const s=Ae(e[o],!0,this.options,i,n);r+=this.buildAttrPairStr(s,""+t[l][e[o]],a)}}else s+=this.processTextOrObjNode(t[l],p,e,i,n)}return{attrStr:r,val:s}},Se.prototype.buildAttrPairStr=function(t,e,i){return i||(e=this.options.attributeValueProcessor(t,""+e),e=this.replaceEntitiesValue(e)),this.options.suppressBooleanAttributes&&"true"===e?" "+t:" "+t+'="'+se(e)+'"'},Se.prototype.extractAttributes=function(t){if(!t||"object"!=typeof t)return null;const e={};let i=!1;if(this.options.attributesGroupName&&t[this.options.attributesGroupName]){const n=t[this.options.attributesGroupName];for(let t in n)Object.prototype.hasOwnProperty.call(n,t)&&(e[t.startsWith(this.options.attributeNamePrefix)?t.substring(this.options.attributeNamePrefix.length):t]=se(n[t]),i=!0)}else for(let n in t){if(!Object.prototype.hasOwnProperty.call(t,n))continue;const r=this.isAttribute(n);r&&(e[r]=se(t[n]),i=!0)}return i?e:null},Se.prototype.buildRawContent=function(t){if("string"==typeof t)return t;if("object"!=typeof t||null===t)return String(t);if(void 0!==t[this.options.textNodeName])return t[this.options.textNodeName];let e="";for(let i in t){if(!Object.prototype.hasOwnProperty.call(t,i))continue;if(this.isAttribute(i))continue;if(this.options.attributesGroupName&&i===this.options.attributesGroupName)continue;const n=t[i];if(i===this.options.textNodeName)e+=n;else if(Array.isArray(n)){for(let t of n)if("string"==typeof t||"number"==typeof t)e+=`<${i}>${t}</${i}>`;else if("object"==typeof t&&null!==t){const n=this.buildRawContent(t),r=this.buildAttributesForStopNode(t);e+=""===n?`<${i}${r}/>`:`<${i}${r}>${n}</${i}>`}}else if("object"==typeof n&&null!==n){const t=this.buildRawContent(n),r=this.buildAttributesForStopNode(n);e+=""===t?`<${i}${r}/>`:`<${i}${r}>${t}</${i}>`}else e+=`<${i}>${n}</${i}>`}return e},Se.prototype.buildAttributesForStopNode=function(t){if(!t||"object"!=typeof t)return"";let e="";if(this.options.attributesGroupName&&t[this.options.attributesGroupName]){const i=t[this.options.attributesGroupName];for(let t in i){if(!Object.prototype.hasOwnProperty.call(i,t))continue;const n=t.startsWith(this.options.attributeNamePrefix)?t.substring(this.options.attributeNamePrefix.length):t,r=i[t];!0===r&&this.options.suppressBooleanAttributes?e+=" "+n:e+=" "+n+'="'+r+'"'}}else for(let i in t){if(!Object.prototype.hasOwnProperty.call(t,i))continue;const n=this.isAttribute(i);if(n){const r=t[i];!0===r&&this.options.suppressBooleanAttributes?e+=" "+n:e+=" "+n+'="'+r+'"'}}return e},Se.prototype.buildObjectNode=function(t,e,i,n){if(""===t)return"?"===e[0]?this.indentate(n)+"<"+e+i+"?"+this.tagEndChar:this.indentate(n)+"<"+e+i+this.closeTag(e)+this.tagEndChar;if("?"===e[0])return this.indentate(n)+"<"+e+i+"?"+this.tagEndChar;{let r="</"+e+this.tagEndChar,s="";return"?"===e[0]&&(s="?",r=""),!i&&""!==i||-1!==t.indexOf("<")?!1!==this.options.commentPropName&&e===this.options.commentPropName&&0===s.length?this.indentate(n)+`\x3c!--${t}--\x3e`+this.newLine:this.indentate(n)+"<"+e+i+s+this.tagEndChar+t+this.indentate(n)+r:this.indentate(n)+"<"+e+i+s+">"+t+r}},Se.prototype.closeTag=function(t){let e="";return-1!==this.options.unpairedTags.indexOf(t)?this.options.suppressUnpairedNode||(e="/"):e=this.options.suppressEmptyNode?"/":`></${t}`,e},Se.prototype.checkStopNode=function(t){if(!this.stopNodeExpressions||0===this.stopNodeExpressions.length)return!1;for(let e=0;e<this.stopNodeExpressions.length;e++)if(t.matches(this.stopNodeExpressions[e]))return!0;return!1},Se.prototype.buildTextValNode=function(t,e,i,n,r){if(!1!==this.options.cdataPropName&&e===this.options.cdataPropName){const e=re(t);return this.indentate(n)+`<![CDATA[${e}]]>`+this.newLine}if(!1!==this.options.commentPropName&&e===this.options.commentPropName){const e=ne(t);return this.indentate(n)+`\x3c!--${e}--\x3e`+this.newLine}if("?"===e[0])return this.indentate(n)+"<"+e+i+"?"+this.tagEndChar;{let r=this.options.tagValueProcessor(e,t);return r=this.replaceEntitiesValue(r),""===r?this.indentate(n)+"<"+e+i+this.closeTag(e)+this.tagEndChar:this.indentate(n)+"<"+e+i+">"+r+"</"+e+this.tagEndChar}},Se.prototype.replaceEntitiesValue=function(t){if(t&&t.length>0&&this.options.processEntities)for(let e=0;e<this.options.entities.length;e++){const i=this.options.entities[e];t=t.replace(i.regex,i.val)}return t};const $e=Se,Pe={validate:l};module.exports=e})();
 
 /***/ }),
 
