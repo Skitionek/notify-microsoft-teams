@@ -390,6 +390,112 @@ describe('run function', () => {
       expect.stringContaining('Invalid JSON provided for "actions" input')
     )
   })
+
+  it.each([
+    ['{}', 'a JSON object'],
+    ['"foo"', 'a JSON string'],
+    ['1', 'a JSON number'],
+    ['true', 'a JSON boolean'],
+    ['null', 'a JSON null'],
+    ['[1, 2]', 'an array of non-objects'],
+    ['[["nested"]]', 'an array of nested arrays'],
+    ['[null]', 'an array containing null']
+  ])(
+    'should fail when actions input is %s (%s) instead of an array of objects',
+    async (actionsValue) => {
+      const params = {
+        ...defaultParams,
+        actions: actionsValue
+      }
+      core.getInput.mockImplementation(name =>
+        params[name] !== undefined ? params[name] : ''
+      )
+      const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid "actions" input')
+      )
+    }
+  )
+
+  it.each(['2junk', '1.5', '0x10', '+3', '  ', 'NaN', '-1'])(
+    'should fail when retries input "%s" is not a strict non-negative integer',
+    async (retriesValue) => {
+      const params = {
+        ...defaultParams,
+        retries: retriesValue
+      }
+      core.getInput.mockImplementation(name =>
+        params[name] !== undefined ? params[name] : ''
+      )
+      const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid "retries" input')
+      )
+    }
+  )
+
+  it('should accept a valid retries value like "3"', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '3'
+    }
+    core.getInput.mockImplementation(name =>
+      params[name] !== undefined ? params[name] : ''
+    )
+    const mockNotify = jest
+      .spyOn(MSTeams.prototype, 'notify')
+      .mockImplementation(jest.fn())
+    const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+    await run()
+
+    expect(mockNotify).toHaveBeenCalled()
+    expect(mockSetFailed).not.toHaveBeenCalled()
+  })
+
+  it('should not log the raw caller-controlled payload or the full generated payload at info level', async () => {
+    const params = {
+      ...defaultParams,
+      raw: JSON.stringify({ secret: 'super-secret-value' })
+    }
+    core.getInput.mockImplementation(name =>
+      params[name] !== undefined ? params[name] : ''
+    )
+    jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn())
+    const mockInfo = jest.spyOn(core, 'info')
+
+    await run()
+
+    for (const call of mockInfo.mock.calls) {
+      const loggedText = call.join(' ')
+      expect(loggedText).not.toContain('super-secret-value')
+    }
+  })
+
+  it('should log the full generated payload only at debug level when debug is enabled', async () => {
+    const params = {
+      ...defaultParams,
+      raw: JSON.stringify({ secret: 'debug-secret-value' })
+    }
+    core.getInput.mockImplementation(name =>
+      params[name] !== undefined ? params[name] : ''
+    )
+    jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn())
+    const mockDebug = jest.spyOn(core, 'debug')
+
+    process.env.RUNNER_DEBUG = '1'
+
+    await run()
+
+    const loggedDebug = mockDebug.mock.calls.map(call => call.join(' ')).join('\n')
+    expect(loggedDebug).toContain('debug-secret-value')
+  })
 })
 
 describe('run function with dry_run', () => {

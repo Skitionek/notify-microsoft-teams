@@ -39,14 +39,56 @@ const logError = (message, err) => {
 const parseRetryInput = value => {
   if (!value) return 0
 
-  const retries = Number.parseInt(value, 10)
-  if (Number.isNaN(retries) || retries < 0) {
+  const trimmed = String(value).trim()
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error(
+      `Invalid "retries" input: "${value}". Please provide a non-negative integer.`
+    )
+  }
+
+  const retries = Number(trimmed)
+  if (!Number.isSafeInteger(retries) || retries < 0) {
     throw new Error(
       `Invalid "retries" input: "${value}". Please provide a non-negative integer.`
     )
   }
 
   return retries
+}
+
+const isPlainObject = value =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const parseActionsInput = value => {
+  let parsed
+  try {
+    parsed = JSON.parse(value)
+  } catch (e) {
+    throw new Error(
+      `Invalid JSON provided for "actions" input: ${e.message}. Please ensure the "actions" input is a valid JSON array of Adaptive Card Action objects (see https://adaptivecards.io/explorer/Action.OpenUrl.html).`,
+      { cause: e }
+    )
+  }
+
+  if (!Array.isArray(parsed) || !parsed.every(isPlainObject)) {
+    throw new Error(
+      'Invalid "actions" input: expected a JSON array of Adaptive Card Action objects (see https://adaptivecards.io/explorer/Action.OpenUrl.html).'
+    )
+  }
+
+  return parsed
+}
+
+const summarizeInputs = params => {
+  const summary = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') {
+      summary[key] = value
+      continue
+    }
+    summary[key] = typeof value
+  }
+  return summary
 }
 
 const access_context = context_name => {
@@ -87,19 +129,35 @@ async function run () {
     }
 
     core.info(
-      `Parsed params:\n${JSON.stringify({
-        webhook_url: '***',
-        job,
-        steps,
-        needs,
-        raw,
-        title,
-        actions,
-        msteams_emails,
-        dry_run,
-        retries
-      })}`
+      `Parsed params:\n${JSON.stringify(
+        summarizeInputs({
+          job,
+          steps,
+          needs,
+          raw,
+          title,
+          actions,
+          msteams_emails,
+          dry_run,
+          retries
+        })
+      )}`
     )
+    if (isDebugEnabled()) {
+      core.debug(
+        `Parsed params (full):\n${JSON.stringify({
+          job,
+          steps,
+          needs,
+          raw,
+          title,
+          actions,
+          msteams_emails,
+          dry_run,
+          retries
+        })}`
+      )
+    }
 
     if (isDebugEnabled()) {
       core.debug('GitHub Actions step debug logging is enabled.')
@@ -110,13 +168,7 @@ async function run () {
     if (raw === '') {
       let parsedActions = null
       if (actions) {
-        try {
-          parsedActions = JSON.parse(actions)
-        } catch (e) {
-          throw new Error(
-            `Invalid JSON provided for "actions" input: ${e.message}. Please ensure the "actions" input is a valid JSON array of Adaptive Card Action objects (see https://adaptivecards.io/explorer/Action.OpenUrl.html).`
-          )
-        }
+        parsedActions = parseActionsInput(actions)
       }
       payload = await msteams.generatePayload({
         job,
@@ -130,20 +182,26 @@ async function run () {
       payload = JSON.parse(raw)
     }
 
-    try {
-      core.info(
-        `Generated payload for Microsoft Teams:\n${JSON.stringify(
-          payload,
-          null,
-          2
-        )}`
-      )
-    } catch (stringifyError) {
-      core.error(
-        `Generated payload for Microsoft Teams (contains circular references, showing keys only):
-		${stringifyError}`
-      )
+    if (isDebugEnabled()) {
+      try {
+        core.debug(
+          `Generated payload for Microsoft Teams:\n${JSON.stringify(
+            payload,
+            null,
+            2
+          )}`
+        )
+      } catch (stringifyError) {
+        core.debug(
+          `Generated payload for Microsoft Teams (contains circular references): ${stringifyError}`
+        )
+      }
     }
+    core.info(
+      `Generated payload for Microsoft Teams with keys: ${JSON.stringify(
+        isPlainObject(payload) ? Object.keys(payload) : typeof payload
+      )}`
+    )
 
     if (dry_run === '' || dry_run === 'false') {
       const attempts = retries + 1
