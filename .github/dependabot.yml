@@ -18,3 +18,8 @@ updates:
       interval: 'weekly'
     commit-message:
       prefix: 'build'
+    groups:
+      semantic-release:
+        patterns:
+          - '@semantic-release/*'
+          - 'semantic-release'
