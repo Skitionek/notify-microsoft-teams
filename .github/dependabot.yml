@@ -1,5 +1,11 @@
 # Dependabot configuration
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# `groups` below exist to keep tightly-coupled dependencies in a single PR.
+# Packages in the same group pin each other via peer dependencies or are
+# released in lockstep, so bumping one alone produces a broken build or a
+# peer-dependency conflict.
+# Add a package to an existing group rather than letting it be bumped solo.
 
 version: 2
 updates:
@@ -23,7 +29,20 @@ updates:
     commit-message:
       prefix: 'build'
     groups:
+      # semantic-release plugins declare a peerDependency on the
+      # semantic-release major.
       semantic-release:
         patterns:
           - '@semantic-release/*'
           - 'semantic-release'
+      # @babel/cli, preset-env and the proposal plugins all peer on
+      # @babel/core and ship from one monorepo release. The bundled action in
+      # dist/ is produced by this toolchain, so they have to move together.
+      babel:
+        patterns:
+          - '@babel/*'
+      # @eslint/js is versioned in step with the eslint major it ships for.
+      eslint:
+        patterns:
+          - 'eslint'
+          - '@eslint/*'
