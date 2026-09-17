@@ -53,7 +53,9 @@
     "jest": "^29.4.1"
   },
   "overrides": {
-    "fast-xml-parser": "^5.7.2"
+    "fast-xml-parser": "^5.7.2",
+    "undici": "^6.24.0",
+    "uuid": "^11.1.1"
   },
   "release": {
     "plugins": [
