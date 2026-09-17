@@ -10,6 +10,10 @@ updates:
       interval: 'daily'
     commit-message:
       prefix: 'ci'
+    groups:
+      codeql-action:
+        patterns:
+          - 'github/codeql-action/*'
 
   # Maintain npm dependencies
   - package-ecosystem: 'npm'
@@ -18,3 +22,8 @@ updates:
       interval: 'weekly'
     commit-message:
       prefix: 'build'
+    groups:
+      semantic-release:
+        patterns:
+          - '@semantic-release/*'
+          - 'semantic-release'
