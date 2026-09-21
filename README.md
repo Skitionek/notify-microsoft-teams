@@ -39,10 +39,14 @@ You can customize the following parameters:
 |     steps      |     optional      | {}               | JSON parsed steps context                                                                                |
 |     needs      |     optional      | {}               | JSON parsed needs context                                                                                |
 |    dry_run     |     optional      | False            | Do not actually send the message                                                                         |
+|    retries     |     optional      | 0                | Number of retries on Teams notification errors (non-negative integer)                                    |
 |      raw       |     optional      | ''               | JSON object to send to Microsoft Teams                                                                   |
 |     title      |     optional      | ''               | Overwrite default title                                                                                  |
 |    actions     |     optional      | ''               | JSON array of Adaptive Card Action objects to replace the default Repository/Compare buttons             |
 | msteams_emails |     optional      | ''               | Microsoft teams email ids in CSV to tag in the message                                                   |
+
+When debug logging is enabled for GitHub Actions, this action emits additional debug details for notification attempts and failures.
+Debug mode is enabled when either `ACTIONS_STEP_DEBUG=true` or `RUNNER_DEBUG=1` is set.
 
 Please refer [action.yml](./action.yml) for more details.
 
@@ -69,6 +73,7 @@ jobs:
           needs: ${{ toJson(needs) }}
           job: ${{ toJson(job) }}
           steps: ${{ toJson(steps) }}
+          retries: 2
           dry_run: True
 
   with_emails:

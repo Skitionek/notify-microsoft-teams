@@ -45,7 +45,10 @@ describe('run function', () => {
   }
 
   beforeEach(() => {
+    jest.restoreAllMocks()
     jest.clearAllMocks()
+    delete process.env.RUNNER_DEBUG
+    delete process.env.ACTIONS_STEP_DEBUG
   })
 
   it('should send a notification with the correct payload', async () => {
@@ -137,6 +140,134 @@ describe('run function', () => {
     await run()
 
     expect(mockSetFailed).toHaveBeenCalledWith(expect.any(String))
+  })
+
+  it('should retry notify and succeed before reaching max retries', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '2'
+    }
+    core.getInput.mockImplementation(name => params[name] || '')
+
+    const mockNotify = jest
+      .spyOn(MSTeams.prototype, 'notify')
+      .mockRejectedValueOnce(new Error('Temporary failure'))
+      .mockResolvedValueOnce()
+
+    const mockWarning = jest.spyOn(core, 'warning')
+    const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+    await run()
+
+    expect(mockNotify).toHaveBeenCalledTimes(2)
+    expect(mockWarning).toHaveBeenCalledWith(
+      'Retrying Microsoft Teams notification (2/3)'
+    )
+    expect(mockSetFailed).not.toHaveBeenCalled()
+  })
+
+  it('should fail after all retries are exhausted', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '2'
+    }
+    core.getInput.mockImplementation(name => params[name] || '')
+
+    const mockNotify = jest
+      .spyOn(MSTeams.prototype, 'notify')
+      .mockRejectedValue(new Error('Permanent failure'))
+
+    const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+    await run()
+
+    expect(mockNotify).toHaveBeenCalledTimes(3)
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Failed to send notification to Microsoft Teams after 3 attempt(s): Permanent failure'
+    )
+  })
+
+  it('should fail gracefully when notify rejects with a non-Error value', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '1'
+    }
+    core.getInput.mockImplementation(name => params[name] || '')
+
+    const mockNotify = jest
+      .spyOn(MSTeams.prototype, 'notify')
+      .mockRejectedValue('service unavailable')
+
+    const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+    await run()
+
+    expect(mockNotify).toHaveBeenCalledTimes(2)
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Failed to send notification to Microsoft Teams after 2 attempt(s): "service unavailable"'
+    )
+  })
+
+  it('should fail when retries input is invalid', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '-1'
+    }
+    core.getInput.mockImplementation(name => params[name] || '')
+
+    const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+    await run()
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Invalid "retries" input: "-1". Please provide a non-negative integer.'
+    )
+  })
+
+  it('should emit debug logs when RUNNER_DEBUG is enabled', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '0'
+    }
+    core.getInput.mockImplementation(name => params[name] || '')
+    const mockNotify = jest
+      .spyOn(MSTeams.prototype, 'notify')
+      .mockImplementation(jest.fn())
+    const mockDebug = jest.spyOn(core, 'debug')
+
+    process.env.RUNNER_DEBUG = '1'
+    delete process.env.ACTIONS_STEP_DEBUG
+
+    await run()
+
+    expect(mockNotify).toHaveBeenCalledTimes(1)
+    expect(mockDebug).toHaveBeenCalledWith(
+      'GitHub Actions step debug logging is enabled.'
+    )
+    expect(mockDebug).toHaveBeenCalledWith('Sending notification attempt 1/1')
+  })
+
+  it('should emit debug logs when ACTIONS_STEP_DEBUG is enabled', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '0'
+    }
+    core.getInput.mockImplementation(name => params[name] || '')
+    const mockNotify = jest
+      .spyOn(MSTeams.prototype, 'notify')
+      .mockImplementation(jest.fn())
+    const mockDebug = jest.spyOn(core, 'debug')
+
+    delete process.env.RUNNER_DEBUG
+    process.env.ACTIONS_STEP_DEBUG = 'true'
+
+    await run()
+
+    expect(mockNotify).toHaveBeenCalledTimes(1)
+    expect(mockDebug).toHaveBeenCalledWith(
+      'GitHub Actions step debug logging is enabled.'
+    )
+    expect(mockDebug).toHaveBeenCalledWith('Sending notification attempt 1/1')
   })
 
   it('should allow raw payload', async () => {
@@ -259,17 +390,125 @@ describe('run function', () => {
       expect.stringContaining('Invalid JSON provided for "actions" input')
     )
   })
+
+  it.each([
+    ['{}', 'a JSON object'],
+    ['"foo"', 'a JSON string'],
+    ['1', 'a JSON number'],
+    ['true', 'a JSON boolean'],
+    ['null', 'a JSON null'],
+    ['[1, 2]', 'an array of non-objects'],
+    ['[["nested"]]', 'an array of nested arrays'],
+    ['[null]', 'an array containing null']
+  ])(
+    'should fail when actions input is %s (%s) instead of an array of objects',
+    async (actionsValue) => {
+      const params = {
+        ...defaultParams,
+        actions: actionsValue
+      }
+      core.getInput.mockImplementation(name =>
+        params[name] !== undefined ? params[name] : ''
+      )
+      const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid "actions" input')
+      )
+    }
+  )
+
+  it.each(['2junk', '1.5', '0x10', '+3', '  ', 'NaN', '-1'])(
+    'should fail when retries input "%s" is not a strict non-negative integer',
+    async (retriesValue) => {
+      const params = {
+        ...defaultParams,
+        retries: retriesValue
+      }
+      core.getInput.mockImplementation(name =>
+        params[name] !== undefined ? params[name] : ''
+      )
+      const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid "retries" input')
+      )
+    }
+  )
+
+  it('should accept a valid retries value like "3"', async () => {
+    const params = {
+      ...defaultParams,
+      retries: '3'
+    }
+    core.getInput.mockImplementation(name =>
+      params[name] !== undefined ? params[name] : ''
+    )
+    const mockNotify = jest
+      .spyOn(MSTeams.prototype, 'notify')
+      .mockImplementation(jest.fn())
+    const mockSetFailed = jest.spyOn(core, 'setFailed')
+
+    await run()
+
+    expect(mockNotify).toHaveBeenCalled()
+    expect(mockSetFailed).not.toHaveBeenCalled()
+  })
+
+  it('should not log the raw caller-controlled payload or the full generated payload at info level', async () => {
+    const params = {
+      ...defaultParams,
+      raw: JSON.stringify({ secret: 'super-secret-value' })
+    }
+    core.getInput.mockImplementation(name =>
+      params[name] !== undefined ? params[name] : ''
+    )
+    jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn())
+    const mockInfo = jest.spyOn(core, 'info')
+
+    await run()
+
+    for (const call of mockInfo.mock.calls) {
+      const loggedText = call.join(' ')
+      expect(loggedText).not.toContain('super-secret-value')
+    }
+  })
+
+  it('should log the full generated payload only at debug level when debug is enabled', async () => {
+    const params = {
+      ...defaultParams,
+      raw: JSON.stringify({ secret: 'debug-secret-value' })
+    }
+    core.getInput.mockImplementation(name =>
+      params[name] !== undefined ? params[name] : ''
+    )
+    jest.spyOn(MSTeams.prototype, 'notify').mockImplementation(jest.fn())
+    const mockDebug = jest.spyOn(core, 'debug')
+
+    process.env.RUNNER_DEBUG = '1'
+
+    await run()
+
+    const loggedDebug = mockDebug.mock.calls.map(call => call.join(' ')).join('\n')
+    expect(loggedDebug).toContain('debug-secret-value')
+  })
 })
 
 describe('run function with dry_run', () => {
   beforeEach(() => {
+    jest.restoreAllMocks()
     jest.clearAllMocks()
   })
 
   it('should skip notification when dry_run is true', async () => {
     core.getInput.mockImplementation(name => {
       if (name === 'dry_run') return 'true'
-      return '{}'
+      if (name === 'webhook_url') return 'dummy_webhook'
+      return ''
     })
     const mockNotify = jest
       .spyOn(MSTeams.prototype, 'notify')
@@ -288,7 +527,7 @@ describe('run function with dry_run', () => {
     core.getInput.mockImplementation(name => {
       if (name === 'dry_run') return 'false'
       if (name === 'webhook_url') return 'dummy_webhook'
-      return '{}'
+      return ''
     })
     const mockNotify = jest
       .spyOn(MSTeams.prototype, 'notify')
@@ -318,6 +557,7 @@ describe('run function with dry_run', () => {
 
 describe('run function when webhook_url is missing', () => {
   beforeEach(() => {
+    jest.restoreAllMocks()
     jest.clearAllMocks()
   })
 
