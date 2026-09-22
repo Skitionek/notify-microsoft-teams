@@ -1,0 +1,12 @@
+# MegaLinter configuration
+# https://megalinter.io/latest/configuration/
+
+# This repository lints JavaScript with its own ESLint (v10, flat config in
+# eslint.config.mjs) via `npm run lint`, which the Test workflow runs on every
+# push and pull request. MegaLinter bundles ESLint v8 and, finding no
+# .eslintrc.json, drops in its default one and invokes `eslint --no-eslintrc`.
+# ESLint then sees eslint.config.mjs, switches to flat-config mode where
+# --no-eslintrc no longer exists, and aborts with "Invalid option
+# '--eslintrc'" — failing the Lint workflow without linting anything.
+DISABLE_LINTERS:
+  - JAVASCRIPT_ES
