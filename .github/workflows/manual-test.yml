@@ -7,6 +7,7 @@ on:
       webhook_url:
         description: 'Teams incoming webhook URL (leave empty to use repository secret)'
         required: false
+        type: string
       dry_run:
         description: 'Dry run (do not actually send the message)'
         required: false
