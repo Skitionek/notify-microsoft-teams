@@ -1,5 +1,5 @@
 const http = require('@actions/http-client')
-const { context: github } = require('@actions/github')
+const { context: github } = require('./githubContext')
 const core = require('@actions/core')
 
 const placeholder = ''

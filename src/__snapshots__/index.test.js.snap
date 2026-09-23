@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`run function with various combinations of job, steps, and needs should call MSTeams.notify with correct payload when {"description":"default","job":{"id":"job_1","status":"success"},"steps":[],"needs":{"need_1":{"result":"success","outputs":{"key2":"value2"}}},"msteams_emails":""}: payload 1`] = `
 {

@@ -3,7 +3,7 @@ const MSTeams = require('./MSTeams')
 const http = require('@actions/http-client')
 
 // Mock the github context
-jest.mock('@actions/github', () => ({
+jest.mock('./githubContext', () => ({
   context: {
     payload: {
       repository: {

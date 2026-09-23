@@ -7,6 +7,7 @@ on:
       webhook_url:
         description: 'Teams incoming webhook URL (leave empty to use repository secret)'
         required: false
+        type: string
       dry_run:
         description: 'Dry run (do not actually send the message)'
         required: false
@@ -25,7 +26,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Notify with title
         uses: ./
         with:
@@ -39,7 +40,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Notify with job context
         uses: ./
         with:
@@ -53,7 +54,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Example step
         id: example
@@ -73,7 +74,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Notify with raw payload
         uses: ./
         with:
@@ -107,7 +108,7 @@ jobs:
       - test-with-raw
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Notify with needs context
         uses: ./
         with:
