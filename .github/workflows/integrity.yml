@@ -41,12 +41,14 @@ jobs:
           steps.dist_check.outputs.up_to_date == 'false' &&
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist/
           git commit -m "build: rebuild dist/ [skip ci]"
-          git push origin HEAD:refs/heads/${{ github.head_ref }}
+          git push origin "HEAD:refs/heads/$HEAD_REF"
       - name: Fail if dist is still out of date
         if: steps.dist_check.outputs.up_to_date == 'false'
         run: |
