@@ -38,17 +38,16 @@
     "ms-teams-webhook": "^2.2.2"
   },
   "devDependencies": {
-    "@actions/github": "^9.1.1",
-    "@babel/cli": "^7.20.7",
-    "@babel/core": "^7.9.0",
-    "@babel/plugin-proposal-class-properties": "^7.8.3",
-    "@babel/preset-env": "^7.9.5",
+    "@babel/cli": "^8.0.6",
+    "@babel/core": "^8.0.6",
+    "@babel/preset-env": "^8.0.6",
     "@eslint/js": "^10.0.1",
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/git": "^11.0.1",
     "@vercel/ncc": "^0.38.2",
     "cspell": "^10.0.0",
     "eslint": "^10.8.0",
+    "globals": "^17.12.0",
     "husky": "^9.1.7",
     "jest": "^30.4.2"
   },
@@ -69,9 +68,6 @@
     "branch": "master"
   },
   "babel": {
-    "plugins": [
-      "@babel/plugin-proposal-class-properties"
-    ],
     "presets": [
       [
         "@babel/preset-env",
