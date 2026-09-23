@@ -38,7 +38,6 @@
     "ms-teams-webhook": "^2.2.2"
   },
   "devDependencies": {
-    "@actions/github": "^2.1.1",
     "@babel/cli": "^8.0.6",
     "@babel/core": "^8.0.6",
     "@babel/preset-env": "^8.0.6",

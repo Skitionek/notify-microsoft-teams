@@ -5,7 +5,7 @@ jest.mock('@actions/core')
 const core = require('@actions/core')
 
 // Mock the github context
-jest.mock('@actions/github', () => ({
+jest.mock('./githubContext', () => ({
   context: {
     payload: {
       repository: {
