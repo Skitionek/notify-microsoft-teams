@@ -8,6 +8,15 @@ FILTER_REGEX_EXCLUDE: '(dist/|node_modules/)'
 
 # ── Per-linter tweaks ─────────────────────────────────────────────────────────
 
+# eslint: this repository lints JavaScript with its own ESLint 10 and the flat
+# config in eslint.config.mjs, run by `npm run lint` inside `npm test` in the
+# Run Tests workflow. MegaLinter bundles ESLint 8 and invokes it with
+# --no-eslintrc, but ESLint finds eslint.config.mjs, switches to flat-config
+# mode where that flag no longer exists, and aborts without linting anything.
+# Drop the duplicate rather than maintaining a second, stale config.
+DISABLE_LINTERS:
+  - JAVASCRIPT_ES
+
 # jscpd: test files share similar setup/teardown patterns which creates
 # intentional "duplication". Downgrade to non-blocking.
 COPYPASTE_JSCPD_DISABLE_ERRORS: true
