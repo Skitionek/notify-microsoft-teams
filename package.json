@@ -33,9 +33,9 @@
   "homepage": "https://github.com/Skitionek/notify-microsoft-teams#readme",
   "dependencies": {
     "@actions/core": "^1.11.1",
+    "@actions/http-client": "^2.0.1",
     "@octokit/rest": "^22.0.1",
-    "lodash.merge": "^4.6.2",
-    "ms-teams-webhook": "^2.2.2"
+    "lodash.merge": "^4.6.2"
   },
   "devDependencies": {
     "@babel/cli": "^8.0.6",
@@ -57,7 +57,8 @@
     "axios": "^1.20.0",
     "form-data": "^4.0.6",
     "uuid": "^11.1.1",
-    "@xmldom/xmldom": "^0.9.12"
+    "@xmldom/xmldom": "^0.9.12",
+    "undici": "^6.24.0"
   },
   "release": {
     "plugins": [
