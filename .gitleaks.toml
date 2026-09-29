@@ -1,0 +1,14 @@
+[extend]
+# Keep gitleaks' full default ruleset active for hand-written source.
+useDefault = true
+
+[allowlist]
+# dist/ is a generated ncc bundle of third-party dependencies (e.g. the
+# @actions/core JSDoc includes a placeholder "abc123xyz456" example token
+# that gitleaks' generic-api-key rule flags as a false positive). It is
+# already excluded from every other linter via FILTER_REGEX_EXCLUDE in
+# .megalinter.yml; gitleaks runs at project scope and does not honour that
+# exclusion, so it needs its own allowlist entry.
+paths = [
+  '''dist/.*''',
+]
