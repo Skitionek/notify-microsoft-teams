@@ -45,7 +45,7 @@
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/git": "^11.0.1",
     "@vercel/ncc": "^0.38.2",
-    "cspell": "^10.0.0",
+    "cspell": "^10.3.6",
     "eslint": "^10.8.0",
     "globals": "^17.13.0",
     "husky": "^9.1.7",
