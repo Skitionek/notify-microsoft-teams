@@ -193,3 +193,56 @@ describe('MSTeams.notify', () => {
     expect(mockSend).toHaveBeenCalledWith(payload)
   })
 })
+
+describe('MSTeams.generatePayload – failure step outputs', () => {
+  it('renders outputs block when a failed step has object outputs', async () => {
+    // Given
+    const steps = {
+      build: {
+        outcome: 'failure',
+        outputs: { error_log: 'build failed at line 42' }
+      }
+    }
+    const msTeams = new MSTeams()
+
+    // When
+    const payload = await msTeams.generatePayload({ steps })
+
+    // Then
+    const body = payload.attachments[0].content.body
+    const factSet = body.find(b => b.type === 'FactSet')
+    expect(factSet).toBeDefined()
+    const outputBlock = factSet.facts.find(f => f.type === 'TextBlock')
+    expect(outputBlock).toBeDefined()
+    expect(outputBlock.text).toContain('build')
+    expect(outputBlock.text).toContain('error_log')
+    expect(outputBlock.text).toContain('build failed at line 42')
+  })
+
+  it('does not throw and omits outputs block when a failed step has empty outputs', async () => {
+    // Given
+    const steps = {
+      build: { outcome: 'failure', outputs: {} }
+    }
+    const msTeams = new MSTeams()
+
+    // When / Then
+    const payload = await msTeams.generatePayload({ steps })
+    const body = payload.attachments[0].content.body
+    const factSet = body.find(b => b.type === 'FactSet')
+    expect(factSet).toBeDefined()
+    const outputBlock = factSet.facts.find(f => f.type === 'TextBlock')
+    expect(outputBlock).toBeUndefined()
+  })
+
+  it('does not throw when a failed step has no outputs property', async () => {
+    // Given
+    const steps = {
+      build: { outcome: 'failure' }
+    }
+    const msTeams = new MSTeams()
+
+    // When / Then
+    await expect(msTeams.generatePayload({ steps })).resolves.toBeDefined()
+  })
+})
