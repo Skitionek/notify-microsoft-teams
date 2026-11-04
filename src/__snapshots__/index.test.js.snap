@@ -242,6 +242,12 @@ exports[`run function with various combinations of job, steps, and needs should 
                 "value": "Failure",
               },
               {
+                "text": "need_2:
++ key4:
+\`\`\`value4\`\`\`",
+                "type": "TextBlock",
+              },
+              {
                 "title": "✓ abcdefghijkl...",
                 "value": "Success!",
               },

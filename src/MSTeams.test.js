@@ -62,6 +62,55 @@ describe('MSTeams.generatePayload', () => {
     expect(actionSet).toBeDefined()
     expect(actionSet.actions.some(a => a.title === 'Repository')).toBe(true)
   })
+
+  it('should render outputs for a failed step when outputs is an object', async () => {
+    const msTeams = new MSTeams()
+    const payload = await msTeams.generatePayload({
+      steps: {
+        my_step: {
+          outcome: 'failure',
+          outputs: { result: 'some output value', code: '42' }
+        }
+      }
+    })
+
+    const body = payload.attachments[0].content.body
+    const textBlocks = body.flatMap(b =>
+      b.type === 'FactSet' ? b.facts.filter(f => f.type === 'TextBlock') : []
+    )
+    expect(textBlocks.length).toBeGreaterThan(0)
+    expect(textBlocks[0].text).toContain('my_step')
+    expect(textBlocks[0].text).toContain('result')
+  })
+
+  it('should not throw when a failed step has no outputs property', async () => {
+    const msTeams = new MSTeams()
+    await expect(
+      msTeams.generatePayload({
+        steps: {
+          my_step: { outcome: 'failure' }
+        }
+      })
+    ).resolves.toBeDefined()
+  })
+
+  it('should not render outputs block when outputs object is empty', async () => {
+    const msTeams = new MSTeams()
+    const payload = await msTeams.generatePayload({
+      steps: {
+        my_step: {
+          outcome: 'failure',
+          outputs: {}
+        }
+      }
+    })
+
+    const body = payload.attachments[0].content.body
+    const textBlocks = body.flatMap(b =>
+      b.type === 'FactSet' ? b.facts.filter(f => f.type === 'TextBlock') : []
+    )
+    expect(textBlocks.length).toBe(0)
+  })
 })
 
 describe('MSTeams.notify', () => {
