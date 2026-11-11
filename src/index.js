@@ -118,6 +118,7 @@ async function run () {
     const msteams_emails = core.getInput('msteams_emails')
     let raw = core.getInput('raw')
     const dry_run = core.getInput('dry_run')
+    const github_token = core.getInput('github_token')
     const retries = parseRetryInput(core.getInput('retries'))
 
     const overwrite = core.getInput('overwrite')
@@ -139,6 +140,7 @@ async function run () {
           actions,
           msteams_emails,
           dry_run,
+          github_token,
           retries
         })
       )}`
@@ -176,7 +178,8 @@ async function run () {
         needs,
         title,
         actions: parsedActions,
-        msteams_emails
+        msteams_emails,
+        github_token
       })
     } else {
       payload = JSON.parse(raw)
