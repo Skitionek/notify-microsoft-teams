@@ -80,9 +80,50 @@ function Status (status) {
 }
 
 const repository_link = `[${repository.full_name}](${repository.html_url})`
-const changelog = commits.length
-  ? `**Changelog:**${commits.reduce((o, c) => console.dir(c) || o + '\n+ ' + c.message, '\n')}`
-  : undefined
+
+const toChangelogCommit = c => ({ message: c.commit.message.split('\n')[0] })
+
+async function fetchCommitsFromApi (github_token) {
+  const { eventName: evtName, payload } = github
+
+  let currentTag = null
+  if (evtName === 'release') {
+    currentTag = payload.release?.tag_name
+  } else if (payload.ref?.startsWith('refs/tags/')) {
+    currentTag = payload.ref.replace('refs/tags/', '')
+  }
+
+  if (!currentTag) return []
+
+  const { owner, repo } = github.repo
+
+  try {
+    const { Octokit } = require('@octokit/rest')
+    const octokit = new Octokit({ auth: github_token })
+
+    const tagsResponse = await octokit.rest.repos.listTags({ owner, repo, per_page: 100 })
+    const tags = tagsResponse.data
+    const currentTagIndex = tags.findIndex(t => t.name === currentTag)
+
+    if (currentTagIndex === -1) return []
+
+    if (currentTagIndex >= tags.length - 1) {
+      const commitsResponse = await octokit.rest.repos.listCommits({ owner, repo, sha: currentTag, per_page: 100 })
+      return commitsResponse.data.map(toChangelogCommit)
+    }
+
+    const previousTag = tags[currentTagIndex + 1]
+    const compareResponse = await octokit.rest.repos.compareCommitsWithBasehead({
+      owner,
+      repo,
+      basehead: `${previousTag.name}...${currentTag}`
+    })
+    return compareResponse.data.commits.map(toChangelogCommit)
+  } catch (e) {
+    core.warning(`Failed to fetch commits from GitHub API: ${e.message}`)
+    return []
+  }
+}
 const outputs2markdown = outputs =>
   Object.keys(outputs).reduce(
     (o, output_name) =>
@@ -196,6 +237,7 @@ class MSTeams {
    * @param title {string} msteams message title
    * @param actions {Array} optional array of Adaptive Card Action objects to replace default buttons
    * @param msteams_emails {string} msteams emails in CSV
+   * @param github_token {string} GitHub token for API access
    * @return
    */
   async generatePayload ({
@@ -204,11 +246,20 @@ class MSTeams {
     needs = {},
     title = '',
     actions = null,
-    msteams_emails = ''
+    msteams_emails = '',
+    github_token = ''
   }) {
     const steps_summary = summary_generator(steps, 'outcome')
     const needs_summary = summary_generator(needs, 'result')
     const status_summary = statusSummary(job)
+
+    let changelogCommits = commits
+    if (!changelogCommits.length && github_token) {
+      changelogCommits = await fetchCommitsFromApi(github_token)
+    }
+    const changelog = changelogCommits.length
+      ? `**Changelog:**${changelogCommits.reduce((o, c) => o + '\n+ ' + c.message, '\n')}`
+      : undefined
 
     const commitChangeLog = changelog
       ? [
